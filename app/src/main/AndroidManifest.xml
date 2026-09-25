@@ -52,6 +52,15 @@
             </intent-filter>
         </service>
 
+        <!-- WorkManager foreground downloads service.
+             setForeground(FOREGROUND_SERVICE_TYPE_DATA_SYNC) requires the host
+             service to declare the dataSync type (lint SpecifyForegroundServiceType). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:node="merge" />
+
         <!-- Disable default WorkManager Initializer for on-demand Hilt WorkerFactory -->
         <provider
             android:name="androidx.startup.InitializationProvider"
