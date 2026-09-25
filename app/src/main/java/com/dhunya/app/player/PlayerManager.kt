@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,7 +24,7 @@ interface DhunyaPlayer {
 
 @Singleton
 class PlayerManager @Inject constructor(
-    private val context: Context,
+    @ApplicationContext private val context: Context,
     val queueManager: QueueManager
 ) : DhunyaPlayer {
 

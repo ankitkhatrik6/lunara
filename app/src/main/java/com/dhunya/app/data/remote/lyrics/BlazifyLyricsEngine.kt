@@ -1,8 +1,8 @@
 package com.dhunya.app.data.remote.lyrics
 
 import android.content.Context
+import com.dhunya.app.domain.model.LyricLine
 import com.dhunya.app.domain.model.Lyrics
-import com.dhunya.app.domain.model.SyncedLine
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -100,7 +100,7 @@ class BlazifyLyricsEngine @Inject constructor(
      */
     fun parseLrcLyrics(songId: String, lrcContent: String): Lyrics {
         val timeRegex = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]""")
-        val syncedLines = mutableListOf<SyncedLine>()
+        val syncedLines = mutableListOf<LyricLine>()
         val plainBuilder = StringBuilder()
 
         lrcContent.lines().forEach { rawLine ->
@@ -118,7 +118,7 @@ class BlazifyLyricsEngine @Inject constructor(
                 val timeMs = (min * 60 * 1000) + (sec * 1000) + frac
                 val text = line.substring(match.range.last + 1).trim()
                 if (text.isNotBlank()) {
-                    syncedLines.add(SyncedLine(timestampMs = timeMs, text = text))
+                    syncedLines.add(LyricLine(timestampMs = timeMs, text = text))
                     plainBuilder.appendLine(text)
                 }
             } else if (line.isNotBlank() && !line.startsWith("[")) {

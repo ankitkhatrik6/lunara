@@ -230,7 +230,7 @@ fun EmptyStateView(
         modifier = modifier
             .fillMaxSize()
             .padding(32.dp),
-        horizontalAlignment = Alignment.CenterAlignment,
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(

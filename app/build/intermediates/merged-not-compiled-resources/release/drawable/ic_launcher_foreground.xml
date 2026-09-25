@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Note head -->
+    <path
+        android:fillColor="#35D6C2"
+        android:pathData="M30,72 C30,65.5 35.5,61 43,61 C50.5,61 56,65.5 56,72 C56,78.5 50.5,83 43,83 C35.5,83 30,78.5 30,72 Z" />
+
+    <!-- Stem -->
+    <path
+        android:fillColor="#35D6C2"
+        android:pathData="M52,28 L57,28 L57,74 L52,74 Z" />
+
+    <!-- Flag -->
+    <path
+        android:fillColor="#8B7CFF"
+        android:pathData="M57,28 L78,35 L76,47 L57,40 Z" />
+</vector>

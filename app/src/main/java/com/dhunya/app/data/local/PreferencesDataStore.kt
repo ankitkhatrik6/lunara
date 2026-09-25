@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.dhunya.app.core.constants.AppConstants
 import com.dhunya.app.domain.model.UserSettings
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -13,7 +14,7 @@ import javax.inject.Inject
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = AppConstants.DATASTORE_NAME)
 
 class PreferencesDataStore @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     companion object {
         val KEY_HIGH_QUALITY = booleanPreferencesKey("pref_high_quality")

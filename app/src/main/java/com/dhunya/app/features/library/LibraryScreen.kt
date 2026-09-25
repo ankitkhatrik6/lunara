@@ -171,7 +171,7 @@ fun LibraryScreen(
             )
             LibraryTabChip(
                 label = "Playlists (${uiState.playlists.size})",
-                selected = uiState.selectedTab == LibraryTab.PLAYLIST,
+                selected = uiState.selectedTab == LibraryTab.PLAYLISTS,
                 onClick = { viewModel.selectTab(LibraryTab.PLAYLISTS) }
             )
             LibraryTabChip(

@@ -85,10 +85,8 @@ class MusicRepositoryImpl @Inject constructor(
                 if (streamUrl != null) {
                     Resource.Success(
                         PlayableMedia(
-                            songId = song.id,
-                            streamUrl = streamUrl,
-                            format = "audio/webm; codecs=opus",
-                            bitrateKbps = 160,
+                            song = song,
+                            mediaUri = streamUrl,
                             isLocal = false
                         )
                     )
