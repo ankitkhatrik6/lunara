@@ -249,10 +249,14 @@ object InnerTubeParser {
 
     /** "Artist • Album • 3:25" -> [Artist, Album] ("Artist • 3:25" -> [Artist]). */
     private fun String?.subtitleParts(): List<String> {
-        val separator = this?.indexOf(SEPARATOR) ?: -1
-        if (separator < 0) return this?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
-        val head = substring(0, separator).trim()
-        val tail = substring(separator + 1).trim()
+        // Narrow the nullable receiver once: every branch below works on a real String,
+        // so no branch can dereference null and the compiler stays happy.
+        val text = this?.trim().orEmpty()
+        if (text.isEmpty()) return emptyList()
+        val separator = text.indexOf(SEPARATOR)
+        if (separator < 0) return listOf(text)
+        val head = text.substring(0, separator).trim()
+        val tail = text.substring(separator + 1).trim()
         val out = mutableListOf<String>()
         if (head.isNotEmpty()) out.add(head)
         // The second credit is the album unless it is a duration ("3:25") or a year.

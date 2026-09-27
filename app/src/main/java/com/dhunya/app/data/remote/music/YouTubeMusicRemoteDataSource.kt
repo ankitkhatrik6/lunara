@@ -1,5 +1,6 @@
 package com.dhunya.app.data.remote.music
 
+import com.dhunya.app.data.remote.innertube.AudioStream
 import com.dhunya.app.data.remote.innertube.InnerTubeApi
 import com.dhunya.app.data.remote.innertube.InnerTubeClient
 import com.dhunya.app.data.remote.innertube.InnerTubeClients

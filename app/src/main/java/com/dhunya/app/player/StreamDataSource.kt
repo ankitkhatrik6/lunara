@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.DataSpec
 
 /**
@@ -49,7 +48,7 @@ private class RangedHttpDataSource(
         val position = dataSpec.position
         if (position < 0L || position >= total) return null
         val remaining = total - position
-        val wanted = if (dataSpec.length == C.LENGTH_UNSET) remaining
+        val wanted = if (dataSpec.length == C.LENGTH_UNSET.toLong()) remaining
         else minOf(dataSpec.length, remaining)
         if (wanted <= 0L) return null
         // Closed range: DefaultHttpDataSource translates position+length into

@@ -197,11 +197,23 @@ class PlayerManager @Inject constructor(
             }
             val playableSong = media.song.copy(streamUrl = uri)
             queueManager.updateSong(playableSong)
-            startPlayback(player, playableSong, uri)
+            startPlayback(player, playableSong, uri, media.mimeType)
         }
     }
 
-    private fun startPlayback(player: ExoPlayer, song: Song, uri: String) {
+    /**
+     * Hands [uri] to ExoPlayer.
+     *
+     * [mimeType] is the mime type the InnerTube format declared (e.g.
+     * `audio/webm; codecs="opus"`); passing it through avoids ExoPlayer sniffing a
+     * single chunk and settling on the wrong extractor, which stalls on "buffering".
+     */
+    private fun startPlayback(
+        player: ExoPlayer,
+        song: Song,
+        uri: String,
+        mimeType: String? = null
+    ) {
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artistName)
@@ -212,7 +224,7 @@ class PlayerManager @Inject constructor(
         val mediaItem = MediaItem.Builder()
             .setMediaId(song.id)
             .setUri(Uri.parse(uri))
-            .setMimeType(mimeTypeOf(uri, playable.media.mimeType))
+            .setMimeType(mimeTypeOf(uri, mimeType))
             .setMediaMetadata(mediaMetadata)
             .build()
 

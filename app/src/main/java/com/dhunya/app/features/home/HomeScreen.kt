@@ -88,15 +88,16 @@ class HomeViewModel @Inject constructor(
                 is com.dhunya.app.core.result.Resource.Success -> res.data
                 else -> emptyList()
             }.ifEmpty {
-                when (val res = musicRepository.searchSongs(FEATURED_FALLBACK_QUERY)) {
+                when (val res = musicRepository.searchSongs(HomeUiState.FEATURED_FALLBACK_QUERY)) {
                     is com.dhunya.app.core.result.Resource.Success -> res.data
                     else -> emptyList()
                 }
             }
 
-            combine(
-                libraryRepository.getHistory(),
-            ) { history -> history }.collect { history ->
+            // Single flow: collecting it directly keeps `history` as List<Song>.
+            // `combine(flow) { ... }` binds to the vararg overload here and hands the
+            // lambda an Array<List<Song>> instead, which broke the types below.
+            libraryRepository.getHistory().collect { history ->
                 _uiState.update {
                     it.copy(
                         recentlyPlayed = history.take(8),
