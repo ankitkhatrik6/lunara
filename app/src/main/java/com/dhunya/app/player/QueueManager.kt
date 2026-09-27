@@ -41,6 +41,38 @@ class QueueManager @Inject constructor() {
     val currentSong: Song?
         get() = _queue.value.getOrNull(_currentIndex.value)
 
+    /**
+     * `true` while [next] would hand out another track (repeat mode aware).
+     *
+     * The media notification asks this before enabling its skip buttons, so the state has to
+     * be computed from the queue and not from ExoPlayer's single media item.
+     */
+    val hasUpcoming: Boolean
+        get() {
+            val q = _queue.value
+            if (q.isEmpty()) return false
+            return when (_repeatMode.value) {
+                RepeatMode.ALL -> true
+                RepeatMode.ONE -> _currentIndex.value != -1
+                RepeatMode.OFF -> _currentIndex.value + 1 < q.size
+            }
+        }
+
+    /** `true` while a track is loaded, i.e. the notification can offer "previous". */
+    val hasPrevious: Boolean
+        get() = _queue.value.isNotEmpty() && _currentIndex.value >= 0
+
+    /**
+     * Tracks queued after the current one, in play order. Used to pre-resolve the next
+     * stream while the current track is still playing.
+     */
+    fun upcomingSongs(): List<Song> {
+        val q = _queue.value
+        val start = _currentIndex.value + 1
+        if (start !in q.indices) return emptyList()
+        return q.subList(start, q.size).toList()
+    }
+
     fun next(): Song? {
         val q = _queue.value
         if (q.isEmpty()) return null

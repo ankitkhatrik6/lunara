@@ -21,6 +21,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.dhunya.app.core.state.SongStates
+import com.dhunya.app.domain.model.DownloadStatus
 import com.dhunya.app.domain.model.Song
 import com.dhunya.app.features.downloads.DownloadsScreen
 import com.dhunya.app.features.home.HomeScreen
@@ -45,9 +47,12 @@ data class BottomNavItem(
 @Composable
 fun DhunyaApp(
     playerManager: PlayerManager,
+    songStates: SongStates,
     navController: NavHostController = rememberNavController()
 ) {
     val playbackState by playerManager.playbackState.collectAsState()
+    val favoriteIds by songStates.favoriteIds.collectAsState()
+    val downloadStates by songStates.downloadStatus.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -196,8 +201,14 @@ fun DhunyaApp(
 
     // Contextual Song Action Bottom Sheet
     selectedActionSong?.let { song ->
+        val downloadStatus = downloadStates[song.id]
+        val isDownloaded = downloadStatus == DownloadStatus.COMPLETED || song.isDownloaded
         SongActionBottomSheet(
             song = song,
+            isFavorite = song.id in favoriteIds,
+            isDownloaded = isDownloaded,
+            isDownloading = downloadStatus == DownloadStatus.QUEUED ||
+                downloadStatus == DownloadStatus.DOWNLOADING,
             onDismiss = { selectedActionSong = null },
             onPlay = {
                 playerManager.playSong(song)
@@ -209,10 +220,10 @@ fun DhunyaApp(
                 playerManager.queueManager.addToQueueEnd(song)
             },
             onToggleFavorite = {
-                // Toggled via repository in background
+                songStates.toggleFavorite(song)
             },
             onDownload = {
-                // Download started in background
+                if (isDownloaded) songStates.removeDownload(song.id) else songStates.download(song)
             }
         )
     }

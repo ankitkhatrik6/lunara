@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -137,20 +138,50 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         val contentLength: Long = 0L,
         /** Full mime type from the InnerTube format, e.g. `audio/mp4; codecs="mp4a.40.2"`. */
         val mimeType: String? = null,
-        val isHls: Boolean = false
+        val isHls: Boolean = false,
+        /** Ready alternatives for the same track, best first. */
+        val fallbackUrls: List<String> = emptyList()
     )
+
+    /** One audio URL plus the metadata needed to hand it to ExoPlayer. */
+    private data class Candidate(
+        val url: String,
+        val mimeType: String?,
+        val contentLength: Long,
+        val isHls: Boolean
+    )
+
+    private data class CachedStream(val stream: ResolvedStream, val resolvedAtMs: Long)
+
+    /** Keeps a track's URLs for a few minutes so repeat plays start instantly. */
+    private val streamCache = ConcurrentHashMap<String, CachedStream>()
 
     /**
      * Resolves the audio of a track, failing over between the client identities.
      *
-     * An HLS playlist wins whenever a client hands one out (HLS is not gated by YouTube's
-     * "PO token" requirement that limits the direct https formats), otherwise the best
-     * audio-only adaptive format is used. Every candidate is verified with a ranged probe
-     * first: YouTube answers `403` to any request that is not a *closed* byte range, and
-     * capped/limited URLs must not reach the player.
+     * Every client's formats are collected instead of stopping at the first usable one, so the
+     * player has spare URLs to fall back on. An HLS playlist wins whenever a client hands one
+     * out (HLS is not gated by YouTube's "PO token" requirement that limits the direct https
+     * formats). Candidates are verified with a ranged probe — YouTube answers `403` to any
+     * request that is not a *closed* byte range — but a track is still handed over when no
+     * probe succeeds, because some CDN edges reject this probe while serving ExoPlayer fine.
+     * That last resort is what turns the old "source error" dead ends into playable tracks.
      */
-    suspend fun resolveAudioStream(videoId: String): ResolvedStream? = withContext(Dispatchers.IO) {
+    suspend fun resolveAudioStream(
+        videoId: String,
+        forceRefresh: Boolean = false
+    ): ResolvedStream? = withContext(Dispatchers.IO) {
         val cleanId = videoId.removePrefix("yt_")
+
+        if (!forceRefresh) {
+            streamCache[cleanId]
+                ?.takeIf { System.currentTimeMillis() - it.resolvedAtMs < STREAM_CACHE_TTL_MS }
+                ?.let { return@withContext it.stream }
+        }
+
+        val verified = LinkedHashSet<Candidate>()
+        val unverified = LinkedHashSet<Candidate>()
+
         for (client in InnerTubeClients.STREAM_CLIENTS) {
             val root = api.player(
                 client = client,
@@ -159,16 +190,12 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             ) ?: continue
 
             InnerTubeParser.parseHlsManifestUrl(root)?.let { manifest ->
-                if (probeStream(manifest, client.userAgent, ranged = false)) {
-                    return@withContext ResolvedStream(
-                        url = manifest,
-                        mimeType = "application/x-mpegURL",
-                        isHls = true
-                    )
-                }
+                val candidate = Candidate(manifest, "application/x-mpegURL", 0L, isHls = true)
+                if (probeStream(manifest, client.userAgent, ranged = false)) verified.add(candidate)
+                else unverified.add(candidate)
             }
 
-            val candidates = InnerTubeParser.parseAudioStreams(root)
+            val formats = InnerTubeParser.parseAudioStreams(root)
                 .filter { it.url.startsWith("http") }
                 // m4a (mp4) first: ExoPlayer's MP4 extractor handles seeks on these far
                 // better than the webm/opus progressive streams, then highest bitrate.
@@ -176,17 +203,36 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
                     compareByDescending<AudioStream> { it.mimeType.contains("mp4") }
                         .thenByDescending { it.bitrate }
                 )
-            for (format in candidates) {
-                if (probeStream(format.url, client.userAgent, ranged = true)) {
-                    return@withContext ResolvedStream(
-                        url = format.url,
-                        contentLength = format.contentLength,
-                        mimeType = format.mimeType
-                    )
+
+            for (format in formats.take(MAX_CANDIDATES_PER_CLIENT)) {
+                val candidate = Candidate(
+                    url = format.url,
+                    mimeType = format.mimeType,
+                    contentLength = format.contentLength,
+                    isHls = false
+                )
+                if (verified.size < PREFERRED_VERIFIED_CANDIDATES &&
+                    probeStream(format.url, client.userAgent, ranged = true)
+                ) {
+                    verified.add(candidate)
+                } else {
+                    unverified.add(candidate)
                 }
             }
+
+            if (verified.size >= PREFERRED_VERIFIED_CANDIDATES) break
         }
-        null
+
+        val ordered = (verified + unverified).distinctBy { it.url }
+        val best = ordered.firstOrNull() ?: return@withContext null
+
+        ResolvedStream(
+            url = best.url,
+            contentLength = best.contentLength,
+            mimeType = best.mimeType,
+            isHls = best.isHls,
+            fallbackUrls = ordered.drop(1).map { it.url }
+        ).also { streamCache[cleanId] = CachedStream(it, System.currentTimeMillis()) }
     }
 
     /**
@@ -217,8 +263,20 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             stream.url,
             isLocal = false,
             mimeType = stream.mimeType,
-            isHls = stream.isHls
+            isHls = stream.isHls,
+            fallbackUris = stream.fallbackUrls
         )
+    }
+
+    private companion object {
+        /** How long a resolved stream stays reusable before it is resolved again. */
+        const val STREAM_CACHE_TTL_MS = 10 * 60 * 1000L
+
+        /** How many formats are probed per client identity. */
+        const val MAX_CANDIDATES_PER_CLIENT = 4
+
+        /** Stop asking further clients once this many candidates are verified playable. */
+        const val PREFERRED_VERIFIED_CANDIDATES = 3
     }
 }
 

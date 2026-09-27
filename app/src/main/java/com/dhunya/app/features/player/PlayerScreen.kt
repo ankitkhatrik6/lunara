@@ -25,12 +25,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dhunya.app.core.extensions.formatDurationMs
+import com.dhunya.app.core.state.SongStates
+import com.dhunya.app.domain.model.DownloadStatus
 import com.dhunya.app.domain.model.RepeatMode
 import com.dhunya.app.domain.model.Song
 import com.dhunya.app.domain.repository.DownloadRepository
 import com.dhunya.app.domain.repository.LibraryRepository
 import com.dhunya.app.player.PlaybackState
 import com.dhunya.app.player.PlayerManager
+import com.dhunya.app.ui.components.AnimatedDownloadIcon
+import com.dhunya.app.ui.components.AnimatedFavoriteButton
 import com.dhunya.app.ui.components.DhunyaArtwork
 import com.dhunya.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,11 +45,16 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playerManager: PlayerManager,
-    private val libraryRepository: LibraryRepository,
-    private val downloadRepository: DownloadRepository
+    private val songStates: SongStates
 ) : ViewModel() {
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
+
+    /** Ids of every loved track; drives the animated heart. */
+    val favoriteIds: StateFlow<Set<String>> = songStates.favoriteIds
+
+    /** Download status per song id, so the button can show progress and completion. */
+    val downloadStatus: StateFlow<Map<String, DownloadStatus>> = songStates.downloadStatus
 
     fun togglePlayPause() = playerManager.togglePlayPause()
     fun playNext() = playerManager.playNext()
@@ -54,17 +63,11 @@ class PlayerViewModel @Inject constructor(
     fun toggleShuffle() = playerManager.queueManager.toggleShuffle()
     fun cycleRepeatMode() = playerManager.queueManager.cycleRepeatMode()
 
-    fun toggleFavorite(song: Song) {
-        viewModelScope.launch {
-            libraryRepository.toggleFavorite(song)
-        }
-    }
+    fun toggleFavorite(song: Song) = songStates.toggleFavorite(song)
 
-    fun startDownload(song: Song) {
-        viewModelScope.launch {
-            downloadRepository.startDownload(song)
-        }
-    }
+    fun download(song: Song) = songStates.download(song)
+
+    fun removeDownload(songId: String) = songStates.removeDownload(songId)
 
     fun playQueueIndex(index: Int) {
         val song = playerManager.queueManager.playTrackAt(index)
@@ -86,6 +89,8 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val state by viewModel.playbackState.collectAsState()
+    val favoriteIds by viewModel.favoriteIds.collectAsState()
+    val downloadStates by viewModel.downloadStatus.collectAsState()
     val song = state.currentSong
 
     var showQueueSheet by remember { mutableStateOf(false) }
@@ -185,14 +190,11 @@ fun PlayerScreen(
                         )
                     }
 
-                    IconButton(onClick = { viewModel.toggleFavorite(song) }) {
-                        Icon(
-                            imageVector = if (song.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favorite",
-                            tint = if (song.isFavorite) DhunyaAccent else DhunyaTextSecondary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    AnimatedFavoriteButton(
+                        isFavorite = song.id in favoriteIds,
+                        onToggle = { viewModel.toggleFavorite(song) },
+                        iconSize = 28.dp
+                    )
                 }
 
                 // Scrubbing Progress Slider & Timestamps
@@ -335,11 +337,21 @@ fun PlayerScreen(
                         Text("Lyrics", color = DhunyaAccent)
                     }
 
-                    IconButton(onClick = { viewModel.startDownload(song) }) {
-                        Icon(
-                            imageVector = if (song.isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
-                            contentDescription = "Download track",
-                            tint = if (song.isDownloaded) DhunyaAccent else DhunyaTextSecondary
+                    // Download toggle: morphs into a spinner while the file is fetched and
+                    // into a tick once it is stored on the device.
+                    val downloadStatus = downloadStates[song.id]
+                    val isDownloaded =
+                        downloadStatus == DownloadStatus.COMPLETED || song.isDownloaded
+                    IconButton(
+                        onClick = {
+                            if (isDownloaded) viewModel.removeDownload(song.id)
+                            else viewModel.download(song)
+                        }
+                    ) {
+                        AnimatedDownloadIcon(
+                            status = downloadStatus,
+                            isDownloaded = isDownloaded,
+                            iconSize = 24.dp
                         )
                     }
                 }

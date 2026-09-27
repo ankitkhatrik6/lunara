@@ -36,7 +36,13 @@ data class PlayableMedia(
     val mediaUri: String,
     val isLocal: Boolean,
     val mimeType: String? = null,
-    val isHls: Boolean = false
+    val isHls: Boolean = false,
+    /**
+     * Other resolved URLs for the same track, best first. If the CDN rejects [mediaUri]
+     * mid playback (expired signature, throttled edge, PO-token gate) the player swaps to the
+     * next one instead of stopping with "source error".
+     */
+    val fallbackUris: List<String> = emptyList()
 )
 
 data class PlaybackQueue(

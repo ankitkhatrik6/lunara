@@ -42,6 +42,15 @@ class PlayerManager @Inject constructor(
     private var progressJob: Job? = null
     private var resolveJob: Job? = null
 
+    /** Spare resolved URLs for the current track, used to recover from CDN failures. */
+    private var currentFallbackUris: List<String> = emptyList()
+
+    /** URLs that already failed for the current track, so a swap never loops. */
+    private val failedUris = mutableSetOf<String>()
+
+    /** The URL currently loaded in ExoPlayer, tracked so a failure can be attributed to it. */
+    private var currentStreamUri: String? = null
+
     private val _playbackState = MutableStateFlow(PlaybackState())
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
@@ -112,6 +121,16 @@ class PlayerManager @Inject constructor(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // A resolved URL can die mid playback (expired signature, throttled edge,
+                // PO-token gate). Swapping to the next resolved format keeps the music going
+                // instead of dropping out with "source error".
+                val song = _playbackState.value.currentSong
+                currentStreamUri?.let { failedUris.add(it) }
+                val nextUri = currentFallbackUris.firstOrNull { it !in failedUris }
+                if (song != null && nextUri != null) {
+                    startPlayback(player, song, nextUri, mimeTypeOf(nextUri, null))
+                    return
+                }
                 _playbackState.value = _playbackState.value.copy(
                     isLoading = false,
                     isPlaying = false,
@@ -157,6 +176,10 @@ class PlayerManager @Inject constructor(
     override fun playSong(song: Song) {
         val player = exoPlayer ?: return
 
+        // Fresh track: forget the previous track's failover bookkeeping.
+        currentFallbackUris = emptyList()
+        failedUris.clear()
+
         // Locally stored / already resolved tracks can start straight away.
         val directUri = song.localUri ?: song.streamUrl
         if (!directUri.isNullOrBlank()) {
@@ -197,6 +220,8 @@ class PlayerManager @Inject constructor(
             }
             val playableSong = media.song.copy(streamUrl = uri)
             queueManager.updateSong(playableSong)
+            // Keep the other resolved formats at hand for a mid-track CDN failure.
+            currentFallbackUris = media.fallbackUris
             startPlayback(player, playableSong, uri, media.mimeType)
         }
     }
@@ -228,6 +253,7 @@ class PlayerManager @Inject constructor(
             .setMediaMetadata(mediaMetadata)
             .build()
 
+        currentStreamUri = uri
         player.setMediaItem(mediaItem)
         player.prepare()
         player.play()
@@ -238,6 +264,22 @@ class PlayerManager @Inject constructor(
             errorMessage = null,
             totalDurationMs = song.durationMs
         )
+
+        prefetchUpcoming()
+    }
+
+    /**
+     * Resolves the following track in the background while the current one plays.
+     *
+     * Resolving a YouTube stream takes a few hundred milliseconds (player endpoint + probe);
+     * doing it up front is the difference between Blazify-style instant skips and a silent
+     * gap every time the user presses next.
+     */
+    private fun prefetchUpcoming() {
+        val upcoming = queueManager.upcomingSongs()
+            .firstOrNull { it.localUri.isNullOrBlank() && it.streamUrl.isNullOrBlank() }
+            ?: return
+        scope.launch { runCatching { musicRepository.resolvePlayableMedia(upcoming) } }
     }
 
     fun playQueue(songs: List<Song>, startIndex: Int = 0) {

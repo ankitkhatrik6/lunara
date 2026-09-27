@@ -12,7 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.dhunya.app.domain.model.DownloadStatus
 import com.dhunya.app.domain.model.Song
+import com.dhunya.app.ui.components.AnimatedDownloadIcon
+import com.dhunya.app.ui.components.AnimatedFavoriteIcon
 import com.dhunya.app.ui.components.DhunyaArtwork
 import com.dhunya.app.ui.theme.*
 
@@ -20,6 +23,9 @@ import com.dhunya.app.ui.theme.*
 @Composable
 fun SongActionBottomSheet(
     song: Song,
+    isFavorite: Boolean,
+    isDownloaded: Boolean,
+    isDownloading: Boolean,
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
@@ -70,45 +76,70 @@ fun SongActionBottomSheet(
             HorizontalDivider(color = DhunyaBorder, modifier = Modifier.padding(bottom = 8.dp))
 
             // Action Items
-            SheetActionItem(
-                icon = Icons.Default.PlayArrow,
-                text = "Play now",
-                onClick = { onPlay(); onDismiss() }
-            )
-            SheetActionItem(
-                icon = Icons.Default.PlaylistPlay,
-                text = "Play next",
-                onClick = { onPlayNext(); onDismiss() }
-            )
-            SheetActionItem(
-                icon = Icons.Default.QueueMusic,
-                text = "Add to queue",
-                onClick = { onAddToQueue(); onDismiss() }
-            )
-            SheetActionItem(
-                icon = if (song.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                text = if (song.isFavorite) "Remove from favorites" else "Add to favorites",
-                iconTint = if (song.isFavorite) DhunyaAccent else DhunyaTextPrimary,
-                onClick = { onToggleFavorite(); onDismiss() }
-            )
-            SheetActionItem(
-                icon = if (song.isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
-                text = if (song.isDownloaded) "Downloaded" else "Save offline",
-                iconTint = if (song.isDownloaded) DhunyaAccent else DhunyaTextPrimary,
-                onClick = { onDownload(); onDismiss() }
-            )
+            SheetActionRow(text = "Play now", onClick = { onPlay(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = DhunyaTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            SheetActionRow(text = "Play next", onClick = { onPlayNext(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.PlaylistPlay,
+                    contentDescription = null,
+                    tint = DhunyaTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            SheetActionRow(text = "Add to queue", onClick = { onAddToQueue(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.QueueMusic,
+                    contentDescription = null,
+                    tint = DhunyaTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            // Favorite / download keep the sheet open so the animated flip is visible.
+            SheetActionRow(
+                text = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                onClick = onToggleFavorite
+            ) {
+                AnimatedFavoriteIcon(
+                    isFavorite = isFavorite,
+                    iconSize = 24.dp,
+                    inactiveTint = DhunyaTextPrimary
+                )
+            }
+            SheetActionRow(
+                text = when {
+                    isDownloaded -> "Remove download"
+                    isDownloading -> "Downloading…"
+                    else -> "Save offline"
+                },
+                onClick = onDownload
+            ) {
+                AnimatedDownloadIcon(
+                    status = if (isDownloading) DownloadStatus.DOWNLOADING else null,
+                    isDownloaded = isDownloaded,
+                    iconSize = 24.dp
+                )
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
+/**
+ * One action row. The leading glyph is a slot so callers can pass an animated icon
+ * (heart pop, download progress) instead of a static [ImageVector].
+ */
 @Composable
-private fun SheetActionItem(
-    icon: ImageVector,
+private fun SheetActionRow(
     text: String,
-    iconTint: androidx.compose.ui.graphics.Color = DhunyaTextPrimary,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    leading: @Composable () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -117,12 +148,9 @@ private fun SheetActionItem(
             .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(24.dp)
-        )
+        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            leading()
+        }
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = text,
