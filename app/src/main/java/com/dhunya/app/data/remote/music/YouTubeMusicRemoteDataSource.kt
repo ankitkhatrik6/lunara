@@ -1,151 +1,153 @@
 package com.dhunya.app.data.remote.music
 
+import com.dhunya.app.data.remote.innertube.InnerTubeApi
+import com.dhunya.app.data.remote.innertube.InnerTubeClient
+import com.dhunya.app.data.remote.innertube.InnerTubeClients
+import com.dhunya.app.data.remote.innertube.InnerTubeParams
+import com.dhunya.app.data.remote.innertube.InnerTubeParser
+import com.dhunya.app.data.remote.innertube.VideoInfo
 import com.dhunya.app.domain.model.Album
 import com.dhunya.app.domain.model.Artist
+import com.dhunya.app.domain.model.PlayableMedia
 import com.dhunya.app.domain.model.Song
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.parameter
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * YouTube Music extractor and streaming source for Dhunya.
- * Compatible with YouTube Music's InnerTube API and Piped instances (used by ViMusic / InnerTune).
- * Enables searching millions of tracks, artists, and streaming Opus/M4A audio directly in ExoPlayer.
+ * YouTube Music catalogue over the InnerTube API.
+ *
+ * Mirrors Blazify's flow (from `blazify/innertube` + `YouTube.kt`):
+ *  - catalogue/search via `WEB_REMIX` (search/browse endpoints)
+ *  - playable audio via `player` endpoint with the audio-friendly client
+ *    chain (ANDROID_VR -> IOS -> TVHTML5_EMBEDDED -> WEB_REMIX), picking the
+ *    best audio-only adaptive format — exactly how Blazify's PlayerConnection
+ *    opens a track for ExoPlayer/Media3.
+ *
+ * No third-party proxies, no Piped instances, no placeholder tracks.
  */
 @Singleton
 class YouTubeMusicRemoteDataSource @Inject constructor(
-    private val httpClient: HttpClient
+    private val api: InnerTubeApi,
 ) {
-    private val pipedInstances = listOf(
-        "https://api.piped.privacydev.net",
-        "https://pipedapi.kavin.rocks",
-        "https://api.piped.yt"
-    )
+    /** Cached `signatureTimestamp` of the current player build (fetched lazily). */
+    @Volatile
+    private var signatureTimestamp: Int? = null
 
-    private var activeInstance = pipedInstances.first()
+    private suspend fun signatureTimestampFor(client: InnerTubeClient): Int? {
+        if (!client.useSignatureTimestamp) return null
+        signatureTimestamp?.let { return it }
+        return api.fetchSignatureTimestamp()?.also { signatureTimestamp = it }
+    }
 
-    /**
-     * Searches YouTube Music for songs matching [query].
-     */
-    suspend fun searchYouTubeMusic(query: String): List<Song> = withContext(Dispatchers.IO) {
+    // ---------- search ----------
+
+    suspend fun searchSongs(query: String): List<Song> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
+        val root = api.search(InnerTubeClients.WEB_REMIX, query, InnerTubeParams.SONGS)
+            ?: return@withContext emptyList()
+        InnerTubeParser.parseSongs(root)
+    }
 
-        try {
-            // Query Piped / InnerTube search endpoint
-            val response: List<PipedSearchResultItem> = httpClient.get("$activeInstance/search") {
-                parameter("q", query)
-                parameter("filter", "music_songs")
-            }.body()
-
-            response.filter { it.type == "stream" }.map { item ->
-                Song(
-                    id = "yt_${item.url.substringAfter("watch?v=")}",
-                    title = item.title ?: "Unknown Track",
-                    artistName = item.uploaderName ?: "YouTube Music Artist",
-                    albumName = null,
-                    artworkUrl = item.thumbnail ?: "https://picsum.photos/seed/${item.title}/800/800",
-                    durationMs = (item.duration ?: 180) * 1000L,
-                    streamUrl = null, // resolved on play via resolveAudioStreamUrl
-                    isDownloaded = false,
-                    isFavorite = false
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback or empty if offline / blocked
-            emptyList()
+    suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val root = api.search(InnerTubeClients.WEB_REMIX, query, InnerTubeParams.ARTISTS)
+            ?: return@withContext emptyList()
+        InnerTubeParser.parseItems(root).mapNotNull { item ->
+            val browseId = item.browseId ?: return@mapNotNull null
+            Artist(
+                id = browseId,
+                name = item.title,
+                imageUrl = item.artworkUrl,
+                monthlyListeners = null,
+            )
         }
     }
 
+    suspend fun searchAlbums(query: String): List<Album> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val root = api.search(InnerTubeClients.WEB_REMIX, query, InnerTubeParams.ALBUMS)
+            ?: return@withContext emptyList()
+        InnerTubeParser.parseItems(root).mapNotNull { item ->
+            val browseId = item.browseId ?: item.playlistId ?: return@mapNotNull null
+            Album(
+                id = browseId,
+                title = item.title,
+                artistName = item.subtitle?.substringBefore("•")?.trim().orEmpty(),
+                artworkUrl = item.artworkUrl,
+                releaseYear = null,
+                songCount = 0,
+            )
+        }
+    }
+
+    // ---------- album / playlist track listing ----------
+
     /**
-     * Resolves the direct audio-only playback stream (Opus/M4A 128-256kbps) for a YouTube video ID.
-     * The resulting URL can be passed directly to AndroidX Media3 ExoPlayer.
+     * Ordered track list for an album (MPRE browse id) or a shared album
+     * playlist (OLAK id, e.g. Whole Lotta Red). Same `browse` call Blazify
+     * makes before queueing an album for playback.
      */
+    suspend fun getAlbumTracks(albumOrPlaylistId: String): List<Song> = withContext(Dispatchers.IO) {
+        val id = albumOrPlaylistId.trim()
+        val root = when {
+            id.startsWith("OLAK") || id.startsWith("VL") || id.startsWith("PL") -> {
+                val browseId = if (id.startsWith("VL")) id else "VL$id"
+                api.browse(InnerTubeClients.WEB_REMIX, browseId = browseId)
+                    ?: api.browse(InnerTubeClients.WEB_REMIX, browseId = id)
+            }
+            else -> api.browse(InnerTubeClients.WEB_REMIX, browseId = id)
+        } ?: return@withContext emptyList()
+        InnerTubeParser.parseSongs(root)
+    }
+
+    // ---------- single song / stream resolution ----------
+
+    suspend fun getSong(id: String): Song? = withContext(Dispatchers.IO) {
+        val videoId = id.removePrefix("yt_")
+        var info: VideoInfo? = null
+        for (client in InnerTubeClients.STREAM_CLIENTS) {
+            val root = api.player(client, videoId, signatureTimestamp = signatureTimestampFor(client))
+                ?: continue
+            info = InnerTubeParser.parseVideoInfo(root)
+            if (info != null) break
+        }
+        val details = info ?: return@withContext null
+        Song(
+            id = "yt_${details.videoId}",
+            title = details.title ?: "Unknown Track",
+            artistName = details.author ?: "Unknown Artist",
+            albumName = null,
+            artworkUrl = details.artworkUrl,
+            durationMs = details.durationMs,
+            streamUrl = null,
+        )
+    }
+
     suspend fun resolveAudioStreamUrl(videoId: String): String? = withContext(Dispatchers.IO) {
         val cleanId = videoId.removePrefix("yt_")
-        try {
-            val response: PipedStreamResponse = httpClient.get("$activeInstance/streams/$cleanId").body()
-
-            // Pick highest quality audio-only stream (m4a or webm/opus)
-            val audioStream = response.audioStreams
-                .filter { it.mimeType.contains("audio") }
-                .maxByOrNull { it.bitrate ?: 0 }
-
-            audioStream?.url
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+        for (client in InnerTubeClients.STREAM_CLIENTS) {
+            val root = api.player(
+                client = client,
+                videoId = cleanId,
+                signatureTimestamp = signatureTimestampFor(client)
+            ) ?: continue
+            val best = InnerTubeParser.parseAudioStreams(root).maxByOrNull { it.bitrate }
+            if (best != null) return@withContext best.url
         }
+        null
     }
 
-    /**
-     * Direct YouTube InnerTube Music API payload helper for native client-side extraction.
-     */
-    suspend fun queryInnerTubeSearch(query: String): String = withContext(Dispatchers.IO) {
-        val bodyPayload = """
-            {
-                "context": {
-                    "client": {
-                        "clientName": "WEB_REMIX",
-                        "clientVersion": "1.20231201.01.00",
-                        "hl": "en",
-                        "gl": "US"
-                    }
-                },
-                "query": "$query",
-                "params": "Eg-KAQwIABAAGAAgACgAMABqChAMEAMQBBAFEAo="
-            }
-        """.trimIndent()
-
-        httpClient.post("https://music.youtube.com/youtubei/v1/search") {
-            contentType(ContentType.Application.Json)
-            header("Origin", "https://music.youtube.com")
-            setBody(bodyPayload)
-        }.body()
+    suspend fun resolvePlayableMedia(song: Song): PlayableMedia = withContext(Dispatchers.IO) {
+        song.localUri?.let { return@withContext PlayableMedia(song, it, isLocal = true) }
+        song.streamUrl?.takeIf { it.isNotBlank() }?.let {
+            return@withContext PlayableMedia(song, it, isLocal = false)
+        }
+        val videoId = song.id.removePrefix("yt_")
+        val url = resolveAudioStreamUrl(videoId)
+            ?: throw IllegalStateException("No playable audio stream for ${song.title}")
+        PlayableMedia(song.copy(streamUrl = url), url, isLocal = false)
     }
 }
 
-@Serializable
-data class PipedSearchResultItem(
-    val url: String = "",
-    val type: String? = null,
-    val title: String? = null,
-    val thumbnail: String? = null,
-    val uploaderName: String? = null,
-    val uploaderUrl: String? = null,
-    val duration: Long? = null
-)
-
-@Serializable
-data class PipedStreamResponse(
-    val title: String = "",
-    val description: String = "",
-    val uploadDate: String = "",
-    val audioStreams: List<PipedAudioStream> = emptyList()
-)
-
-@Serializable
-data class PipedAudioStream(
-    val url: String = "",
-    val format: String = "",
-    val quality: String = "",
-    val mimeType: String = "",
-    val codec: String? = null,
-    val bitrate: Long? = null
-)
