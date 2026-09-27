@@ -39,6 +39,14 @@ class InnerTubeApi @Inject constructor(
     private val region: String = Locale.getDefault().country.ifBlank { "US" }
     private val timeZone: String = java.util.TimeZone.getDefault().id
 
+    /**
+     * `visitorData` handed out by YouTube on the first response. Replaying it on the
+     * `player` calls makes the request look like a returning client instead of a fresh one,
+     * which is what YouTube uses to decide whether to ask for a sign in.
+     */
+    @Volatile
+    private var visitorData: String? = null
+
     suspend fun search(
         client: InnerTubeClient,
         query: String,
@@ -85,6 +93,19 @@ class InnerTubeApi @Inject constructor(
             put("context", if (client.isEmbedded) embeddedContext(client, videoId) else context(client))
             put("videoId", videoId)
             playlistId?.let { put("playlistId", it) }
+            if (client.needsPlaybackFlags) {
+                // Age-gate/consent flags the TV clients demand; without them the
+                // player endpoint answers UNPLAYABLE ("The page needs to be
+                // reloaded") even for ordinary tracks.
+                putJsonObject("playbackContext") {
+                    putJsonObject("contentPlaybackContext") {
+                        put("html5Preference", "HTML5_PREF_WANTS")
+                        put("signatureVoice", false)
+                    }
+                }
+                put("contentCheckOk", true)
+                put("racyCheckOk", true)
+            }
             if (client.useSignatureTimestamp && signatureTimestamp != null) {
                 putJsonObject("playbackContext") {
                     putJsonObject("contentPlaybackContext") {
@@ -128,9 +149,10 @@ class InnerTubeApi @Inject constructor(
             put("gl", region)
             put("timeZone", timeZone)
             put("utcOffsetMinutes", (java.util.TimeZone.getDefault().rawOffset / 60000))
+            visitorData?.let { put("visitorData", it) }
             client.osName?.let { put("osName", it) }
             client.osVersion?.let { put("osVersion", it) }
-            client.androidSdkVersion?.let { put("androidSdkVersion", it.toIntOrNull() ?: 0) }
+            client.androidSdkVersion?.let { put("androidSdkVersion", it) }
             client.deviceMake?.let { put("deviceMake", it) }
             client.deviceModel?.let { put("deviceModel", it) }
         }
@@ -153,14 +175,15 @@ class InnerTubeApi @Inject constructor(
         continuation: String? = null
     ): JsonObject? {
         return try {
-            val response = httpClient.post(InnerTubeClients.API_BASE + endpoint) {
+            val response = httpClient.post(client.origin + INNERTUBE_PATH + endpoint) {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.UserAgent, client.userAgent)
                 header("X-YouTube-Client-Name", client.clientId)
                 header("X-YouTube-Client-Version", client.clientVersion)
-                header("X-Origin", InnerTubeClients.ORIGIN)
-                header("Referer", "${InnerTubeClients.ORIGIN}/")
+                header("X-Origin", client.origin)
+                header("Referer", "${client.origin}/")
                 header("X-Goog-Api-Format-Version", "1")
+                visitorData?.let { header("X-Goog-Visitor-Id", it) }
                 parameter("prettyPrint", "false")
                 if (continuation != null) {
                     parameter("continuation", continuation)
@@ -171,15 +194,36 @@ class InnerTubeApi @Inject constructor(
             if (response.status.value !in 200..299) return null
             val text = response.bodyAsText()
             if (text.isBlank()) return null
-            json.parseToJsonElement(text) as? JsonObject
+            val root = json.parseToJsonElement(text) as? JsonObject
+            rememberVisitorData(root)
+            root
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
 
+    /** Keeps the `visitorData` of the newest response so later calls can replay it. */
+    private fun rememberVisitorData(root: JsonObject?) {
+        val fromContext = root?.obj("responseContext")?.text("visitorData")
+        val candidate = fromContext ?: root?.obj("responseContext")
+            ?.obj("serviceTrackingParams")
+            ?.arr("params")
+            ?.let { params ->
+                params.mapNotNull { it.asObj() }
+                    .firstOrNull { it.text("key") == "visitor_data" }
+                    ?.text("value")
+            }
+        if (!candidate.isNullOrBlank()) {
+            visitorData = candidate
+        }
+    }
+
     private companion object {
         /** Web origin that serves the player JavaScript bundle. */
         const val YOUTUBE_ORIGIN = "https://www.youtube.com"
+
+        /** InnerTube API path appended to the client specific origin. */
+        const val INNERTUBE_PATH = "/youtubei/v1/"
     }
 }

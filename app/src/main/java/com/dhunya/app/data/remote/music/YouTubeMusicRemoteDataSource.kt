@@ -12,6 +12,8 @@ import com.dhunya.app.domain.model.PlayableMedia
 import com.dhunya.app.domain.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +32,7 @@ import javax.inject.Singleton
 @Singleton
 class YouTubeMusicRemoteDataSource @Inject constructor(
     private val api: InnerTubeApi,
+    private val okHttpClient: OkHttpClient
 ) {
     /** Cached `signatureTimestamp` of the current player build (fetched lazily). */
     @Volatile
@@ -125,7 +128,27 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         )
     }
 
-    suspend fun resolveAudioStreamUrl(videoId: String): String? = withContext(Dispatchers.IO) {
+    suspend fun resolveAudioStreamUrl(videoId: String): String? = resolveAudioStream(videoId)?.url
+
+    /** A playable audio source: a direct https stream or an HLS master playlist. */
+    data class ResolvedStream(
+        val url: String,
+        val contentLength: Long = 0L,
+        /** Full mime type from the InnerTube format, e.g. `audio/mp4; codecs="mp4a.40.2"`. */
+        val mimeType: String? = null,
+        val isHls: Boolean = false
+    )
+
+    /**
+     * Resolves the audio of a track, failing over between the client identities.
+     *
+     * An HLS playlist wins whenever a client hands one out (HLS is not gated by YouTube's
+     * "PO token" requirement that limits the direct https formats), otherwise the best
+     * audio-only adaptive format is used. Every candidate is verified with a ranged probe
+     * first: YouTube answers `403` to any request that is not a *closed* byte range, and
+     * capped/limited URLs must not reach the player.
+     */
+    suspend fun resolveAudioStream(videoId: String): ResolvedStream? = withContext(Dispatchers.IO) {
         val cleanId = videoId.removePrefix("yt_")
         for (client in InnerTubeClients.STREAM_CLIENTS) {
             val root = api.player(
@@ -133,10 +156,50 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
                 videoId = cleanId,
                 signatureTimestamp = signatureTimestampFor(client)
             ) ?: continue
-            val best = InnerTubeParser.parseAudioStreams(root).maxByOrNull { it.bitrate }
-            if (best != null) return@withContext best.url
+
+            InnerTubeParser.parseHlsManifestUrl(root)?.let { manifest ->
+                if (probeStream(manifest, client.userAgent, ranged = false)) {
+                    return@withContext ResolvedStream(
+                        url = manifest,
+                        mimeType = "application/x-mpegURL",
+                        isHls = true
+                    )
+                }
+            }
+
+            val candidates = InnerTubeParser.parseAudioStreams(root)
+                .filter { it.url.startsWith("http") }
+                // m4a (mp4) first: ExoPlayer's MP4 extractor handles seeks on these far
+                // better than the webm/opus progressive streams, then highest bitrate.
+                .sortedWith(
+                    compareByDescending<AudioStream> { it.mimeType.contains("mp4") }
+                        .thenByDescending { it.bitrate }
+                )
+            for (format in candidates) {
+                if (probeStream(format.url, client.userAgent, ranged = true)) {
+                    return@withContext ResolvedStream(
+                        url = format.url,
+                        contentLength = format.contentLength,
+                        mimeType = format.mimeType
+                    )
+                }
+            }
         }
         null
+    }
+
+    /**
+     * Verifies that [url] really serves bytes: `*.googlevideo.com` rejects requests without
+     * a closed `Range` header with `403`, so a lazily resolved URL can be dead on arrival.
+     */
+    private fun probeStream(url: String, userAgent: String, ranged: Boolean): Boolean = try {
+        val builder = Request.Builder().url(url).header("User-Agent", userAgent)
+        if (ranged) builder.header("Range", "bytes=0-1023")
+        okHttpClient.newCall(builder.build()).execute().use { response ->
+            response.isSuccessful
+        }
+    } catch (e: Exception) {
+        false
     }
 
     suspend fun resolvePlayableMedia(song: Song): PlayableMedia = withContext(Dispatchers.IO) {
@@ -144,10 +207,17 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         song.streamUrl?.takeIf { it.isNotBlank() }?.let {
             return@withContext PlayableMedia(song, it, isLocal = false)
         }
-        val videoId = song.id.removePrefix("yt_")
-        val url = resolveAudioStreamUrl(videoId)
-            ?: throw IllegalStateException("No playable audio stream for ${song.title}")
-        PlayableMedia(song.copy(streamUrl = url), url, isLocal = false)
+        val stream = resolveAudioStream(song.id)
+            ?: throw IllegalStateException(
+                "YouTube did not return a playable stream for \"${song.title}\""
+            )
+        PlayableMedia(
+            song.copy(streamUrl = stream.url),
+            stream.url,
+            isLocal = false,
+            mimeType = stream.mimeType,
+            isHls = stream.isHls
+        )
     }
 }
 

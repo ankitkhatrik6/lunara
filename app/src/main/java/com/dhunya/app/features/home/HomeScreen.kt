@@ -41,7 +41,13 @@ data class HomeUiState(
     val featuredTracks: List<Song> = emptyList(),
     val recentlyPlayed: List<Song> = emptyList(),
     val isLoading: Boolean = false
-)
+) {
+
+    companion object {
+        /** Live search used when the bundled album playlist returns nothing. */
+        const val FEATURED_FALLBACK_QUERY = "top hits 2026"
+    }
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -73,13 +79,24 @@ class HomeViewModel @Inject constructor(
     private fun loadHomeData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            
-            val featured = when (val res = musicRepository.getAlbumTracks(_uiState.value.featuredAlbumId)) {
+
+            // Home must never be empty: a live track search backs the "featured" rail even
+            // when the bundled album playlist is region blocked or otherwise unavailable.
+            val featured = when (
+                val res = musicRepository.getAlbumTracks(_uiState.value.featuredAlbumId)
+            ) {
+                is com.dhunya.app.core.result.Resource.Success -> res.data
+                else -> emptyList()
+            }.ifEmpty {
+                when (val res = musicRepository.searchSongs(FEATURED_FALLBACK_QUERY)) {
                     is com.dhunya.app.core.result.Resource.Success -> res.data
                     else -> emptyList()
                 }
+            }
 
-            libraryRepository.getHistory().collect { history ->
+            combine(
+                libraryRepository.getHistory(),
+            ) { history -> history }.collect { history ->
                 _uiState.update {
                     it.copy(
                         recentlyPlayed = history.take(8),

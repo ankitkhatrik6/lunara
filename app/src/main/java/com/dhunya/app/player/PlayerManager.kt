@@ -2,9 +2,15 @@ package com.dhunya.app.player
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.OptIn
 import androidx.media3.common.*
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.dhunya.app.core.result.Resource
+import com.dhunya.app.data.remote.innertube.InnerTubeClients
 import com.dhunya.app.domain.model.Song
 import com.dhunya.app.domain.repository.MusicRepository
 import kotlinx.coroutines.*
@@ -47,7 +53,22 @@ class PlayerManager @Inject constructor(
     private fun initializePlayer() {
         if (exoPlayer != null) return
 
+        // YouTube's CDN serves plain byte ranges (the probe showed open ended ranges
+        // answer 206), so a stock HTTP source works. Rewriting every read into 1 MiB
+        // closed chunks made ExoPlayer re-request mid playback and stall forever on
+        // high bitrate audio, which surfaced as "music never starts/plays".
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(InnerTubeClients.STREAM_USER_AGENT)
+            .setConnectTimeoutMs(30_000)
+            .setReadTimeoutMs(60_000)
+            .setAllowCrossProtocolRedirects(true)
+
+        val dataSourceFactory = RangedHttpDataSourceFactory(
+            DefaultDataSource.Factory(context, httpDataSourceFactory)
+        )
+
         val player = ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -191,6 +212,7 @@ class PlayerManager @Inject constructor(
         val mediaItem = MediaItem.Builder()
             .setMediaId(song.id)
             .setUri(Uri.parse(uri))
+            .setMimeType(mimeTypeOf(uri, playable.media.mimeType))
             .setMediaMetadata(mediaMetadata)
             .build()
 
@@ -287,5 +309,27 @@ class PlayerManager @Inject constructor(
         exoPlayer?.release()
         exoPlayer = null
         scope.cancel()
+    }
+
+    /**
+     * Explicit MIME type for the resolved stream. YouTube Music hands out Opus in WebM
+     * (itag 251/250/249) and AAC in MP4 (itag 140/139); ExoPlayer's sniffing only
+     * checks the first bytes of a chunk, so a wrong or missing type stalls on
+     * "buffering" forever instead of playing.
+     */
+    @OptIn(UnstableApi::class)
+    private fun mimeTypeOf(uri: String, resolved: String?): String {
+        streamMimeTypeOrNull(uri)?.let { return it }
+        val mime = resolved.orEmpty()
+        return when {
+            mime.startsWith("audio/mp4") || mime.startsWith("video/mp4") -> MimeTypes.AUDIO_MP4
+            mime.startsWith("audio/webm") || mime.startsWith("video/webm") -> MimeTypes.AUDIO_WEBM
+            mime.startsWith("audio/mp3") || mime.startsWith("audio/mpeg") -> MimeTypes.AUDIO_MPEG
+            mime.startsWith("application/x-mpegurl") ||
+                mime.startsWith("application/vnd.apple.mpegurl") -> MimeTypes.APPLICATION_M3U8
+            uri.contains("mime=audio%2Fmp4") || uri.contains("mime=audio/mp4") -> MimeTypes.AUDIO_MP4
+            uri.contains("mime=audio%2Fwebm") || uri.contains("mime=audio/webm") -> MimeTypes.AUDIO_WEBM
+            else -> MimeTypes.AUDIO_WEBM
+        }
     }
 }

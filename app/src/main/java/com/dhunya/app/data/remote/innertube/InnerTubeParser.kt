@@ -21,7 +21,8 @@ data class AudioStream(
     val url: String,
     val mimeType: String,
     val bitrate: Int,
-    val itag: Int
+    val itag: Int,
+    val contentLength: Long = 0L
 )
 
 /** Track metadata returned by the player endpoint. */
@@ -102,11 +103,21 @@ object InnerTubeParser {
             streamingData.arr("formats").objects()
         val streams = formats.mapNotNull { format ->
             val url = format.text("url")?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
+            val mimeType = format.text("mimeType").orEmpty()
+                .takeIf { it.isNotBlank() }
+                ?: mimeTypeForItag(
+                    format.int("itag") ?: format.text("itag")?.toIntOrNull() ?: 0
+                )
             AudioStream(
                 url = url,
-                mimeType = format.text("mimeType").orEmpty(),
-                bitrate = format.int("bitrate") ?: 0,
-                itag = format.int("itag") ?: 0
+                mimeType = mimeType,
+                bitrate = format.long("bitrate")?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt() ?: 0,
+                itag = format.int("itag")
+                    ?: format.text("itag")?.toIntOrNull()
+                    ?: 0,
+                contentLength = format.text("contentLength")?.toLongOrNull()
+                    ?: format.long("contentLength")
+                    ?: 0L
             )
         }
         val audioOnly = streams.filter { it.mimeType.startsWith("audio") }
@@ -127,6 +138,39 @@ object InnerTubeParser {
                 ?.lastOrNull()
                 ?.upscaledArtwork()
         )
+    }
+
+    /** `playabilityStatus.status` of a `player` response (`OK`, `LOGIN_REQUIRED`, ...). */
+    fun playabilityStatus(root: JsonElement): String? =
+        findObject(root, "playabilityStatus")?.text("status")
+
+    /** Human readable `playabilityStatus.reason`, surfaced in playback error messages. */
+    fun playabilityReason(root: JsonElement): String? =
+        findObject(root, "playabilityStatus")?.text("reason")
+
+    /**
+     * HLS master playlist of a `player` response. YouTube serves HLS without the
+     * "PO token" requirement that applies to the direct https formats, so it is preferred
+     * whenever a client hands one out.
+     */
+    fun parseHlsManifestUrl(root: JsonElement): String? =
+        findObject(root, "streamingData")?.let { streamingData ->
+            streamingData.text("hlsUrl") ?: streamingData.text("hlsManifestUrl")
+        }?.takeIf { it.startsWith("http") }
+
+    /**
+     * Fallback MIME type for the well known audio itags (139/140 = AAC, 249/250/251 =
+     * Opus). The app clients sometimes omit `mimeType` on audio levels, and without it
+     * the stream would be dropped by the audio only filter below or misdetected by the
+     * player.
+     */
+    private fun mimeTypeForItag(itag: Int): String = when (itag) {
+        139 -> "audio/mp4; codecs=\"mp4a.40.5\""
+        140 -> "audio/mp4; codecs=\"mp4a.40.2\""
+        249 -> "audio/webm; codecs=\"opus\""
+        250 -> "audio/webm; codecs=\"opus\""
+        251 -> "audio/webm; codecs=\"opus\""
+        else -> ""
     }
 
     // ---------- row parsing ----------
@@ -203,17 +247,20 @@ object InnerTubeParser {
         }
     }
 
-    /** "Artist • Album • 2020" -> ["Artist", "Album"] (labels, years and durations dropped). */
-    private fun String?.subtitleParts(): List<String> = this
-        ?.split(SEPARATOR)
-        ?.map { it.trim() }
-        ?.filter { part ->
-            part.isNotEmpty() &&
-                !part.isDuration() &&
-                !yearPattern.matches(part) &&
-                part.lowercase() !in kindLabels
+    /** "Artist • Album • 3:25" -> [Artist, Album] ("Artist • 3:25" -> [Artist]). */
+    private fun String?.subtitleParts(): List<String> {
+        val separator = this?.indexOf(SEPARATOR) ?: -1
+        if (separator < 0) return this?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
+        val head = substring(0, separator).trim()
+        val tail = substring(separator + 1).trim()
+        val out = mutableListOf<String>()
+        if (head.isNotEmpty()) out.add(head)
+        // The second credit is the album unless it is a duration ("3:25") or a year.
+        if (tail.isNotEmpty() && !tail.isDuration() && !yearPattern.matches(tail)) {
+            out.add(tail)
         }
-        .orEmpty()
+        return out
+    }
 
     /** Concatenates every text run of a `text`/`title`/`subtitle` object. */
     private fun JsonObject?.runsText(): String? = this?.arr("runs")?.objects()

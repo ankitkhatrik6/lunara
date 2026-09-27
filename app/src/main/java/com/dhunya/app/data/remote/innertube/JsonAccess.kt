@@ -19,9 +19,15 @@ internal fun JsonElement?.asArr(): JsonArray? = this as? JsonArray
 
 internal fun JsonElement?.asText(): String? = (this as? JsonPrimitive)?.contentOrNull
 
-internal fun JsonElement?.asInt(): Int? = (this as? JsonPrimitive)?.intOrNull
+internal fun JsonElement?.asInt(): Int? = when (this) {
+    is JsonPrimitive -> intOrNull ?: contentOrNull?.toDoubleOrNull()?.toInt()
+    else -> null
+}
 
-internal fun JsonElement?.asLong(): Long? = (this as? JsonPrimitive)?.longOrNull
+internal fun JsonElement?.asLong(): Long? = when (this) {
+    is JsonPrimitive -> longOrNull ?: contentOrNull?.toDoubleOrNull()?.toLong()
+    else -> null
+}
 
 internal fun JsonElement?.asBool(): Boolean? = (this as? JsonPrimitive)?.booleanOrNull
 

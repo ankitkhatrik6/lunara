@@ -34,7 +34,9 @@ data class DownloadItem(
 data class PlayableMedia(
     val song: Song,
     val mediaUri: String,
-    val isLocal: Boolean
+    val isLocal: Boolean,
+    val mimeType: String? = null,
+    val isHls: Boolean = false
 )
 
 data class PlaybackQueue(

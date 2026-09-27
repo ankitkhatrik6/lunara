@@ -63,8 +63,18 @@ fun DhunyaApp(
     val hasActiveSong = playbackState.currentSong != null
     val showMiniPlayer = hasActiveSong && showBottomBar
 
+    // Playback failures (unavailable tracks, blocked streams) must never be silent.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val playbackError = playbackState.errorMessage
+    LaunchedEffect(playbackError) {
+        if (!playbackError.isNullOrBlank()) {
+            snackbarHostState.showSnackbar(message = playbackError, withDismissAction = true)
+        }
+    }
+
     Scaffold(
         containerColor = DhunyaBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar) {
                 Column(modifier = Modifier.background(DhunyaBackground)) {
