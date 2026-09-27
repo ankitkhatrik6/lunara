@@ -1,6 +1,7 @@
 package com.dhunya.app.data.remote.lyrics
 
 import android.content.Context
+import com.dhunya.app.core.constants.AppConstants
 import com.dhunya.app.domain.model.LyricLine
 import com.dhunya.app.domain.model.Lyrics
 import io.ktor.client.HttpClient
@@ -32,6 +33,7 @@ class BlazifyLyricsEngine @Inject constructor(
         songId: String,
         title: String,
         artist: String,
+        album: String? = null,
         durationMs: Long
     ): Lyrics = withContext(Dispatchers.IO) {
         val cleanTitle = cleanTitleForSearch(title)
@@ -39,7 +41,7 @@ class BlazifyLyricsEngine @Inject constructor(
         val durationSec = (durationMs / 1000).toInt()
 
         // 1. Try Paxsenix (Apple Music engine from Blazify)
-        getPaxsenixLyrics(cleanTitle, cleanArtist, durationSec)?.let { return@withContext it }
+        getPaxsenixLyrics(cleanTitle, cleanArtist, album, durationSec)?.let { return@withContext it }
 
         // 2. Try LRCLIB (Lrclib.net)
         getLrcLibLyrics(cleanTitle, cleanArtist, durationSec)?.let { return@withContext it }
@@ -53,23 +55,28 @@ class BlazifyLyricsEngine @Inject constructor(
         )
     }
 
+    // ---------- Paxsenix (Blazify's primary: Apple Music synced lyrics) ----------
+    // GET /api/search?title=&artist=&album=&duration=   (see Paxsenix.kt, defaultRequest
+    // url "https://lyrics.paxsenix.org"). Scores Apple Music catalogue results by
+    // title/artist/duration then returns LRC incl. word-level timings.
     private suspend fun getPaxsenixLyrics(
         title: String,
         artist: String,
+        album: String?,
         durationSec: Int
     ): Lyrics? = runCatching {
-        val response = httpClient.get("https://lyrics-api.binimum.org/search") {
+        // Paxsenix requires a valid duration to score the right track.
+        if (durationSec <= 0) return null
+        val response = httpClient.get("${AppConstants.PAXSENIX_BASE_URL}/api/search") {
             parameter("title", title)
             parameter("artist", artist)
+            if (!album.isNullOrBlank()) parameter("album", album)
             parameter("duration", durationSec)
         }
-        if (response.status.value in 200..299) {
-            val bodyText = response.body<String>()
-            if (bodyText.contains("[") && bodyText.contains(":")) {
-                return parseLrcLyrics("paxsenix", bodyText)
-            }
-        }
-        null
+        if (response.status.value !in 200..299) return null
+        val bodyText = response.body<String>()
+        if (bodyText.isBlank() || !bodyText.contains("[")) return null
+        parseLrcLyrics("paxsenix", bodyText)
     }.getOrNull()
 
     private suspend fun getLrcLibLyrics(
@@ -77,7 +84,7 @@ class BlazifyLyricsEngine @Inject constructor(
         artist: String,
         durationSec: Int
     ): Lyrics? = runCatching {
-        val response: LrcLibSearchItem = httpClient.get("https://lrclib.net/api/get") {
+        val response: LrcLibSearchItem = httpClient.get("${AppConstants.LRCLIB_BASE_URL}/get") {
             parameter("track_name", title)
             parameter("artist_name", artist)
             parameter("duration", durationSec)

@@ -3,8 +3,10 @@ package com.dhunya.app.core.constants
 object AppConstants {
     const val DATABASE_NAME = "dhunya_database"
     const val DATASTORE_NAME = "dhunya_preferences"
-    
-    // LRCLIB API Base URL for real synchronized and plain lyrics
+
+    // Multi-provider lyrics backends (same order as Blazify):
+    // 1. Paxsenix (Apple Music synced lyrics)  2. LRCLIB (community LRC)
+    const val PAXSENIX_BASE_URL = "https://lyrics.paxsenix.org"
     const val LRCLIB_BASE_URL = "https://lrclib.net/api"
     
     // Notification & Media Channel
@@ -15,6 +17,6 @@ object AppConstants {
     // Search Debounce Duration in ms
     const val SEARCH_DEBOUNCE_MILLIS = 350L
     
-    // Default audio sample stream URLs (high quality royalty-free tracks for immediate playback)
+    // Playback cache budget for the media cache
     const val MEDIA_CACHE_SIZE_BYTES = 100L * 1024L * 1024L // 100MB
 }
