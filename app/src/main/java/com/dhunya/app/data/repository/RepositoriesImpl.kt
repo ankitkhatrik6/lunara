@@ -16,9 +16,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+private const val WHOLE_LOTTA_RED_PLAYLIST_ID = "OLAK5uy_lW6cMszmMtqMeepM6dSApqU1K2meB4ajE"
+
 class MusicRepositoryImpl @Inject constructor(
     private val remoteSource: MusicRemoteDataSource,
-    private val youtubeSource: com.dhunya.app.data.remote.music.YouTubeMusicRemoteDataSource,
     private val localAudioSource: com.dhunya.app.data.local.LocalAudioDataSource,
     private val songDao: SongDao,
     private val recentSearchDao: RecentSearchDao,
@@ -27,12 +28,11 @@ class MusicRepositoryImpl @Inject constructor(
 
     override suspend fun searchSongs(query: String): Resource<List<Song>> {
         return try {
-            val remoteSongs = remoteSource.searchSongs(query)
-            val ytSongs = if (query.isNotBlank()) youtubeSource.searchYouTubeMusic(query) else emptyList()
+            val remoteSongs = if (query.isBlank()) getFeaturedSongs() else remoteSource.searchSongs(query)
             val localSongs = localAudioSource.queryDeviceAudioFiles().filter {
                 query.isBlank() || it.title.contains(query, ignoreCase = true) || it.artistName.contains(query, ignoreCase = true)
             }
-            val combined = (localSongs + ytSongs + remoteSongs).distinctBy { it.id }
+            val combined = (localSongs + remoteSongs).distinctBy { it.id }
 
             // Persist metadata to local cache
             songDao.insertSongs(combined.map { it.toEntity() })
@@ -73,29 +73,42 @@ class MusicRepositoryImpl @Inject constructor(
             val isFav = favoriteDao.isFavorite(id)
             return Resource.Success(cached.toDomain(isFavorite = isFav))
         }
-        val remote = remoteSource.getSong(id) ?: return Resource.Error("Song not found")
+        val remote = try {
+            remoteSource.getSong(id)
+        } catch (e: Exception) {
+            null
+        } ?: return Resource.Error("Song not found")
         songDao.insertSong(remote.toEntity())
         return Resource.Success(remote)
     }
 
+    /**
+     * Home content with zero placeholders. "Whole Lotta Red" (shared album
+     * playlist OLAK5uy_lW6cMszmMtqMeepM6dSApqU1K2meB4ajE) is fetched live from
+     * YouTube Music; if the device is offline the list is simply empty.
+     */
+    private suspend fun getFeaturedSongs(): List<Song> = try {
+        remoteSource.getAlbumTracks(WHOLE_LOTTA_RED_PLAYLIST_ID)
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    override suspend fun getAlbumTracks(albumId: String): Resource<List<Song>> {
+        return try {
+            Resource.Success(remoteSource.getAlbumTracks(albumId))
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Failed to load album", e)
+        }
+    }
+
+    /**
+     * Opens a track for ExoPlayer: local files and already resolved URLs are returned
+     * as-is, YouTube Music tracks are resolved to a signed audio URL on demand by the
+     * remote source. Failures surface as [Resource.Error] so the UI can report them.
+     */
     override suspend fun resolvePlayableMedia(song: Song): Resource<PlayableMedia> {
         return try {
-            if (song.id.startsWith("yt_")) {
-                val streamUrl = youtubeSource.resolveAudioStreamUrl(song.id)
-                if (streamUrl != null) {
-                    Resource.Success(
-                        PlayableMedia(
-                            song = song,
-                            mediaUri = streamUrl,
-                            isLocal = false
-                        )
-                    )
-                } else {
-                    Resource.Success(remoteSource.resolvePlayableMedia(song))
-                }
-            } else {
-                Resource.Success(remoteSource.resolvePlayableMedia(song))
-            }
+            Resource.Success(remoteSource.resolvePlayableMedia(song))
         } catch (e: Exception) {
             Resource.Error(e.localizedMessage ?: "Could not resolve audio stream", e)
         }
@@ -232,7 +245,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private val downloadDao: DownloadDao,
     private val songDao: SongDao,
     private val workManager: androidx.work.WorkManager,
-    private val realDownloadManager: com.dhunya.app.data.local.RealDownloadManager
+    private val realDownloadManager: com.dhunya.app.data.local.RealDownloadManager,
+    private val remoteSource: com.dhunya.app.data.remote.music.MusicRemoteDataSource
 ) : DownloadRepository {
 
     override fun getDownloads(): Flow<List<DownloadItem>> {
@@ -245,7 +259,11 @@ class DownloadRepositoryImpl @Inject constructor(
     }
 
     override suspend fun startDownload(song: Song) {
-        val streamUrl = song.streamUrl
+        // YouTube Music rows only carry metadata, so the signed audio URL is resolved
+        // first; locally stored tracks already have a playable URI.
+        val streamUrl = song.streamUrl?.takeIf { it.isNotBlank() }
+            ?: song.localUri?.takeIf { it.isNotBlank() }
+            ?: resolveDownloadUrl(song)
         if (streamUrl.isNullOrBlank()) {
             downloadDao.insertOrUpdateDownload(
                 DownloadEntity(
@@ -301,6 +319,15 @@ class DownloadRepositoryImpl @Inject constructor(
             downloadWorkRequest
         )
     }
+
+    /**
+     * Resolves an online stream URL for a track that has none yet (YouTube Music rows).
+     * Returns null when nothing playable could be found, e.g. while offline.
+     */
+    private suspend fun resolveDownloadUrl(song: Song): String? = runCatching {
+        val media = remoteSource.resolvePlayableMedia(song)
+        media.mediaUri.takeIf { it.isNotBlank() && !media.isLocal }
+    }.getOrNull()
 
     override suspend fun cancelDownload(songId: String) {
         workManager.cancelUniqueWork("download_$songId")
