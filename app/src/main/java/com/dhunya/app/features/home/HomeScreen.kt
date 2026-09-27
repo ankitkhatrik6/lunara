@@ -36,8 +36,10 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val greeting: String = "Welcome",
+    val featuredAlbumTitle: String = "Whole Lotta Red",
+    val featuredAlbumId: String = "OLAK5uy_lW6cMszmMtqMeepM6dSApqU1K2meB4ajE",
+    val featuredTracks: List<Song> = emptyList(),
     val recentlyPlayed: List<Song> = emptyList(),
-    val quickPicks: List<Song> = emptyList(),
     val isLoading: Boolean = false
 )
 
@@ -72,16 +74,16 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             
-            // Collect recent history
-            libraryRepository.getHistory().collect { history ->
-                // Quick picks from search/catalog
-                val searchRes = musicRepository.searchSongs("")
-                val picks = if (searchRes is com.dhunya.app.core.result.Resource.Success) searchRes.data else emptyList()
+            val featured = when (val res = musicRepository.getAlbumTracks(_uiState.value.featuredAlbumId)) {
+                    is com.dhunya.app.core.result.Resource.Success -> res.data
+                    else -> emptyList()
+                }
 
+            libraryRepository.getHistory().collect { history ->
                 _uiState.update {
                     it.copy(
                         recentlyPlayed = history.take(8),
-                        quickPicks = picks.take(6),
+                        featuredTracks = featured,
                         isLoading = false
                     )
                 }
@@ -92,9 +94,18 @@ class HomeViewModel @Inject constructor(
     fun playSong(song: Song) {
         viewModelScope.launch {
             libraryRepository.addToHistory(song)
-            val queue = _uiState.value.quickPicks.ifEmpty { listOf(song) }
+            val queue = _uiState.value.featuredTracks.ifEmpty { listOf(song) }
             val index = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
             playerManager.playQueue(queue, index)
+        }
+    }
+
+    fun playFeaturedAlbum() {
+        val tracks = _uiState.value.featuredTracks
+        if (tracks.isEmpty()) return
+        viewModelScope.launch {
+            tracks.firstOrNull()?.let { libraryRepository.addToHistory(it) }
+            playerManager.playQueue(tracks, 0)
         }
     }
 }
@@ -187,17 +198,40 @@ fun HomeScreen(
             }
         }
 
-        // Quick Picks Section
+        // Featured album section (Whole Lotta Red, live from YouTube Music)
         item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = uiState.featuredAlbumTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = DhunyaTextPrimary
+                )
+                if (uiState.featuredTracks.isNotEmpty()) {
+                    FilledTonalButton(onClick = { viewModel.playFeaturedAlbum() }) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play album")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Play")
+                    }
+                }
+            }
             Text(
-                text = "Quick picks",
-                style = MaterialTheme.typography.titleLarge,
-                color = DhunyaTextPrimary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                text = uiState.featuredTracks.firstOrNull()?.let { first ->
+                    val artist = first.artistName.takeIf { it.isNotBlank() } ?: "YouTube Music"
+                    "${uiState.featuredTracks.size} tracks · $artist"
+                } ?: "Loading album…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = DhunyaTextSecondary,
+                modifier = Modifier.padding(horizontal = 20.dp)
             )
         }
 
-        items(uiState.quickPicks, key = { it.id }) { song ->
+        items(uiState.featuredTracks, key = { it.id }) { song ->
             SongListItem(
                 song = song,
                 isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
