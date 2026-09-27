@@ -82,6 +82,15 @@ class QueueManager @Inject constructor() {
         } else null
     }
 
+    /**
+     * Replaces a queue entry (matched by id) with an updated version of the same
+     * track, e.g. once a stream URL has been resolved for a YouTube Music song.
+     */
+    fun updateSong(song: Song) {
+        _queue.value = _queue.value.map { if (it.id == song.id) song else it }
+        originalQueue = originalQueue.map { if (it.id == song.id) song else it }
+    }
+
     fun addToQueueNext(song: Song) {
         val list = _queue.value.toMutableList()
         val insertIndex = (_currentIndex.value + 1).coerceAtMost(list.size)

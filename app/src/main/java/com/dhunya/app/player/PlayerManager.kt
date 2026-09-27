@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.*
 import androidx.media3.exoplayer.ExoPlayer
+import com.dhunya.app.core.result.Resource
 import com.dhunya.app.domain.model.Song
+import com.dhunya.app.domain.repository.MusicRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,12 +27,14 @@ interface DhunyaPlayer {
 @Singleton
 class PlayerManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    val queueManager: QueueManager
+    val queueManager: QueueManager,
+    private val musicRepository: MusicRepository
 ) : DhunyaPlayer {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var exoPlayer: ExoPlayer? = null
     private var progressJob: Job? = null
+    private var resolveJob: Job? = null
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -131,8 +135,52 @@ class PlayerManager @Inject constructor(
 
     override fun playSong(song: Song) {
         val player = exoPlayer ?: return
-        val uri = song.localUri ?: song.streamUrl ?: return
 
+        // Locally stored / already resolved tracks can start straight away.
+        val directUri = song.localUri ?: song.streamUrl
+        if (!directUri.isNullOrBlank()) {
+            startPlayback(player, song, directUri)
+            return
+        }
+
+        // YouTube Music tracks only carry metadata: the signed audio URL has to be
+        // resolved on demand (InnerTube `player` endpoint) before ExoPlayer can open it.
+        resolveJob?.cancel()
+        _playbackState.value = _playbackState.value.copy(
+            currentSong = song,
+            isLoading = true,
+            isPlaying = false,
+            errorMessage = null,
+            totalDurationMs = song.durationMs
+        )
+        resolveJob = scope.launch {
+            val result = musicRepository.resolvePlayableMedia(song)
+            val media = (result as? Resource.Success)?.data
+            if (media == null) {
+                _playbackState.value = _playbackState.value.copy(
+                    isLoading = false,
+                    isPlaying = false,
+                    errorMessage = (result as? Resource.Error)?.message
+                        ?: "Could not resolve audio stream for \"${song.title}\""
+                )
+                return@launch
+            }
+            val uri = media.mediaUri
+            if (uri.isBlank()) {
+                _playbackState.value = _playbackState.value.copy(
+                    isLoading = false,
+                    isPlaying = false,
+                    errorMessage = "No playable audio stream for \"${song.title}\""
+                )
+                return@launch
+            }
+            val playableSong = media.song.copy(streamUrl = uri)
+            queueManager.updateSong(playableSong)
+            startPlayback(player, playableSong, uri)
+        }
+    }
+
+    private fun startPlayback(player: ExoPlayer, song: Song, uri: String) {
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artistName)
@@ -234,6 +282,8 @@ class PlayerManager @Inject constructor(
 
     override fun release() {
         stopProgressTracker()
+        resolveJob?.cancel()
+        resolveJob = null
         exoPlayer?.release()
         exoPlayer = null
         scope.cancel()
