@@ -5,6 +5,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -12,15 +13,15 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
-import com.dhunya.app.ui.theme.DhunyaAccent
-import com.dhunya.app.ui.theme.DhunyaBackground
 import kotlin.math.roundToInt
 
 /** Pure drawing helpers kept apart so the generator stays reviewable. */
 internal object PosterCanvas {
 
-    private val background = DhunyaBackground
-    private val accent = DhunyaAccent
+    // Raw ARGB ints (DhunyaBackground = #0B0D0F, DhunyaAccent = #35D6C2).
+    // Pure-Canvas file, so it must not depend on Compose — that broke the release compile.
+    private const val BACKGROUND = 0xFF0B0D0F.toInt()
+    private const val ACCENT = 0xFF35D6C2.toInt()
     private const val WHITE = 0xFFFFFFFF.toInt()
     private const val SOFT_WHITE = 0xE6FFFFFF.toInt()
     private const val FAINT_WHITE = 0x99FFFFFF.toInt()
@@ -30,7 +31,7 @@ internal object PosterCanvas {
 
     fun drawBackground(canvas: Canvas, artwork: android.graphics.Bitmap?) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = background.toArgb()
+        paint.color = BACKGROUND
         canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), paint)
 
         if (artwork != null && !artwork.isRecycled) {
@@ -63,7 +64,7 @@ internal object PosterCanvas {
     /** Returns the y position where the title block should start. */
     fun drawBadge(canvas: Canvas): Float {
         val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = accent.toArgb()
+            color = ACCENT
             textSize = 30f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.LEFT
@@ -122,9 +123,10 @@ internal object PosterCanvas {
         val clip = Path().apply { addRoundRect(rect, 44f, 44f, Path.Direction.CW) }
         canvas.save()
         canvas.clipPath(clip)
-        if (artwork != null && !artwork.isRecycled) {
-            val src = RectF(0f, 0f, artwork.width.toFloat(), artwork.height.toFloat())
-            canvas.drawBitmap(artwork, src, rect, Paint(Paint.FILTER_BITMAP_FLAG))
+        val cover = artwork
+        if (cover != null && !cover.isRecycled) {
+            val src = Rect(0, 0, cover.width, cover.height)
+            canvas.drawBitmap(cover, src, rect, Paint(Paint.FILTER_BITMAP_FLAG))
         } else {
             val placeholder = Paint().apply { color = 0xFF23262B.toInt() }
             canvas.drawRect(rect, placeholder)
@@ -169,7 +171,7 @@ internal object PosterCanvas {
 
     fun drawFooter(canvas: Canvas) {
         val brandPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = accent.toArgb()
+            color = ACCENT
             textSize = 34f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
