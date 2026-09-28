@@ -1,5 +1,6 @@
 package com.dhunya.app.data.repository
 
+import android.net.Uri
 import com.dhunya.app.core.result.Resource
 import com.dhunya.app.data.local.PreferencesDataStore
 import com.dhunya.app.data.local.dao.*
@@ -10,11 +11,21 @@ import com.dhunya.app.data.remote.lyrics.LrclibLyricsApi
 import com.dhunya.app.data.remote.music.MusicRemoteDataSource
 import com.dhunya.app.domain.model.*
 import com.dhunya.app.domain.repository.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import kotlin.coroutines.coroutineContext
 
 private const val WHOLE_LOTTA_RED_PLAYLIST_ID = "OLAK5uy_lW6cMszmMtqMeepM6dSApqU1K2meB4ajE"
 
@@ -168,16 +179,23 @@ class LibraryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun setFavorite(song: Song, favorite: Boolean): Boolean {
+        // Keep the song row around first (it is an upsert, so nothing cascades away), otherwise
+        // the favorite row would violate its foreign key.
+        songDao.insertSong(song.toEntity())
+        if (favorite) {
+            favoriteDao.addFavorite(FavoriteEntity(song.id))
+        } else {
+            favoriteDao.removeFavorite(song.id)
+        }
+        return favorite
+    }
+
     override suspend fun toggleFavorite(song: Song): Boolean {
         songDao.insertSong(song.toEntity())
         val currentlyFav = favoriteDao.isFavorite(song.id)
-        return if (currentlyFav) {
-            favoriteDao.removeFavorite(song.id)
-            false
-        } else {
-            favoriteDao.addFavorite(FavoriteEntity(song.id))
-            true
-        }
+        val target = !currentlyFav
+        return setFavorite(song, target)
     }
 
     override suspend fun isFavorite(songId: String): Boolean {
@@ -244,80 +262,162 @@ class LibraryRepositoryImpl @Inject constructor(
 class DownloadRepositoryImpl @Inject constructor(
     private val downloadDao: DownloadDao,
     private val songDao: SongDao,
-    private val workManager: androidx.work.WorkManager,
     private val realDownloadManager: com.dhunya.app.data.local.RealDownloadManager,
-    private val remoteSource: com.dhunya.app.data.remote.music.MusicRemoteDataSource
+    private val remoteSource: com.dhunya.app.data.remote.music.MusicRemoteDataSource,
+    private val downloadScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : DownloadRepository {
 
+    /** One running transfer per song so retries/cancels are exact. */
+    private val activeJobs = ConcurrentHashMap<String, Job>()
+
+    /**
+     * Every persisted [DownloadEntity] shows up here, even when its song metadata row is
+     * missing (e.g. restored on a fresh install). Callers get a playable item either way.
+     */
     override fun getDownloads(): Flow<List<DownloadItem>> {
         return downloadDao.getAllDownloads().map { downloads ->
             downloads.mapNotNull { downloadEntity ->
                 val songEntity = songDao.getSongById(downloadEntity.songId)
-                songEntity?.let { downloadEntity.toDomain(it.toDomain()) }
+                val song = songEntity?.toDomain()?.copy(
+                    localUri = songEntity.localUri ?: downloadEntity.localFilePath,
+                    isDownloaded = songEntity.isDownloaded ||
+                        downloadEntity.status == DownloadStatus.COMPLETED.name,
+                    streamUrl = downloadEntity.localFilePath ?: songEntity.streamUrl
+                ) ?: Song(
+                    id = downloadEntity.songId,
+                    title = "Downloaded track",
+                    artistName = "Unknown Artist",
+                    localUri = downloadEntity.localFilePath,
+                    streamUrl = downloadEntity.localFilePath,
+                    isDownloaded = downloadEntity.status == DownloadStatus.COMPLETED.name
+                )
+                if (song.localUri.isNullOrBlank()) {
+                    songDao.updateDownloadStatus(song.id, true, downloadEntity.localFilePath)
+                }
+                downloadEntity.toDomain(song)
             }
         }
     }
 
+    /**
+     * Saves a track for offline listening. The previous implementation queued a
+     * [androidx.work.WorkManager] job per song: scheduling delays, foreground promotion and
+     * retry backoffs stretched a few seconds of copying into minutes, and the request carried
+     * no byte range so YouTube answered 403. Now the save runs immediately in the app process on
+     * a closed range with a big buffer — the same direct path that fixes playback.
+     */
     override suspend fun startDownload(song: Song) {
-        // YouTube Music rows only carry metadata, so the signed audio URL is resolved
-        // first; locally stored tracks already have a playable URI.
-        val streamUrl = song.streamUrl?.takeIf { it.isNotBlank() }
-            ?: song.localUri?.takeIf { it.isNotBlank() }
-            ?: resolveDownloadUrl(song)
-        if (streamUrl.isNullOrBlank()) {
-            downloadDao.insertOrUpdateDownload(
-                DownloadEntity(
-                    songId = song.id,
-                    status = DownloadStatus.FAILED.name,
-                    progress = 0f,
-                    localFilePath = null,
-                    totalBytes = 0L,
-                    downloadedBytes = 0L
+        downloadScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val streamUrl = song.streamUrl?.takeIf { it.isNotBlank() }
+                ?: song.localUri?.takeIf { it.isNotBlank() }
+                ?: resolveDownloadUrl(song)
+            if (streamUrl.isNullOrBlank()) {
+                downloadDao.insertOrUpdateDownload(
+                    DownloadEntity(
+                        songId = song.id,
+                        status = DownloadStatus.FAILED.name,
+                        progress = 0f,
+                        localFilePath = null,
+                        totalBytes = 0L,
+                        downloadedBytes = 0L
+                    )
                 )
-            )
-            return
-        }
+                return@launch
+            }
 
-        // Persist song entity in local database
-        songDao.insertSong(song.toEntity())
+            if (song.localUri?.isNotBlank() == true && !song.localUri.startsWith("http")) {
+                markAlreadyLocal(song, song.localUri)
+                return@launch
+            }
 
-        // Initial QUEUED / DOWNLOADING state
+            // Upsert keeps the existing song metadata (artwork/titles) and carries no cascade
+            // because `songs` no longer uses INSERT OR REPLACE.
+            songDao.insertSong(song.copy(streamUrl = streamUrl).toEntity())
+
+            val previous = activeJobs.put(song.id, coroutineContext[Job]!!)
+            previous?.cancelAndJoin()
+
+            val scopeJob = coroutineContext[Job]!!
+            activeJobs[song.id] = scopeJob
+            try {
+                downloadDao.insertOrUpdateDownload(
+                    DownloadEntity(
+                        songId = song.id,
+                        status = DownloadStatus.DOWNLOADING.name,
+                        progress = 0f,
+                        localFilePath = null,
+                        totalBytes = 0L,
+                        downloadedBytes = 0L
+                    )
+                )
+
+                var lastProgressEmitMs = 0L
+                val file = realDownloadManager.downloadStream(song.id, streamUrl) { downloaded, total ->
+                    val now = System.currentTimeMillis()
+                    if (now - lastProgressEmitMs >= PROGRESS_EMIT_INTERVAL_MS || downloaded >= total) {
+                        lastProgressEmitMs = now
+                        val progress = if (total > 0L) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f
+                        downloadDao.insertOrUpdateDownload(
+                            DownloadEntity(
+                                songId = song.id,
+                                status = DownloadStatus.DOWNLOADING.name,
+                                progress = progress,
+                                localFilePath = null,
+                                totalBytes = total,
+                                downloadedBytes = downloaded
+                            )
+                        )
+                    }
+                }
+                val size = file.length()
+                val fileUri = Uri.fromFile(file).toString()
+                downloadDao.insertOrUpdateDownload(
+                    DownloadEntity(
+                        songId = song.id,
+                        status = DownloadStatus.COMPLETED.name,
+                        progress = 1f,
+                        localFilePath = fileUri,
+                        totalBytes = size,
+                        downloadedBytes = size
+                    )
+                )
+                songDao.insertSong(
+                    song.copy(streamUrl = streamUrl, localUri = fileUri, isDownloaded = true).toEntity()
+                )
+            } catch (e: CancellationException) {
+                realDownloadManager.deleteDownloadedFile(song.id)
+                downloadDao.deleteDownload(song.id)
+                throw e
+            } catch (e: Exception) {
+                realDownloadManager.deleteDownloadedFile(song.id)
+                downloadDao.insertOrUpdateDownload(
+                    DownloadEntity(
+                        songId = song.id,
+                        status = DownloadStatus.FAILED.name,
+                        progress = 0f,
+                        localFilePath = null,
+                        totalBytes = 0L,
+                        downloadedBytes = 0L
+                    )
+                )
+            } finally {
+                activeJobs.remove(song.id, coroutineContext[Job])
+            }
+        }.join()
+    }
+
+    private suspend fun markAlreadyLocal(song: Song, fileUri: String) {
         downloadDao.insertOrUpdateDownload(
             DownloadEntity(
                 songId = song.id,
-                status = DownloadStatus.DOWNLOADING.name,
-                progress = 0f,
-                localFilePath = null,
-                totalBytes = song.durationMs * 32,
+                status = DownloadStatus.COMPLETED.name,
+                progress = 1f,
+                localFilePath = fileUri,
+                totalBytes = 0L,
                 downloadedBytes = 0L
             )
         )
-
-        // WorkManager constraints: Requires network connection to download
-        val constraints = androidx.work.Constraints.Builder()
-            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
-            .build()
-
-        // Create WorkManager OneTimeWorkRequest with unique work name
-        val downloadWorkRequest = androidx.work.OneTimeWorkRequestBuilder<com.dhunya.app.data.worker.MusicDownloadWorker>()
-            .setConstraints(constraints)
-            .setInputData(
-                androidx.work.workDataOf(
-                    com.dhunya.app.data.worker.MusicDownloadWorker.KEY_SONG_ID to song.id,
-                    com.dhunya.app.data.worker.MusicDownloadWorker.KEY_STREAM_URL to streamUrl,
-                    com.dhunya.app.data.worker.MusicDownloadWorker.KEY_TITLE to song.title,
-                    com.dhunya.app.data.worker.MusicDownloadWorker.KEY_ARTIST to song.artistName
-                )
-            )
-            .addTag("download_${song.id}")
-            .build()
-
-        // Enqueue uniquely to avoid duplicate concurrent downloads for the same track
-        workManager.enqueueUniqueWork(
-            "download_${song.id}",
-            androidx.work.ExistingWorkPolicy.REPLACE,
-            downloadWorkRequest
-        )
+        songDao.insertSong(song.copy(localUri = fileUri, isDownloaded = true).toEntity())
     }
 
     /**
@@ -330,14 +430,14 @@ class DownloadRepositoryImpl @Inject constructor(
     }.getOrNull()
 
     override suspend fun cancelDownload(songId: String) {
-        workManager.cancelUniqueWork("download_$songId")
+        activeJobs.remove(songId)?.cancelAndJoin()
         realDownloadManager.deleteDownloadedFile(songId)
         downloadDao.deleteDownload(songId)
         songDao.updateDownloadStatus(songId, false, null)
     }
 
     override suspend fun removeDownload(songId: String) {
-        workManager.cancelUniqueWork("download_$songId")
+        activeJobs.remove(songId)?.cancelAndJoin()
         realDownloadManager.deleteDownloadedFile(songId)
         downloadDao.deleteDownload(songId)
         songDao.updateDownloadStatus(songId, false, null)
@@ -346,6 +446,11 @@ class DownloadRepositoryImpl @Inject constructor(
     override suspend fun isDownloaded(songId: String): Boolean {
         val item = downloadDao.getDownloadById(songId)
         return item?.status == DownloadStatus.COMPLETED.name
+    }
+
+    private companion object {
+        /** Progress writes to Room at most ~7x per second. */
+        const val PROGRESS_EMIT_INTERVAL_MS = 150L
     }
 }
 

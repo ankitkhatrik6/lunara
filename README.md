@@ -14,7 +14,7 @@ Dhunya adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
   - **Paxsenix / Apple Music Provider**: Fast duration-matched and word-synced lyrics with agent-tag parsing (`v1`, `v2`, `bg`).
   - **LRCLIB Provider**: Exact `.lrc` and fuzzy title/artist matching.
   - **KuGou & Binimum / LyricsPlus** fallbacks.
-- **Offline Download Manager & WorkManager**: Robust background file downloader backed by `DownloadRepository` and `WorkManager` (`MusicDownloadWorker`) with foreground service notifications, retry logic, network constraints, atomic file persistence, Room DB tracking, and automatic offline lyrics caching.
+- **Instant Offline Downloads**: `DownloadRepository` streams a track's resolved audio straight into the app's private media folder (`filesDir/dhunya_media`) with chunked I/O, closed byte ranges and throttled Room progress — no shared Downloads folder, no WorkManager scheduling delay — plus atomic temp-file persistence and full playback of the saved file.
 - **Local Audio (`MediaStore`)**: Scans on-device audio files alongside streamed music with folder indexing.
 - **Dynamic Queue Management**: Reorderable playback queue, radio mode, queue autogeneration, shuffle, and cycle repeat modes (Off, All, One).
 - **Local Persistence**: Room Database storing favorites, listening history, playlists, downloads, and cached tracks without any tracking or accounts.

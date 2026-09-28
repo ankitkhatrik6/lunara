@@ -1,100 +1,117 @@
 package com.dhunya.app.data.local
 
 import android.content.Context
-import com.dhunya.app.domain.model.DownloadStatus
-import com.dhunya.app.domain.model.Song
+import android.net.Uri
+import com.dhunya.app.data.remote.innertube.InnerTubeClients
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
-sealed interface DownloadProgress {
-    data class Progress(val percentage: Float, val downloadedBytes: Long, val totalBytes: Long) : DownloadProgress
-    data class Success(val localFile: File) : DownloadProgress
-    data class Failed(val error: String) : DownloadProgress
-}
-
+/**
+ * Downloads a resolved audio URL straight into the app's private media folder
+ * (`filesDir/dhunya_media`), never into the device's shared Downloads folder.
+ *
+ * The old pipeline queued a WorkManager job per track: foreground promotion, scheduling delays
+ * and retry backoffs turned seconds into minutes, and a plain (non-ranged) GET made YouTube's
+ * CDN answer 403, so downloads spun forever before failing. This implementation instead streams
+ * in the app process with a big buffer and, crucially, sends the *closed* byte range the CDN
+ * demands (read from the stream URL's `clen`) — which is what makes saves start instantly and
+ * finish reliably.
+ */
 @Singleton
 class RealDownloadManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val okHttpClient: OkHttpClient
 ) {
-    private val client = OkHttpClient.Builder().build()
 
-    fun getDownloadDir(): File {
-        val dir = File(context.filesDir, "dhunya_media")
-        if (!dir.exists()) dir.mkdirs()
-        return dir
-    }
+    private val downloadDir: File
+        get() = File(context.filesDir, MEDIA_DIR).apply { if (!exists()) mkdirs() }
 
-    fun getSongFile(songId: String): File {
-        return File(getDownloadDir(), "$songId.mp3")
+    fun getDownloadDir(): File = downloadDir
+
+    /** Whatever file is stored for [songId] (any container extension), if any. */
+    fun getSongFile(songId: String): File? =
+        downloadDir.listFiles()?.firstOrNull { it.isFile && it.name.startsWith(SONG_PREFIX + songId + ".") }
+
+    /** Deletes the stored file for [songId] (any container) plus its leftover `.part` file. */
+    fun deleteDownloadedFile(songId: String): Boolean {
+        val prefix = SONG_PREFIX + songId + "."
+        val targets = downloadDir.listFiles { file ->
+            file.isFile && (file.name.startsWith(prefix) || file.name == "$songId.part")
+        } ?: return false
+        return targets.fold(false) { removed, file -> file.delete() || removed }
     }
 
     /**
-     * Downloads an audio stream directly to internal storage as a real audio file
-     * and emits real-time progress for UI updates.
+     * Streams [url] into `filesDir/dhunya_media/<songId>.<ext>` and calls [onProgress] with
+     * `(downloadedBytes, totalBytes)`. Coroutine cancellation aborts the transfer immediately;
+     * the partial file is left behind for the caller to clean up.
      */
-    fun downloadAudioStream(song: Song): Flow<DownloadProgress> = flow {
-        val url = song.streamUrl
-        if (url.isNullOrBlank()) {
-            emit(DownloadProgress.Failed("Song does not have a valid streaming URL"))
-            return@flow
-        }
+    suspend fun downloadStream(
+        songId: String,
+        url: String,
+        onProgress: suspend (downloaded: Long, total: Long) -> Unit
+    ): File = withContext(Dispatchers.IO) {
+        // YouTube only serves bytes to a *closed* byte range; `clen` is the exact file size.
+        val declaredLength = Uri.parse(url).getQueryParameter("clen")?.toLongOrNull() ?: 0L
 
-        val destinationFile = getSongFile(song.id)
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", InnerTubeClients.STREAM_USER_AGENT)
+            .apply { if (declaredLength > 0L) header("Range", "bytes=0-${declaredLength - 1}") }
+            .build()
 
-        try {
-            val request = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+        val target = File(downloadDir, SONG_PREFIX + songId + "." + extensionFor(url))
+        val partial = File(downloadDir, "$songId.part")
+        partial.delete()
 
-            if (!response.isSuccessful || response.body == null) {
-                emit(DownloadProgress.Failed("Server responded with HTTP ${response.code}"))
-                return@flow
-            }
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("Server responded with HTTP ${response.code}")
+            val body = response.body ?: error("Empty response body")
+            val expected = body.contentLength().takeIf { it > 0L } ?: declaredLength
 
-            val body = response.body!!
-            val totalBytes = body.contentLength()
-            var downloadedBytes = 0L
-
-            val inputStream: InputStream = body.byteStream()
-            val outputStream = FileOutputStream(destinationFile)
-
-            val buffer = ByteArray(8 * 1024)
-            var bytesRead: Int
-
-            inputStream.use { input ->
-                outputStream.use { output ->
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloadedBytes += bytesRead
-
-                        val progress = if (totalBytes > 0) {
-                            (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                        } else 0.5f
-
-                        emit(DownloadProgress.Progress(progress, downloadedBytes, totalBytes))
+            body.byteStream().use { input ->
+                FileOutputStream(partial).use { output ->
+                    // 256 KiB chunks: the old 8 KiB buffer plus a progress emission per chunk
+                    // was the other half of "downloads take forever".
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    var downloaded = 0L
+                    while (true) {
+                        coroutineContext.ensureActive()
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        output.write(buffer, 0, read)
+                        downloaded += read
+                        onProgress(downloaded, expected)
                     }
                     output.flush()
                 }
             }
-
-            emit(DownloadProgress.Success(destinationFile))
-        } catch (e: Exception) {
-            if (destinationFile.exists()) destinationFile.delete()
-            emit(DownloadProgress.Failed(e.localizedMessage ?: "Download failed"))
         }
-    }.flowOn(Dispatchers.IO)
 
-    fun deleteDownloadedFile(songId: String): Boolean {
-        val file = getSongFile(songId)
-        return if (file.exists()) file.delete() else false
+        if (target.exists()) target.delete()
+        if (!partial.renameTo(target)) error("Could not store the downloaded file")
+        target
+    }
+
+    private fun extensionFor(url: String): String = when {
+        url.contains("mime=audio%2Fwebm") || url.contains("mime=audio/webm") -> "webm"
+        url.contains("mime=audio%2Fmp4") || url.contains("mime=audio/mp4") -> "m4a"
+        else -> "m4a"
+    }
+
+    private companion object {
+        const val MEDIA_DIR = "dhunya_media"
+        const val SONG_PREFIX = "dhunya_"
+        const val BUFFER_SIZE = 256 * 1024
     }
 }
+

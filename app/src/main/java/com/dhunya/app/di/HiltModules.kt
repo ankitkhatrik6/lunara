@@ -32,6 +32,17 @@ object NetworkModule {
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Scope for fire-and-forget work that must outlive a screen: saving a track for offline
+     * playback keeps running while the user navigates away.
+     */
+    @Provides
+    @Singleton
+    fun provideApplicationScope(): kotlinx.coroutines.CoroutineScope =
+        kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+        )
 }
 
 @Module
