@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -335,10 +336,23 @@ class DownloadRepositoryImpl @Inject constructor(
      * a closed range with a big buffer — the same direct path that fixes playback.
      */
     override suspend fun startDownload(song: Song) {
-        downloadScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val streamUrl = song.streamUrl?.takeIf { it.isNotBlank() }
-                ?: song.localUri?.takeIf { it.isNotBlank() }
-                ?: resolveDownloadUrl(song)
+        val downloadJob = downloadScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            // Already on disk: just record it. No network round trip at all.
+            realDownloadManager.getSongFile(song.id)?.let { file ->
+                markAlreadyLocal(song, Uri.fromFile(file).toString())
+                return@launch
+            }
+
+            if (song.localUri?.isNotBlank() == true && !song.localUri.startsWith("http")) {
+                markAlreadyLocal(song, song.localUri)
+                return@launch
+            }
+
+            // A `streamUrl` baked into the song row can be an expired signature — YouTube
+            // answers 403 to those, which is what made a save spin and then fail. Resolve a
+            // fresh URL instead; the remote source caches recent resolutions, so a track that
+            // was just played resolves instantly.
+            val streamUrl = resolveDownloadUrl(song)
             if (streamUrl.isNullOrBlank()) {
                 downloadDao.insertOrUpdateDownload(
                     DownloadEntity(
@@ -350,11 +364,6 @@ class DownloadRepositoryImpl @Inject constructor(
                         downloadedBytes = 0L
                     )
                 )
-                return@launch
-            }
-
-            if (song.localUri?.isNotBlank() == true && !song.localUri.startsWith("http")) {
-                markAlreadyLocal(song, song.localUri)
                 return@launch
             }
 
@@ -432,7 +441,18 @@ class DownloadRepositoryImpl @Inject constructor(
             } finally {
                 activeJobs.remove(song.id, coroutineContext[Job])
             }
-        }.join()
+        }
+
+        // The download's outcome is recorded in the `downloads` table by both branches above,
+        // so this only has to *wait*. `join()` re-checks the caller's own cancellation and is
+        // otherwise silent — a cancelled or failed save can never surface as an exception on
+        // the caller's scope (that escape route is what produced the obfuscated
+        // "… was cancelled" failure in the UI).
+        try {
+            downloadJob.join()
+        } catch (e: CancellationException) {
+            coroutineContext.ensureActive()
+        }
     }
 
     private suspend fun markAlreadyLocal(song: Song, fileUri: String) {
@@ -454,7 +474,9 @@ class DownloadRepositoryImpl @Inject constructor(
      * Returns null when nothing playable could be found, e.g. while offline.
      */
     private suspend fun resolveDownloadUrl(song: Song): String? = runCatching {
-        val media = remoteSource.resolvePlayableMedia(song)
+        // Clear any URL stored on the row first: `resolvePlayableMedia` hands a preset
+        // `streamUrl` straight back, and an expired signature only ever produces a 403.
+        val media = remoteSource.resolvePlayableMedia(song.copy(streamUrl = null))
         media.mediaUri.takeIf { it.isNotBlank() && !media.isLocal }
     }.getOrNull()
 
