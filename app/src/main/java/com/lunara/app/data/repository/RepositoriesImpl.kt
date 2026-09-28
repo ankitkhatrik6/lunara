@@ -175,7 +175,7 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override fun getFavorites(): Flow<List<Song>> {
         return favoriteDao.getFavoriteSongs().map { list ->
-            list.map { it.toDomain(isFavorite = true) }
+            list.distinctBy { it.id }.map { it.toDomain(isFavorite = true) }
         }
     }
 
@@ -204,7 +204,7 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override fun getHistory(): Flow<List<Song>> {
         return historyDao.getHistorySongs().map { list ->
-            list.map { entity ->
+            list.distinctBy { it.id }.map { entity ->
                 entity.toDomain(isFavorite = favoriteDao.isFavorite(entity.id))
             }
         }
@@ -212,6 +212,10 @@ class LibraryRepositoryImpl @Inject constructor(
 
     override suspend fun addToHistory(song: Song) {
         songDao.insertSong(song.toEntity())
+        // One row per track: replace the previous entry instead of appending another one,
+        // otherwise the join in `getHistorySongs()` repeats the song and the UI receives
+        // duplicate list keys ("Key … was already used").
+        historyDao.deleteForSong(song.id)
         historyDao.insertHistory(HistoryEntity(songId = song.id))
     }
 

@@ -145,7 +145,7 @@ private fun PlaylistPickerListBody(
     val isSaving by viewModel.isSaving.collectAsState()
 
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(playlists, key = { it.id }) { playlist ->
+        items(playlists, key = { "picker_playlist_${it.id}" }) { playlist ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

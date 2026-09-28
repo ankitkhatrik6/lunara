@@ -67,8 +67,13 @@ class DownloadsViewModel @Inject constructor(
 
     fun playSong(song: Song) {
         val songs = _uiState.value.downloads.map { it.song }
-        val idx = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        playerManager.playQueue(songs, idx)
+        // Never fall back to index 0: that would play a different download than the one tapped.
+        val idx = songs.indexOfFirst { it.id == song.id }
+        if (idx >= 0) {
+            playerManager.playQueue(songs, idx)
+        } else {
+            playerManager.playQueue(listOf(song), 0)
+        }
     }
 }
 
@@ -120,7 +125,7 @@ fun DownloadsScreen(
                     .padding(padding),
                 contentPadding = PaddingValues(bottom = 120.dp)
             ) {
-                items(uiState.downloads, key = { it.song.id }) { item ->
+                items(uiState.downloads, key = { "download_${it.song.id}" }) { item ->
                     if (item.status == DownloadStatus.DOWNLOADING) {
                         // In-progress item
                         Row(

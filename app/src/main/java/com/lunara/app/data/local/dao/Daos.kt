@@ -53,6 +53,32 @@ interface HistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(history: HistoryEntity)
 
+    /**
+     * Drops every earlier row for a song before the new one is inserted, so the table holds
+     * exactly **one** row per track.
+     *
+     * `history` uses an auto-generated primary key, so without this every single play appended
+     * another row for the same song. The `songs INNER JOIN history` below then returned that
+     * song N times — which made "Recently played" show the same cover over and over and, worse,
+     * handed Compose two `items()` with an identical key, crashing the list with
+     * `IllegalArgumentException: Key "…" was already used`.
+     */
+    @Query("DELETE FROM history WHERE songId = :songId")
+    suspend fun deleteForSong(songId: String)
+
+    /** Collapses any pre-existing duplicate rows, newest row per song kept. */
+    @Query(
+        """
+        DELETE FROM history WHERE historyId NOT IN (
+            SELECT historyId FROM history AS h
+            WHERE h.songId = history.songId
+            ORDER BY h.playedAt DESC, h.historyId DESC
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun deduplicate()
+
     @Query("""
         SELECT songs.* FROM songs
         INNER JOIN history ON songs.id = history.songId

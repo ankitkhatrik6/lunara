@@ -133,8 +133,12 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             libraryRepository.addToHistory(song)
             val songs = _uiState.value.searchResult.songs.ifEmpty { listOf(song) }
-            val index = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-            playerManager.playQueue(songs, index)
+            val index = songs.indexOfFirst { it.id == song.id }
+            if (index >= 0) {
+                playerManager.playQueue(songs, index)
+            } else {
+                playerManager.playQueue(listOf(song), 0)
+            }
         }
     }
 }
@@ -294,7 +298,7 @@ fun SearchScreen(
                                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                                 )
                             }
-                            items(uiState.searchResult.songs, key = { it.id }) { song ->
+                            items(uiState.searchResult.songs, key = { "result_song_${it.id}" }) { song ->
                                 SongListItem(
                                     song = song,
                                     isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
@@ -317,7 +321,7 @@ fun SearchScreen(
                                     contentPadding = PaddingValues(horizontal = 20.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    items(uiState.searchResult.artists, key = { it.id }) { artist ->
+                                    items(uiState.searchResult.artists, key = { "result_artist_${it.id}" }) { artist ->
                                         ArtistCard(artist = artist)
                                     }
                                 }

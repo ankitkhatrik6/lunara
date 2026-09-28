@@ -104,8 +104,14 @@ class LibraryViewModel @Inject constructor(
             LibraryTab.HISTORY -> _uiState.value.history
             else -> listOf(song)
         }
-        val idx = currentList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        playerManager.playQueue(currentList, idx)
+        // `indexOfFirst` is -1 when the tapped song is no longer in the visible list;
+        // `coerceAtLeast(0)` would then silently start an unrelated track instead.
+        val idx = currentList.indexOfFirst { it.id == song.id }
+        if (idx >= 0) {
+            playerManager.playQueue(currentList, idx)
+        } else {
+            playerManager.playQueue(listOf(song), 0)
+        }
     }
 }
 
@@ -197,7 +203,7 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
-                        items(uiState.favorites, key = { it.id }) { song ->
+                        items(uiState.favorites, key = { "fav_${it.id}" }) { song ->
                             SongListItem(
                                 song = song,
                                 isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
@@ -221,7 +227,7 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
-                        items(uiState.playlists, key = { it.id }) { playlist ->
+                        items(uiState.playlists, key = { "playlist_${it.id}" }) { playlist ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -272,7 +278,7 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
-                        items(uiState.history, key = { it.id }) { song ->
+                        items(uiState.history, key = { "history_${it.id}" }) { song ->
                             SongListItem(
                                 song = song,
                                 isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,

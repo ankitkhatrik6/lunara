@@ -100,8 +100,10 @@ class HomeViewModel @Inject constructor(
             libraryRepository.getHistory().collect { history ->
                 _uiState.update {
                     it.copy(
-                        recentlyPlayed = history.take(8),
-                        featuredTracks = featured,
+                        // `distinctBy` is belt-and-braces: the query is unique per song now,
+                        // but a duplicate id here would crash the row with a repeated key.
+                        recentlyPlayed = history.distinctBy { song -> song.id }.take(8),
+                        featuredTracks = featured.distinctBy { song -> song.id },
                         isLoading = false
                     )
                 }
@@ -109,14 +111,32 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun playSong(song: Song) {
+    /**
+     * Starts [song] inside the list it was tapped from.
+     *
+     * The previous version always used the *featured album* as the queue, no matter which
+     * section was tapped: tapping a recently played track that is not on that album made
+     * `indexOfFirst` return -1, `.coerceAtLeast(0)` turned that into 0, and playback started
+     * at `featuredTracks[0]` — the reason every recent song played the same album opener.
+     */
+    fun playSong(song: Song, queue: List<Song>) {
         viewModelScope.launch {
             libraryRepository.addToHistory(song)
-            val queue = _uiState.value.featuredTracks.ifEmpty { listOf(song) }
-            val index = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-            playerManager.playQueue(queue, index)
+            val playable = queue.ifEmpty { listOf(song) }
+            val index = playable.indexOfFirst { it.id == song.id }
+            if (index >= 0) {
+                playerManager.playQueue(playable, index)
+            } else {
+                // Song is not part of that section any more (e.g. history was trimmed):
+                // play the track itself rather than jumping to an unrelated list entry.
+                playerManager.playQueue(listOf(song), 0)
+            }
         }
     }
+
+    fun playRecent(song: Song) = playSong(song, _uiState.value.recentlyPlayed)
+
+    fun playFeatured(song: Song) = playSong(song, _uiState.value.featuredTracks)
 
     fun playFeaturedAlbum() {
         val tracks = _uiState.value.featuredTracks
@@ -205,10 +225,10 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.padding(vertical = 8.dp)
                 ) {
-                    items(uiState.recentlyPlayed, key = { it.id }) { song ->
+                    items(uiState.recentlyPlayed, key = { "recent_${it.id}" }) { song ->
                         RecentlyPlayedCard(
                             song = song,
-                            onClick = { viewModel.playSong(song) }
+                            onClick = { viewModel.playRecent(song) }
                         )
                     }
                 }
@@ -249,11 +269,11 @@ fun HomeScreen(
             )
         }
 
-        items(uiState.featuredTracks, key = { it.id }) { song ->
+        items(uiState.featuredTracks, key = { "featured_${it.id}" }) { song ->
             SongListItem(
                 song = song,
                 isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
-                onSongClick = { viewModel.playSong(song) },
+                onSongClick = { viewModel.playFeatured(song) },
                 onMoreClick = { onSongActionClick(song) }
             )
         }

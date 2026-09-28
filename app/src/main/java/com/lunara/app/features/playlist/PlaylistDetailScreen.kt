@@ -64,19 +64,25 @@ class PlaylistViewModel @Inject constructor(
 
     fun playAll(shuffle: Boolean = false) {
         val songs = _uiState.value.songs
-        if (songs.isNotEmpty()) {
-            if (shuffle) {
-                playerManager.queueManager.setQueue(songs.shuffled(), 0)
-            } else {
-                playerManager.playQueue(songs, 0)
-            }
+        if (songs.isEmpty()) return
+        playerManager.playQueue(songs, 0)
+        // QueueManager owns the shuffle flag, and toggling it there also re-orders the queue
+        // and keeps the player's shuffle button in sync. The old code called
+        // `queueManager.setQueue(songs.shuffled(), 0)` straight, which *filled* the queue but
+        // never started playback — so "shuffle play" appeared to do nothing.
+        if (shuffle != playerManager.queueManager.isShuffle.value) {
+            playerManager.queueManager.toggleShuffle()
         }
     }
 
     fun playSong(song: Song) {
         val songs = _uiState.value.songs
-        val idx = songs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        playerManager.playQueue(songs, idx)
+        val idx = songs.indexOfFirst { it.id == song.id }
+        if (idx >= 0) {
+            playerManager.playQueue(songs, idx)
+        } else {
+            playerManager.playQueue(listOf(song), 0)
+        }
     }
 
     fun removeSong(songId: String) {
@@ -166,7 +172,7 @@ fun PlaylistDetailScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 120.dp)
                 ) {
-                    items(uiState.songs, key = { it.id }) { song ->
+                    items(uiState.songs, key = { "playlist_song_${it.id}" }) { song ->
                         SongListItem(
                             song = song,
                             isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
