@@ -36,25 +36,25 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          KEYSTORE_PATH="$RUNNER_TEMP/dhunya-release.jks"
+          KEYSTORE_PATH="$RUNNER_TEMP/lunara-release.jks"
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           else
             # Fallback: ephemeral keystore so the pipeline always produces a signed APK.
             keytool -genkeypair -v \
               -keystore "$KEYSTORE_PATH" \
-              -alias dhunya \
+              -alias lunara \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass dhunya -keypass dhunya \
-              -dname "CN=Dhunya, O=Dhunya, C=IN"
+              -storepass lunara -keypass lunara \
+              -dname "CN=Lunara, O=Lunara, C=IN"
           fi
-          echo "DHUNYA_KEYSTORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "LUNARA_KEYSTORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Build release APK and AAB
         env:
-          DHUNYA_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'dhunya' }}
-          DHUNYA_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'dhunya' }}
-          DHUNYA_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'dhunya' }}
+          LUNARA_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
+          LUNARA_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
+          LUNARA_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
         run: ./gradlew assembleRelease bundleRelease --stacktrace
 
       - name: Rename outputs
@@ -62,13 +62,13 @@ jobs:
           VERSION="${GITHUB_REF_NAME:-snapshot}"
           VERSION="${VERSION#v}"
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/Dhunya-${VERSION}-release.apk"
-          cp app/build/outputs/bundle/release/app-release.aab "dist/Dhunya-${VERSION}-release.aab"
+          cp app/build/outputs/apk/release/app-release.apk "dist/Lunara-${VERSION}-release.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/Lunara-${VERSION}-release.aab"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dhunya-release
+          name: lunara-release
           path: dist/*
 
       - name: Publish GitHub Release

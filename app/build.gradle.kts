@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.dhunya.app"
+    namespace = "com.lunara.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.dhunya.app"
+        applicationId = "com.lunara.app"
         minSdk = 24
         targetSdk = 35
         versionCode = 7
@@ -27,14 +27,14 @@ android {
     // Release signing is provided by CI (GitHub Actions) through environment variables.
     // When they are absent (local builds), the release build type falls back to debug
     // signing so `assembleRelease` still produces an installable APK.
-    val releaseKeystorePath = System.getenv("DHUNYA_KEYSTORE_FILE")
+    val releaseKeystorePath = System.getenv("LUNARA_KEYSTORE_FILE")
     signingConfigs {
         if (!releaseKeystorePath.isNullOrBlank()) {
             create("release") {
                 storeFile = file(releaseKeystorePath)
-                storePassword = System.getenv("DHUNYA_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("DHUNYA_KEY_ALIAS") ?: "dhunya"
-                keyPassword = System.getenv("DHUNYA_KEY_PASSWORD")
+                storePassword = System.getenv("LUNARA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("LUNARA_KEY_ALIAS") ?: "lunara"
+                keyPassword = System.getenv("LUNARA_KEY_PASSWORD")
             }
         }
     }

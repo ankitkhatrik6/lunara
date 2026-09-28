@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <!-- Generated share posters are private files that are exposed read-only at share time. -->
-    <cache-path name="dhunya_posters" path="posters/" />
+    <cache-path name="lunara_posters" path="posters/" />
 </paths>

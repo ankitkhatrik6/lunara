@@ -1,8 +1,8 @@
-# Dhunya (धुँया) — Modern Android Music Player
+# Lunara — Modern Android Music Player
 
-Dhunya is a production-quality, independently designed music streaming and local audio player for Android. Built with 100% Kotlin, Jetpack Compose, Material 3, AndroidX Media3 (ExoPlayer), Room Database, and Clean Architecture.
+Lunara is a production-quality, independently designed music streaming and local audio player for Android. Built with 100% Kotlin, Jetpack Compose, Material 3, AndroidX Media3 (ExoPlayer), Room Database, and Clean Architecture.
 
-Dhunya adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`), vibrant electric teal accent (`#35D6C2`), and lavender highlights (`#8B7CFF`).
+Lunara adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`), vibrant electric teal accent (`#35D6C2`), and lavender highlights (`#8B7CFF`).
 
 ---
 
@@ -14,7 +14,7 @@ Dhunya adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
   - **Paxsenix / Apple Music Provider**: Fast duration-matched and word-synced lyrics with agent-tag parsing (`v1`, `v2`, `bg`).
   - **LRCLIB Provider**: Exact `.lrc` and fuzzy title/artist matching.
   - **KuGou & Binimum / LyricsPlus** fallbacks.
-- **Instant Offline Downloads**: `DownloadRepository` streams a track's resolved audio straight into the app's private media folder (`filesDir/dhunya_media`) with chunked I/O, closed byte ranges and throttled Room progress — no shared Downloads folder, no WorkManager scheduling delay — plus atomic temp-file persistence and full playback of the saved file.
+- **Instant Offline Downloads**: `DownloadRepository` streams a track's resolved audio straight into the app's private media folder (`filesDir/lunara_media`) with chunked I/O, closed byte ranges and throttled Room progress — no shared Downloads folder, no WorkManager scheduling delay — plus atomic temp-file persistence and full playback of the saved file.
 - **Local Audio (`MediaStore`)**: Scans on-device audio files alongside streamed music with folder indexing.
 - **Dynamic Queue Management**: Reorderable playback queue, radio mode, queue autogeneration, shuffle, and cycle repeat modes (Off, All, One).
 - **Local Persistence**: Room Database storing favorites, listening history, playlists, downloads, and cached tracks without any tracking or accounts.
@@ -49,8 +49,8 @@ Dhunya adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml
-│       │   ├── java/com/dhunya/app/
-│       │   │   ├── DhunyaApplication.kt
+│       │   ├── java/com/lunara/app/
+│       │   │   ├── LunaraApplication.kt
 │       │   │   ├── MainActivity.kt
 │       │   │   ├── core/          # Network client, formatters, result wrappers
 │       │   │   ├── data/          # Room DB, DAOs, lyrics/music APIs, repositories, workers
@@ -93,7 +93,7 @@ Optional repository secrets (if omitted, an ephemeral CI keystore is used):
 | --- | --- |
 | `RELEASE_KEYSTORE_BASE64` | Base64-encoded `.jks` / `.keystore` used to sign releases |
 | `RELEASE_KEYSTORE_PASSWORD` | Keystore password |
-| `RELEASE_KEY_ALIAS` | Key alias (default `dhunya`) |
+| `RELEASE_KEY_ALIAS` | Key alias (default `lunara`) |
 | `RELEASE_KEY_PASSWORD` | Key password |
 
 ### Option B — Android Studio / local Gradle
@@ -107,7 +107,7 @@ Command line:
 
 ```bash
 gradle assembleDebug      # debug APK
-gradle assembleRelease    # release APK (signed when DHUNYA_KEYSTORE_* env vars are set)
+gradle assembleRelease    # release APK (signed when LUNARA_KEYSTORE_* env vars are set)
 gradle test               # unit tests
 ```
 
@@ -128,7 +128,7 @@ Or right-click `app/src/test` in Android Studio and run tests.
 
 ## Privacy & Ethics
 
-Dhunya does not collect telemetry, analytics, user identifiers, or advertising IDs. All user data (favorites, history, playlists, downloads) resides strictly on the local device. Dhunya does not host third-party copyrighted content or bypass DRM.
+Lunara does not collect telemetry, analytics, user identifiers, or advertising IDs. All user data (favorites, history, playlists, downloads) resides strictly on the local device. Lunara does not host third-party copyrighted content or bypass DRM.
 
 ---
 

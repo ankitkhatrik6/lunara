@@ -1,4 +1,4 @@
-# Proguard rules for Dhunya
+# Proguard rules for Lunara
 -keepattributes *Annotation*
 -keepclassmembers class * {
     @androidx.room.Dao *;
@@ -6,5 +6,5 @@
 }
 -dontwarn io.ktor.**
 -keep class io.ktor.** { *; }
--keep class com.dhunya.app.data.remote.models.** { *; }
+-keep class com.lunara.app.data.remote.models.** { *; }
 -keepclassmembers enum * { *; }
