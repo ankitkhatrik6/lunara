@@ -31,6 +31,8 @@ import com.dhunya.app.domain.model.RepeatMode
 import com.dhunya.app.domain.model.Song
 import com.dhunya.app.domain.repository.DownloadRepository
 import com.dhunya.app.domain.repository.LibraryRepository
+import com.dhunya.app.features.share.SharePosterEffect
+import com.dhunya.app.features.share.ShareSongViewModel
 import com.dhunya.app.player.PlaybackState
 import com.dhunya.app.player.PlayerManager
 import com.dhunya.app.ui.components.AnimatedDownloadIcon
@@ -39,7 +41,6 @@ import com.dhunya.app.ui.components.DhunyaArtwork
 import com.dhunya.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -86,12 +87,17 @@ class PlayerViewModel @Inject constructor(
 fun PlayerScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLyrics: () -> Unit,
-    viewModel: PlayerViewModel = hiltViewModel()
+    viewModel: PlayerViewModel = hiltViewModel(),
+    shareViewModel: ShareSongViewModel = hiltViewModel()
 ) {
     val state by viewModel.playbackState.collectAsState()
     val favoriteIds by viewModel.favoriteIds.collectAsState()
     val downloadStates by viewModel.downloadStatus.collectAsState()
+    val isPreparingShare by shareViewModel.isPreparingShare.collectAsState()
     val song = state.currentSong
+
+    // Renders the Instagram style poster in the background and opens the share sheet.
+    SharePosterEffect(viewModel = shareViewModel)
 
     var showQueueSheet by remember { mutableStateOf(false) }
     var isDraggingSlider by remember { mutableStateOf(false) }
@@ -128,12 +134,33 @@ fun PlayerScreen(
                     color = DhunyaTextSecondary
                 )
 
-                IconButton(onClick = { showQueueSheet = true }) {
-                    Icon(
-                        imageVector = Icons.Default.QueueMusic,
-                        contentDescription = "Playing queue",
-                        tint = DhunyaTextPrimary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { shareViewModel.share(song) },
+                        enabled = song != null && !isPreparingShare
+                    ) {
+                        if (isPreparingShare) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = DhunyaAccent,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share this song",
+                                tint = DhunyaTextPrimary
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { showQueueSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.QueueMusic,
+                            contentDescription = "Playing queue",
+                            tint = DhunyaTextPrimary
+                        )
+                    }
                 }
             }
         }
