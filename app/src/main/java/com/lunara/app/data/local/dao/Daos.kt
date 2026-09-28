@@ -66,14 +66,17 @@ interface HistoryDao {
     @Query("DELETE FROM history WHERE songId = :songId")
     suspend fun deleteForSong(songId: String)
 
-    /** Collapses any pre-existing duplicate rows, newest row per song kept. */
+    /**
+     * Collapses pre-existing duplicate rows, keeping the newest row per song.
+     *
+     * `historyId` is auto-generated and therefore increases with time, so the highest id per
+     * song is the most recent play. Kept deliberately simple (no correlated subquery) so Room's
+     * compile-time SQL validation is guaranteed to accept it.
+     */
     @Query(
         """
         DELETE FROM history WHERE historyId NOT IN (
-            SELECT historyId FROM history AS h
-            WHERE h.songId = history.songId
-            ORDER BY h.playedAt DESC, h.historyId DESC
-            LIMIT 1
+            SELECT MAX(historyId) FROM history GROUP BY songId
         )
         """
     )
