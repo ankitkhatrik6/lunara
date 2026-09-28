@@ -6,10 +6,20 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SongDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * Upsert, deliberately **not** `@Insert(onConflict = REPLACE)`.
+     *
+     * SQLite implements `INSERT OR REPLACE` as DELETE + INSERT, which fires the
+     * `ON DELETE CASCADE` of every child table, so re-inserting a song (playing a track, loving
+     * it, finishing a download, adding it to a playlist) silently wiped that song's
+     * `favorites`, `downloads`, `history` and `playlist_song_cross_ref` rows. That was the
+     * "heart flips itself back" and "download never shows up" bug. `@Upsert` updates in place
+     * instead, so child rows survive.
+     */
+    @Upsert
     suspend fun insertSong(song: SongEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertSongs(songs: List<SongEntity>)
 
     @Query("SELECT * FROM songs WHERE id = :songId")
