@@ -31,6 +31,13 @@ interface LyricsRepository {
 
 interface LibraryRepository {
     fun getFavorites(): Flow<List<Song>>
+
+    /**
+     * Idempotently stores [favorite] for [song] and returns the stored value. Preferred over
+     * [toggleFavorite] because rapid taps converge instead of flipping twice.
+     */
+    suspend fun setFavorite(song: Song, favorite: Boolean): Boolean
+
     suspend fun toggleFavorite(song: Song): Boolean
     suspend fun isFavorite(songId: String): Boolean
     

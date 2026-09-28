@@ -12,17 +12,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * App wide "did the user love / save this track" state.
  *
- * The heart and the download badge used to be read straight off the `Song` object that was
- * captured when a screen was composed, so tapping "Add to favorites" wrote to the database
- * while the icon kept showing the old value. This holder mirrors the Room tables as flows and
- * flips optimistically *before* the write, so every heart in the app (player, sheet, list
- * rows) animates the moment it is tapped.
+ * Two things made the heart glitch before: screens read the flag off a `Song` object captured at
+ * composition time, and the Room flow kept emitting the *old* list while a write was in flight,
+ * which flipped the icon straight back. This holder fixes both:
+ *
+ *  - [favoriteIds] / [downloadStatus] are the single source of truth for the UI, and
+ *  - writes are recorded in the pending maps *before* they hit Room, so an in-flight value always
+ *    wins over a stale emission until the database confirms it.
+ *
+ * Writes are idempotent (`setFavorite(song, true/false)`) rather than toggles, so double taps
+ * converge on the last choice instead of fighting each other.
  */
 @Singleton
 class SongStates @Inject constructor(
@@ -32,8 +38,20 @@ class SongStates @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** Favourite ids as they currently exist in the database. */
+    private val dbFavorites = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Favourite values being written right now, keyed by song id. */
+    private val pendingFavorites = ConcurrentHashMap<String, Boolean>()
+
     private val _favoriteIds = MutableStateFlow<Set<String>>(emptySet())
     val favoriteIds: StateFlow<Set<String>> = _favoriteIds.asStateFlow()
+
+    /** Download rows as they currently exist in the database. */
+    private val dbDownloads = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
+
+    /** Downloads queued locally before their Room row exists. */
+    private val pendingDownloads = ConcurrentHashMap<String, DownloadStatus>()
 
     private val _downloadStatus = MutableStateFlow<Map<String, DownloadStatus>>(emptyMap())
     val downloadStatus: StateFlow<Map<String, DownloadStatus>> = _downloadStatus.asStateFlow()
@@ -42,13 +60,17 @@ class SongStates @Inject constructor(
         scope.launch {
             libraryRepository.getFavorites()
                 .catch { }
-                .collect { songs -> _favoriteIds.value = songs.map { it.id }.toSet() }
+                .collect { songs ->
+                    dbFavorites.value = songs.map { it.id }.toSet()
+                    publishFavorites()
+                }
         }
         scope.launch {
             downloadRepository.getDownloads()
                 .catch { }
                 .collect { items ->
-                    _downloadStatus.value = items.associate { it.song.id to it.status }
+                    dbDownloads.value = items.associate { it.song.id to it.status }
+                    publishDownloads()
                 }
         }
     }
@@ -59,26 +81,33 @@ class SongStates @Inject constructor(
 
     /** `true` once the file really is on the device (falls back to the song flag). */
     fun isDownloaded(song: Song): Boolean =
-        _downloadStatus.value[song.id] == DownloadStatus.COMPLETED || song.isDownloaded
+        statusOf(song.id) == DownloadStatus.COMPLETED || song.isDownloaded
 
-    fun isDownloading(song: Song): Boolean = when (_downloadStatus.value[song.id]) {
+    fun isDownloading(song: Song): Boolean = when (statusOf(song.id)) {
         DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING -> true
         else -> false
     }
 
+    fun toggleFavorite(song: Song) = setFavorite(song, !isFavorite(song.id))
+
     /**
-     * Flips the heart immediately and keeps the database in sync. On failure the optimistic
-     * flip is rolled back so the icon never lies about the stored state.
+     * Flips the heart immediately and keeps the database in sync. The optimistic value is held in
+     * [pendingFavorites] until Room confirms it, so the icon never flickers back mid-write and
+     * never lies about the stored state.
      */
-    fun toggleFavorite(song: Song) {
-        val wasFavorite = isFavorite(song.id)
-        setFavoriteLocally(song.id, !wasFavorite)
+    fun setFavorite(song: Song, favorite: Boolean) {
+        pendingFavorites[song.id] = favorite
+        publishFavorites()
         scope.launch {
-            val nowFavorite = runCatching { libraryRepository.toggleFavorite(song) }.getOrNull()
-            if (nowFavorite == null) {
-                setFavoriteLocally(song.id, wasFavorite)
+            val stored = runCatching { libraryRepository.setFavorite(song, favorite) }.getOrNull()
+            // Only drop the override while it is still the value we wrote: a newer tap wins.
+            pendingFavorites.remove(song.id, favorite)
+            if (stored == null) {
+                publishFavorites()
             } else {
-                setFavoriteLocally(song.id, nowFavorite)
+                dbFavorites.value = if (stored) dbFavorites.value + song.id
+                else dbFavorites.value - song.id
+                publishFavorites()
             }
         }
     }
@@ -86,20 +115,38 @@ class SongStates @Inject constructor(
     /** Saves the track for offline playback (no-op while a download is already running). */
     fun download(song: Song) {
         if (isDownloading(song) || isDownloaded(song)) return
-        _downloadStatus.value = _downloadStatus.value + (song.id to DownloadStatus.QUEUED)
+        pendingDownloads[song.id] = DownloadStatus.QUEUED
+        publishDownloads()
         scope.launch {
             runCatching { downloadRepository.startDownload(song) }
-                .onFailure { _downloadStatus.value = _downloadStatus.value - song.id }
+            // The repository has written its own row by now, so the pending entry is redundant.
+            pendingDownloads.remove(song.id)
+            publishDownloads()
         }
     }
 
     fun removeDownload(songId: String) {
-        _downloadStatus.value = _downloadStatus.value - songId
+        pendingDownloads.remove(songId)
+        dbDownloads.value = dbDownloads.value - songId
+        publishDownloads()
         scope.launch { runCatching { downloadRepository.removeDownload(songId) } }
     }
 
-    private fun setFavoriteLocally(songId: String, favorite: Boolean) {
-        _favoriteIds.value = if (favorite) _favoriteIds.value + songId
-        else _favoriteIds.value - songId
+    private fun publishFavorites() {
+        val merged = dbFavorites.value.toMutableSet()
+        pendingFavorites.forEach { (id, favorite) ->
+            if (favorite) merged.add(id) else merged.remove(id)
+        }
+        _favoriteIds.value = merged
+    }
+
+    private fun publishDownloads() {
+        val merged = dbDownloads.value.toMutableMap()
+        // Pending only fills gaps: once Room has a row it is authoritative (it knows about
+        // completion, failure and cancellation).
+        pendingDownloads.forEach { (id, status) ->
+            if (!merged.containsKey(id)) merged[id] = status
+        }
+        _downloadStatus.value = merged
     }
 }
