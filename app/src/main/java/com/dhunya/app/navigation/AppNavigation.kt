@@ -24,6 +24,9 @@ import androidx.navigation.navArgument
 import com.dhunya.app.core.state.SongStates
 import com.dhunya.app.domain.model.DownloadStatus
 import com.dhunya.app.domain.model.Song
+import com.dhunya.app.features.playlist.PlaylistPickerSheet
+import com.dhunya.app.features.share.SharePosterEffect
+import com.dhunya.app.features.share.ShareSongViewModel
 import com.dhunya.app.features.downloads.DownloadsScreen
 import com.dhunya.app.features.home.HomeScreen
 import com.dhunya.app.features.library.LibraryScreen
@@ -57,6 +60,12 @@ fun DhunyaApp(
     val currentRoute = navBackStackEntry?.destination?.route
 
     var selectedActionSong by remember { mutableStateOf<Song?>(null) }
+    var playlistTargetSong by remember { mutableStateOf<Song?>(null) }
+    var pendingSnackbar by remember { mutableStateOf<String?>(null) }
+    val shareViewModel: ShareSongViewModel = hiltViewModel()
+
+    // Renders the poster and opens the system share sheet once it is ready.
+    SharePosterEffect(viewModel = shareViewModel)
 
     val bottomNavItems = listOf(
         BottomNavItem(Screen.Home.route, "Home", Icons.Filled.Home, Icons.Outlined.Home),
@@ -74,6 +83,14 @@ fun DhunyaApp(
     LaunchedEffect(playbackError) {
         if (!playbackError.isNullOrBlank()) {
             snackbarHostState.showSnackbar(message = playbackError, withDismissAction = true)
+        }
+    }
+
+    // Playlist confirmations ("Added to Road Trip") reuse the same host.
+    LaunchedEffect(pendingSnackbar) {
+        pendingSnackbar?.let { message ->
+            snackbarHostState.showSnackbar(message = message, withDismissAction = true)
+            pendingSnackbar = null
         }
     }
 
@@ -219,11 +236,29 @@ fun DhunyaApp(
             onAddToQueue = {
                 playerManager.queueManager.addToQueueEnd(song)
             },
+            onAddToPlaylist = {
+                playlistTargetSong = song
+            },
+            onShare = {
+                shareViewModel.share(song)
+            },
             onToggleFavorite = {
                 songStates.toggleFavorite(song)
             },
             onDownload = {
                 if (isDownloaded) songStates.removeDownload(song.id) else songStates.download(song)
+            }
+        )
+    }
+
+    // "Add to playlist" picker, opened from any song's action sheet.
+    playlistTargetSong?.let { song ->
+        PlaylistPickerSheet(
+            song = song,
+            onDismiss = { playlistTargetSong = null },
+            onSongAdded = { playlistName ->
+                playlistTargetSong = null
+                pendingSnackbar = "Added to \"$playlistName\""
             }
         )
     }

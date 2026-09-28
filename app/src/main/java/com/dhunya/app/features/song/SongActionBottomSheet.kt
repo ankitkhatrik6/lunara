@@ -30,6 +30,8 @@ fun SongActionBottomSheet(
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onShare: () -> Unit,
     onToggleFavorite: () -> Unit,
     onDownload: () -> Unit
 ) {
@@ -95,6 +97,22 @@ fun SongActionBottomSheet(
             SheetActionRow(text = "Add to queue", onClick = { onAddToQueue(); onDismiss() }) {
                 Icon(
                     imageVector = Icons.Default.QueueMusic,
+                    contentDescription = null,
+                    tint = DhunyaTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            SheetActionRow(text = "Add to playlist", onClick = { onAddToPlaylist(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.PlaylistAdd,
+                    contentDescription = null,
+                    tint = DhunyaTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            SheetActionRow(text = "Share as poster", onClick = { onShare(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.Share,
                     contentDescription = null,
                     tint = DhunyaTextPrimary,
                     modifier = Modifier.size(24.dp)
