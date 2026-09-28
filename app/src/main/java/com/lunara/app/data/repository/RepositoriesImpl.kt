@@ -29,6 +29,18 @@ import kotlin.coroutines.coroutineContext
 
 private const val WHOLE_LOTTA_RED_PLAYLIST_ID = "OLAK5uy_lW6cMszmMtqMeepM6dSApqU1K2meB4ajE"
 
+/**
+ * `catch (e: Exception)` also catches [CancellationException], and swallowing it is what made
+ * cancelling a request look like a failure: the message ("LazyStandaloneCoroutine was
+ * cancelled", obfuscated to something like "z0 was cancelled") was turned into a
+ * `Resource.Error`, published into the shared playback state *after* a newer track had already
+ * started, and stopped that track with a bogus "source error". Cancellation always belongs to
+ * the caller, so it is re-thrown from every catch block in this file.
+ */
+private fun Exception.rethrowIfCancellation() {
+    if (this is CancellationException) throw this
+}
+
 class MusicRepositoryImpl @Inject constructor(
     private val remoteSource: MusicRemoteDataSource,
     private val localAudioSource: com.lunara.app.data.local.LocalAudioDataSource,
@@ -52,6 +64,7 @@ class MusicRepositoryImpl @Inject constructor(
             }
             Resource.Success(songsWithFav)
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Failed to search songs", e)
         }
     }
@@ -66,6 +79,7 @@ class MusicRepositoryImpl @Inject constructor(
         return try {
             Resource.Success(remoteSource.searchArtists(query))
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Failed to search artists", e)
         }
     }
@@ -74,6 +88,7 @@ class MusicRepositoryImpl @Inject constructor(
         return try {
             Resource.Success(remoteSource.searchAlbums(query))
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Failed to search albums", e)
         }
     }
@@ -87,6 +102,7 @@ class MusicRepositoryImpl @Inject constructor(
         val remote = try {
             remoteSource.getSong(id)
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             null
         } ?: return Resource.Error("Song not found")
         songDao.insertSong(remote.toEntity())
@@ -101,6 +117,7 @@ class MusicRepositoryImpl @Inject constructor(
     private suspend fun getFeaturedSongs(): List<Song> = try {
         remoteSource.getAlbumTracks(WHOLE_LOTTA_RED_PLAYLIST_ID)
     } catch (e: Exception) {
+        e.rethrowIfCancellation()
         emptyList()
     }
 
@@ -108,6 +125,7 @@ class MusicRepositoryImpl @Inject constructor(
         return try {
             Resource.Success(remoteSource.getAlbumTracks(albumId))
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Failed to load album", e)
         }
     }
@@ -121,6 +139,7 @@ class MusicRepositoryImpl @Inject constructor(
         return try {
             Resource.Success(remoteSource.resolvePlayableMedia(song))
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Could not resolve audio stream", e)
         }
     }
@@ -161,6 +180,7 @@ class LyricsRepositoryImpl @Inject constructor(
             )
             Resource.Success(lyrics)
         } catch (e: Exception) {
+            e.rethrowIfCancellation()
             Resource.Error("Could not retrieve lyrics", e)
         }
     }
@@ -280,26 +300,30 @@ class DownloadRepositoryImpl @Inject constructor(
      */
     override fun getDownloads(): Flow<List<DownloadItem>> {
         return downloadDao.getAllDownloads().map { downloads ->
-            downloads.mapNotNull { downloadEntity ->
-                val songEntity = songDao.getSongById(downloadEntity.songId)
-                val song = songEntity?.toDomain()?.copy(
-                    localUri = songEntity.localUri ?: downloadEntity.localFilePath,
-                    isDownloaded = songEntity.isDownloaded ||
-                        downloadEntity.status == DownloadStatus.COMPLETED.name,
-                    streamUrl = downloadEntity.localFilePath ?: songEntity.streamUrl
-                ) ?: Song(
-                    id = downloadEntity.songId,
-                    title = "Downloaded track",
-                    artistName = "Unknown Artist",
-                    localUri = downloadEntity.localFilePath,
-                    streamUrl = downloadEntity.localFilePath,
-                    isDownloaded = downloadEntity.status == DownloadStatus.COMPLETED.name
-                )
-                if (song.localUri.isNullOrBlank()) {
-                    songDao.updateDownloadStatus(song.id, true, downloadEntity.localFilePath)
+            downloads
+                .distinctBy { it.songId }
+                .map { downloadEntity ->
+                    val songEntity = songDao.getSongById(downloadEntity.songId)
+                    val song = songEntity?.toDomain()?.copy(
+                        localUri = songEntity.localUri ?: downloadEntity.localFilePath,
+                        isDownloaded = songEntity.isDownloaded ||
+                            downloadEntity.status == DownloadStatus.COMPLETED.name,
+                        // Keep the *remote* stream URL. Overwriting it with the local file path
+                        // meant that a missing/removed file left the player with a dead
+                        // `file://` URL and ExoPlayer answered "source error" instead of
+                        // streaming the track. `PlayerManager` prefers a local file when it
+                        // really exists and otherwise falls back to this URL.
+                        streamUrl = songEntity.streamUrl
+                    ) ?: Song(
+                        id = downloadEntity.songId,
+                        title = "Downloaded track",
+                        artistName = "Unknown Artist",
+                        localUri = downloadEntity.localFilePath,
+                        streamUrl = null,
+                        isDownloaded = downloadEntity.status == DownloadStatus.COMPLETED.name
+                    )
+                    downloadEntity.toDomain(song)
                 }
-                downloadEntity.toDomain(song)
-            }
         }
     }
 
@@ -393,6 +417,7 @@ class DownloadRepositoryImpl @Inject constructor(
                 downloadDao.deleteDownload(song.id)
                 throw e
             } catch (e: Exception) {
+                e.rethrowIfCancellation()
                 realDownloadManager.deleteDownloadedFile(song.id)
                 downloadDao.insertOrUpdateDownload(
                     DownloadEntity(

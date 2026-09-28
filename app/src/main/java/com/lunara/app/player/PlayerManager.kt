@@ -7,7 +7,9 @@ import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.lunara.app.core.result.Resource
 import com.lunara.app.data.remote.innertube.InnerTubeClients
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,16 +40,35 @@ class PlayerManager @Inject constructor(
     private val musicRepository: MusicRepository
 ) : LunaraPlayer {
 
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    /**
+     * Nothing here may reach the uncaught-exception handler: an unhandled throwable inside a
+     * fire-and-forget coroutine takes the whole process down. Failures are surfaced through
+     * [playbackState] instead.
+     */
+    private val scope = CoroutineScope(
+        Dispatchers.Main + SupervisorJob() + CoroutineExceptionHandler { _, throwable ->
+            _playbackState.value = _playbackState.value.copy(
+                isLoading = false,
+                isPlaying = false,
+                errorMessage = throwable.localizedMessage ?: "Playback error"
+            )
+        }
+    )
     private var exoPlayer: ExoPlayer? = null
     private var progressJob: Job? = null
     private var resolveJob: Job? = null
+
+    /** The id of the track whose resolve is allowed to touch the shared playback state. */
+    private var resolvingSongId: String? = null
 
     /** Spare resolved URLs for the current track, used to recover from CDN failures. */
     private var currentFallbackUris: List<String> = emptyList()
 
     /** URLs that already failed for the current track, so a swap never loops. */
     private val failedUris = mutableSetOf<String>()
+
+    /** Tracks that already had one forced re-resolve, so recovery can never spin. */
+    private val reResolvedSongIds = mutableSetOf<String>()
 
     /** The URL currently loaded in ExoPlayer, tracked so a failure can be attributed to it. */
     private var currentStreamUri: String? = null
@@ -76,8 +98,21 @@ class PlayerManager @Inject constructor(
             DefaultDataSource.Factory(context, httpDataSourceFactory)
         )
 
+        // Blazify-style tuning: start on a very small cushion so the first note is instant,
+        // keep a generous ceiling so long tracks never re-buffer, and prefer time over bytes.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                MIN_BUFFER_MS,
+                MAX_BUFFER_MS,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         val player = ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setLoadControl(loadControl)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -88,6 +123,11 @@ class PlayerManager @Inject constructor(
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
+
+        // Snapping to the nearest sync sample makes scrubbing (and the seek before a
+        // resume) land immediately instead of walking the container.
+        player.setSeekParameters(SeekParameters.CLOSEST_SYNC)
+        player.setPauseAtEndOfMediaItems(false)
 
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -126,20 +166,46 @@ class PlayerManager @Inject constructor(
                 // instead of dropping out with "source error".
                 val song = _playbackState.value.currentSong
                 currentStreamUri?.let { failedUris.add(it) }
+
                 val nextUri = currentFallbackUris.firstOrNull { it !in failedUris }
                 if (song != null && nextUri != null) {
                     startPlayback(player, song, nextUri, mimeTypeOf(nextUri, null))
                     return
                 }
-                _playbackState.value = _playbackState.value.copy(
-                    isLoading = false,
-                    isPlaying = false,
-                    errorMessage = error.localizedMessage ?: "Playback error occurred"
-                )
+
+                // Every pre-resolved URL is exhausted. YouTube signatures expire after a while,
+                // so ask for a completely fresh set before giving up — this is the difference
+                // between a track that "sometimes errors" and one that recovers by itself.
+                if (song != null && !reResolvedSongIds.contains(song.id)) {
+                    reResolvedSongIds.add(song.id)
+                    _playbackState.value = _playbackState.value.copy(isLoading = true)
+                    scope.launch {
+                        val result = runCatching { musicRepository.resolvePlayableMedia(song) }
+                        val media = (result.getOrNull() as? Resource.Success)?.data
+                        if (media != null && media.mediaUri.isNotBlank()) {
+                            currentFallbackUris = emptyList()
+                            failedUris.clear()
+                            startPlayback(player, media.song.copy(streamUrl = media.mediaUri), media.mediaUri, media.mimeType)
+                        } else {
+                            reportError(error.localizedMessage ?: "Playback failed")
+                        }
+                    }
+                    return
+                }
+
+                reportError(error.localizedMessage ?: "Playback error occurred")
             }
         })
 
         exoPlayer = player
+    }
+
+    private fun reportError(message: String) {
+        _playbackState.value = _playbackState.value.copy(
+            isLoading = false,
+            isPlaying = false,
+            errorMessage = message
+        )
     }
 
     fun getExoPlayer(): ExoPlayer {
@@ -181,8 +247,10 @@ class PlayerManager @Inject constructor(
         failedUris.clear()
 
         // Locally stored / already resolved tracks can start straight away.
-        val directUri = song.localUri ?: song.streamUrl
+        val directUri = usableLocalUri(song.localUri) ?: song.streamUrl?.takeIf { it.isNotBlank() }
         if (!directUri.isNullOrBlank()) {
+            resolveJob?.cancel()
+            resolvingSongId = null
             startPlayback(player, song, directUri)
             return
         }
@@ -190,6 +258,10 @@ class PlayerManager @Inject constructor(
         // YouTube Music tracks only carry metadata: the signed audio URL has to be
         // resolved on demand (InnerTube `player` endpoint) before ExoPlayer can open it.
         resolveJob?.cancel()
+        // Only this track's resolve may publish into the shared playback state. Without the
+        // guard a cancelled request for the *previous* track could still land its result —
+        // or its cancellation message — on top of the track that is now starting.
+        resolvingSongId = song.id
         _playbackState.value = _playbackState.value.copy(
             currentSong = song,
             isLoading = true,
@@ -198,23 +270,24 @@ class PlayerManager @Inject constructor(
             totalDurationMs = song.durationMs
         )
         resolveJob = scope.launch {
-            val result = musicRepository.resolvePlayableMedia(song)
-            val media = (result as? Resource.Success)?.data
-            if (media == null) {
-                _playbackState.value = _playbackState.value.copy(
-                    isLoading = false,
-                    isPlaying = false,
-                    errorMessage = (result as? Resource.Error)?.message
-                        ?: "Could not resolve audio stream for \"${song.title}\""
-                )
-                return@launch
+            val result = try {
+                musicRepository.resolvePlayableMedia(song)
+            } catch (e: CancellationException) {
+                // Superseded by a newer tap: leave the new track's state alone.
+                throw e
+            } catch (e: Exception) {
+                Resource.Error(e.localizedMessage ?: "Could not resolve audio stream", e)
             }
-            val uri = media.mediaUri
-            if (uri.isBlank()) {
-                _playbackState.value = _playbackState.value.copy(
-                    isLoading = false,
-                    isPlaying = false,
-                    errorMessage = "No playable audio stream for \"${song.title}\""
+
+            // A newer song took over while we were resolving — drop this result silently.
+            if (resolvingSongId != song.id) return@launch
+
+            val media = (result as? Resource.Success)?.data
+            val uri = media?.mediaUri
+            if (media == null || uri.isNullOrBlank()) {
+                reportError(
+                    (result as? Resource.Error)?.message
+                        ?: "Could not resolve audio stream for \"${song.title}\""
                 )
                 return@launch
             }
@@ -224,6 +297,21 @@ class PlayerManager @Inject constructor(
             currentFallbackUris = media.fallbackUris
             startPlayback(player, playableSong, uri, media.mimeType)
         }
+    }
+
+    /**
+     * Returns [uri] when it points at a file that really exists, otherwise `null` so the
+     * caller can fall back to streaming.
+     *
+     * Saved tracks are stored under `filesDir/lunara_media`. If the file was deleted (app data
+     * cleared, storage trimmed) the stored `file://` URI would otherwise be handed to
+     * ExoPlayer, which fails it with a "source error" instead of playing the song online.
+     */
+    private fun usableLocalUri(uri: String?): String? {
+        if (uri.isNullOrBlank()) return null
+        if (!uri.startsWith("file:")) return uri
+        val path = runCatching { Uri.parse(uri).path }.getOrNull() ?: return null
+        return if (File(path).let { it.exists() && it.length() > 0L }) uri else null
     }
 
     /**
@@ -239,6 +327,11 @@ class PlayerManager @Inject constructor(
         uri: String,
         mimeType: String? = null
     ) {
+        // A different track: allow its own one-shot recovery re-resolve.
+        if (_playbackState.value.currentSong?.id != song.id) {
+            reResolvedSongIds.remove(song.id)
+        }
+
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle(song.title)
             .setArtist(song.artistName)
@@ -276,10 +369,16 @@ class PlayerManager @Inject constructor(
      * gap every time the user presses next.
      */
     private fun prefetchUpcoming() {
+        // Two tracks ahead, so "next" is instant even when the queue is being skipped quickly.
         val upcoming = queueManager.upcomingSongs()
-            .firstOrNull { it.localUri.isNullOrBlank() && it.streamUrl.isNullOrBlank() }
-            ?: return
-        scope.launch { runCatching { musicRepository.resolvePlayableMedia(upcoming) } }
+            .filter { it.localUri.isNullOrBlank() && it.streamUrl.isNullOrBlank() }
+            .take(PREFETCH_AHEAD)
+        if (upcoming.isEmpty()) return
+        scope.launch {
+            upcoming.forEach { song ->
+                runCatching { musicRepository.resolvePlayableMedia(song) }
+            }
+        }
     }
 
     fun playQueue(songs: List<Song>, startIndex: Int = 0) {
@@ -329,6 +428,7 @@ class PlayerManager @Inject constructor(
     fun stopPlayback() {
         resolveJob?.cancel()
         resolveJob = null
+        resolvingSongId = null
         stopProgressTracker()
         exoPlayer?.let { player ->
             player.stop()
@@ -337,6 +437,7 @@ class PlayerManager @Inject constructor(
         queueManager.clearQueue()
         currentFallbackUris = emptyList()
         failedUris.clear()
+        reResolvedSongIds.clear()
         currentStreamUri = null
         _playbackState.value = PlaybackState()
     }
@@ -395,10 +496,22 @@ class PlayerManager @Inject constructor(
     private fun mimeTypeOf(uri: String, resolved: String?): String? {
         // HLS needs its type up front; keep the detection above untouched.
         streamMimeTypeOrNull(uri)?.let { return it }
-        // Local files must never force a container. Saved tracks can be m4a/webm while
-        // carrying an old `.mp3` name (or vice versa), and forcing AUDIO_WEBM made ExoPlayer
-        // hand the bytes to the wrong extractor ("source error"). `null` lets it sniff.
-        if (!uri.startsWith("http")) return null
+        // Saved tracks: the container is encoded in the stored extension, which is a far
+        // safer hint than guessing. Only unambiguous extensions are used; anything else
+        // stays `null` so ExoPlayer can sniff it.
+        if (!uri.startsWith("http")) {
+            return when (uri.substringAfterLast('.', "").lowercase()) {
+                "m4a", "mp4", "aac", "m4b" -> MimeTypes.AUDIO_MP4
+                "webm", "opus" -> MimeTypes.AUDIO_WEBM
+                "mp3" -> MimeTypes.AUDIO_MPEG
+                "ogg", "oga" -> MimeTypes.AUDIO_OGG
+                "flac" -> MimeTypes.AUDIO_FLAC
+                "wav" -> MimeTypes.AUDIO_WAV
+                // Local files with an unknown/absent extension must never force a
+                // container: `null` lets ExoPlayer sniff the real one.
+                else -> null
+            }
+        }
         val mime = resolved.orEmpty()
         return when {
             mime.startsWith("audio/mp4") || mime.startsWith("video/mp4") -> MimeTypes.AUDIO_MP4
@@ -408,7 +521,23 @@ class PlayerManager @Inject constructor(
                 mime.startsWith("application/vnd.apple.mpegurl") -> MimeTypes.APPLICATION_M3U8
             uri.contains("mime=audio%2Fmp4") || uri.contains("mime=audio/mp4") -> MimeTypes.AUDIO_MP4
             uri.contains("mime=audio%2Fwebm") || uri.contains("mime=audio/webm") -> MimeTypes.AUDIO_WEBM
-            else -> MimeTypes.AUDIO_WEBM
+            // Unknown: let ExoPlayer sniff. Forcing WebM here is what handed m4a bytes to the
+            // Matroska extractor and produced a "source error" on otherwise fine streams.
+            else -> null
         }
+    }
+
+    private companion object {
+        /**
+         * Playback cushion. A tiny start buffer is what makes play/pause/next feel instant;
+         * the large ceiling absorbs CDN hiccups without a visible re-buffer.
+         */
+        const val MIN_BUFFER_MS = 15_000
+        const val MAX_BUFFER_MS = 120_000
+        const val BUFFER_FOR_PLAYBACK_MS = 500
+        const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1_000
+
+        /** How many upcoming tracks get their stream resolved ahead of time. */
+        const val PREFETCH_AHEAD = 2
     }
 }

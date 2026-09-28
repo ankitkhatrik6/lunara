@@ -36,7 +36,16 @@ class SongStates @Inject constructor(
     private val downloadRepository: DownloadRepository
 ) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Single-threaded on purpose: `publishFavorites()` reads the DB mirror and the pending
+     * overrides in two steps, and the Room collector runs on the same scope. On a multi-threaded
+     * pool a stale emission could land *between* those steps — the heart visibly flipped back to
+     * "not loved" for a frame, and on a slow write it stuck there. Serialising every mutation and
+     * every collection removes that window entirely.
+     */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO.limitedParallelism(1)
+    )
 
     /** Favourite ids as they currently exist in the database. */
     private val dbFavorites = MutableStateFlow<Set<String>>(emptySet())
@@ -100,15 +109,19 @@ class SongStates @Inject constructor(
         publishFavorites()
         scope.launch {
             val stored = runCatching { libraryRepository.setFavorite(song, favorite) }.getOrNull()
-            // Only drop the override while it is still the value we wrote: a newer tap wins.
-            pendingFavorites.remove(song.id, favorite)
-            if (stored == null) {
-                publishFavorites()
-            } else {
+            if (stored != null) {
+                // Mirror the confirmed value first, *then* release the override. Releasing the
+                // override before the mirror was updated is what let a stale Room emission win
+                // and flip the heart back.
                 dbFavorites.value = if (stored) dbFavorites.value + song.id
                 else dbFavorites.value - song.id
-                publishFavorites()
+                // Only drop the override while it is still the value we wrote: a newer tap wins.
+                pendingFavorites.remove(song.id, favorite)
+            } else {
+                // Write failed: drop the optimistic value so the icon shows the real state.
+                pendingFavorites.remove(song.id, favorite)
             }
+            publishFavorites()
         }
     }
 
