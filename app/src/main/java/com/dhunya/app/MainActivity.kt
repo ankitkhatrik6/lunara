@@ -51,6 +51,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // The service stops itself when the task is swiped away (that is what stops playback),
+        // which also disconnects this controller. Reconnect so the notification works again.
+        val controller = mediaController
+        if (controller == null || !controller.isConnected) {
+            controller?.release()
+            mediaController = null
+            controllerReleased = false
+            connectToPlaybackService()
+        }
+    }
+
     override fun onDestroy() {
         controllerReleased = true
         mediaController?.release()

@@ -321,6 +321,26 @@ class PlayerManager @Inject constructor(
         exoPlayer?.pause()
     }
 
+    /**
+     * Stops playback completely: no item stays prepared, the queue and the UI state are
+     * cleared, and the service that hosted the notification can be torn down. Used when the
+     * user swipes Dhunya out of recents.
+     */
+    fun stopPlayback() {
+        resolveJob?.cancel()
+        resolveJob = null
+        stopProgressTracker()
+        exoPlayer?.let { player ->
+            player.stop()
+            player.clearMediaItems()
+        }
+        queueManager.clearQueue()
+        currentFallbackUris = emptyList()
+        failedUris.clear()
+        currentStreamUri = null
+        _playbackState.value = PlaybackState()
+    }
+
     fun togglePlayPause() {
         val player = exoPlayer ?: return
         if (player.isPlaying) {
@@ -372,8 +392,13 @@ class PlayerManager @Inject constructor(
      * "buffering" forever instead of playing.
      */
     @OptIn(UnstableApi::class)
-    private fun mimeTypeOf(uri: String, resolved: String?): String {
+    private fun mimeTypeOf(uri: String, resolved: String?): String? {
+        // HLS needs its type up front; keep the detection above untouched.
         streamMimeTypeOrNull(uri)?.let { return it }
+        // Local files must never force a container. Saved tracks can be m4a/webm while
+        // carrying an old `.mp3` name (or vice versa), and forcing AUDIO_WEBM made ExoPlayer
+        // hand the bytes to the wrong extractor ("source error"). `null` lets it sniff.
+        if (!uri.startsWith("http")) return null
         val mime = resolved.orEmpty()
         return when {
             mime.startsWith("audio/mp4") || mime.startsWith("video/mp4") -> MimeTypes.AUDIO_MP4

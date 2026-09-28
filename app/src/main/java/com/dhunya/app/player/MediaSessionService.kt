@@ -60,6 +60,16 @@ class MediaSessionService : MediaSessionService() {
         super.onDestroy()
     }
 
+    /**
+     * Swiping Dhunya out of recents must stop the music. The foreground service would
+     * otherwise keep the whole process (and playback) alive after the app is cleared.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        playerManager.stopPlayback()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     /** Tapping the notification (or the lock screen artwork) reopens the app. */
     private fun openAppIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
