@@ -136,9 +136,12 @@ class MusicRepositoryImpl @Inject constructor(
      * as-is, YouTube Music tracks are resolved to a signed audio URL on demand by the
      * remote source. Failures surface as [Resource.Error] so the UI can report them.
      */
-    override suspend fun resolvePlayableMedia(song: Song): Resource<PlayableMedia> {
+    override suspend fun resolvePlayableMedia(
+        song: Song,
+        forceRefresh: Boolean
+    ): Resource<PlayableMedia> {
         return try {
-            Resource.Success(remoteSource.resolvePlayableMedia(song))
+            Resource.Success(remoteSource.resolvePlayableMedia(song, forceRefresh))
         } catch (e: Exception) {
             e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Could not resolve audio stream", e)

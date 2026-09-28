@@ -33,7 +33,7 @@ class MusicRemoteDataSource @Inject constructor(
     suspend fun getSong(id: String): Song? =
         youTubeMusic.getSong(id)
 
-    suspend fun resolvePlayableMedia(song: Song): PlayableMedia =
-        youTubeMusic.resolvePlayableMedia(song)
+    suspend fun resolvePlayableMedia(song: Song, forceRefresh: Boolean = false): PlayableMedia =
+        youTubeMusic.resolvePlayableMedia(song, forceRefresh)
 }
 

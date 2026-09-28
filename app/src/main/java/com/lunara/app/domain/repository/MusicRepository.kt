@@ -13,7 +13,7 @@ interface MusicRepository {
     suspend fun searchAlbums(query: String): Resource<List<Album>>
     suspend fun getSong(id: String): Resource<Song>
     suspend fun getAlbumTracks(albumId: String): Resource<List<Song>>
-    suspend fun resolvePlayableMedia(song: Song): Resource<PlayableMedia>
+    suspend fun resolvePlayableMedia(song: Song, forceRefresh: Boolean = false): Resource<PlayableMedia>
     suspend fun getLocalSongs(): List<Song>
     suspend fun getRecentSearches(): List<String>
     suspend fun saveRecentSearch(query: String)

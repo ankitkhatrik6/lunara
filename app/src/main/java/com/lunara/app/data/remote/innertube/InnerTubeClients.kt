@@ -104,18 +104,29 @@ object InnerTubeClients {
     )
 
     /**
-     * Order used when resolving a playable audio URL. WEB_REMIX is deliberately absent:
-     * it only answers with cipher-protected formats (no plain URL), so it can never feed
-     * ExoPlayer directly.
+     * Order used when resolving a playable audio URL, best first.
+     *
+     * [ANDROID_VR] leads because it is the only widely available identity that still answers
+     * with plain, ready-to-stream `url` formats: no `signatureCipher`, no PO-token gate, no
+     * SABR. The other three are fallbacks for the tracks it refuses. WEB_REMIX is deliberately
+     * absent - it only answers with cipher-protected formats (no plain URL), so it could never
+     * feed ExoPlayer directly.
+     *
+     * Putting a gated client first (as earlier builds did) meant every play wasted a round
+     * trip on a response whose formats all have to be dropped, which is what made tracks take
+     * seconds to start.
      */
-    val STREAM_CLIENTS = listOf(ANDROID, IOS, TVHTML5, ANDROID_VR)
+    val STREAM_CLIENTS = listOf(ANDROID_VR, IOS, TVHTML5, ANDROID)
 
     /**
-     * User agent used when fetching audio bytes from `*.googlevideo.com`. The CDN accepts
-     * any of the client user agents here, it only insists on byte ranged requests.
+     * User agent used for every `*.googlevideo.com` request, both the readiness probe and the
+     * actual playback fetch.
+     *
+     * It is the user agent of [ANDROID_VR] - the identity that mints almost every URL - so the
+     * bytes request always matches the client the URL was signed for, and a probe can never
+     * succeed where the player would have been rejected.
      */
-    const val STREAM_USER_AGENT =
-        "com.google.ios.youtube/21.03.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)"
+    val STREAM_USER_AGENT = ANDROID_VR.userAgent
 }
 
 object InnerTubeParams {

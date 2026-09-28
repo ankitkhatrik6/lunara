@@ -1,5 +1,6 @@
 package com.lunara.app.data.remote.music
 
+import android.net.Uri
 import com.lunara.app.data.remote.innertube.AudioStream
 import com.lunara.app.data.remote.innertube.InnerTubeApi
 import com.lunara.app.data.remote.innertube.InnerTubeClient
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,8 +27,8 @@ import javax.inject.Singleton
  * Mirrors Blazify's flow (from `blazify/innertube` + `YouTube.kt`):
  *  - catalogue/search via `WEB_REMIX` (search/browse endpoints)
  *  - playable audio via `player` endpoint with the audio-friendly client
- *    chain (ANDROID_VR -> IOS -> TVHTML5_EMBEDDED -> WEB_REMIX), picking the
- *    best audio-only adaptive format — exactly how Blazify's PlayerConnection
+ *    chain (ANDROID_VR -> IOS -> TVHTML5 -> ANDROID), picking the
+ *    best audio-only adaptive format - exactly how Blazify's PlayerConnection
  *    opens a track for ExoPlayer/Media3.
  *
  * No third-party proxies, no Piped instances, no placeholder tracks.
@@ -191,7 +193,7 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
 
             InnerTubeParser.parseHlsManifestUrl(root)?.let { manifest ->
                 val candidate = Candidate(manifest, "application/x-mpegURL", 0L, isHls = true)
-                if (probeStream(manifest, client.userAgent, ranged = false)) verified.add(candidate)
+                if (probeStream(manifest, ranged = false)) verified.add(candidate)
                 else unverified.add(candidate)
             }
 
@@ -212,7 +214,7 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
                     isHls = false
                 )
                 if (verified.size < PREFERRED_VERIFIED_CANDIDATES &&
-                    probeStream(format.url, client.userAgent, ranged = true)
+                    probeStream(format.url, ranged = true)
                 ) {
                     verified.add(candidate)
                 } else {
@@ -236,11 +238,20 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
     }
 
     /**
-     * Verifies that [url] really serves bytes: `*.googlevideo.com` rejects requests without
-     * a closed `Range` header with `403`, so a lazily resolved URL can be dead on arrival.
+     * Verifies that [url] really serves bytes, using the *same* user agent the player will use,
+     * so a probe can never pass where playback would have been rejected.
+     *
+     * [ranged] probes with a 1 KiB closed range, which keeps the check cheap. A failed ranged
+     * probe is retried without the header, because that is how ExoPlayer itself asks for a
+     * track: declaring a URL dead on a ranged probe alone threw away playable streams.
      */
-    private fun probeStream(url: String, userAgent: String, ranged: Boolean): Boolean = try {
-        val builder = Request.Builder().url(url).header("User-Agent", userAgent)
+    private fun probeStream(url: String, ranged: Boolean): Boolean =
+        probe(url, ranged) || (ranged && probe(url, ranged = false))
+
+    private fun probe(url: String, ranged: Boolean): Boolean = try {
+        val builder = Request.Builder()
+            .url(url)
+            .header("User-Agent", InnerTubeClients.STREAM_USER_AGENT)
         if (ranged) builder.header("Range", "bytes=0-1023")
         okHttpClient.newCall(builder.build()).execute().use { response ->
             response.isSuccessful
@@ -249,17 +260,43 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         false
     }
 
-    suspend fun resolvePlayableMedia(song: Song): PlayableMedia = withContext(Dispatchers.IO) {
-        song.localUri?.let { return@withContext PlayableMedia(song, it, isLocal = true) }
-        song.streamUrl?.takeIf { it.isNotBlank() }?.let {
-            return@withContext PlayableMedia(song, it, isLocal = false)
+    /**
+     * Opens [song] for the player.
+     *
+     * Only two things are trusted as-is: a `content://` URI and a `file://` URI that really
+     * exists. Everything else is resolved again, because a stored [Song.streamUrl] is a
+     * *signed* URL that YouTube invalidates within minutes. Handing a dead one to ExoPlayer
+     * produced a "source error" that could never recover: the retry path asked this same
+     * method for a URL again and got the same expired signature back.
+     *
+     * Re-resolving is cheap - [resolveAudioStream] serves repeat plays from its own cache while
+     * the URL is still valid - so freshness costs nothing in the common case.
+     *
+     * [forceRefresh] additionally bypasses that cache, used when the player reports that the
+     * URL it was handed has just stopped working.
+     */
+    suspend fun resolvePlayableMedia(
+        song: Song,
+        forceRefresh: Boolean = false
+    ): PlayableMedia = withContext(Dispatchers.IO) {
+        song.localUri?.takeIf { it.isUsableLocalUri() }?.let {
+            return@withContext PlayableMedia(song, it, isLocal = true)
         }
-        val stream = resolveAudioStream(song.id)
+
+        // Non-YouTube sources (imported media) have no resolver behind them, so their stored
+        // URL is all there is. YouTube Music tracks are always resolved fresh.
+        if (!forceRefresh && !song.id.startsWith(YOUTUBE_ID_PREFIX)) {
+            song.streamUrl?.takeIf { it.isNotBlank() }?.let {
+                return@withContext PlayableMedia(song, it, isLocal = false)
+            }
+        }
+
+        val stream = resolveAudioStream(song.id, forceRefresh = forceRefresh)
             ?: throw IllegalStateException(
                 "YouTube did not return a playable stream for \"${song.title}\""
             )
         PlayableMedia(
-            song.copy(streamUrl = stream.url),
+            song.copy(streamUrl = stream.url, localUri = null),
             stream.url,
             isLocal = false,
             mimeType = stream.mimeType,
@@ -268,15 +305,38 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         )
     }
 
+    /**
+     * `true` when the receiver is a local URI that ExoPlayer can actually open.
+     *
+     * A downloaded track whose file has been deleted (app data cleared, storage trimmed) must
+     * fall through to streaming instead of being handed over as a dead `file://` URI, which
+     * ExoPlayer reports as a "source error" that never recovers.
+     */
+    private fun String.isUsableLocalUri(): Boolean {
+        if (isBlank()) return false
+        if (!startsWith("file:")) return true
+        val path = runCatching { Uri.parse(this).path }.getOrNull() ?: return false
+        return File(path).let { it.exists() && it.length() > 0L }
+    }
+
     private companion object {
         /** How long a resolved stream stays reusable before it is resolved again. */
         const val STREAM_CACHE_TTL_MS = 10 * 60 * 1000L
 
+        /** Lunara stores every YouTube Music track under a `yt_<videoId>` id. */
+        const val YOUTUBE_ID_PREFIX = "yt_"
+
         /** How many formats are probed per client identity. */
         const val MAX_CANDIDATES_PER_CLIENT = 4
 
-        /** Stop asking further clients once this many candidates are verified playable. */
-        const val PREFERRED_VERIFIED_CANDIDATES = 3
+        /**
+         * Stop asking further clients once this many candidates are verified playable.
+         *
+         * Deliberately low: each probe is a blocking round trip, so insisting on three verified
+         * URLs delayed the first note by up to a second. Two is enough to fail over, and the
+         * remaining formats of the same client still join the list unprobed.
+         */
+        const val PREFERRED_VERIFIED_CANDIDATES = 2
     }
 }
 
