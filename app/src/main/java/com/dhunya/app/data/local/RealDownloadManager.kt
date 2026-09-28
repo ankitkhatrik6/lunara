@@ -35,8 +35,6 @@ class RealDownloadManager @Inject constructor(
     private val downloadDir: File
         get() = File(context.filesDir, MEDIA_DIR).apply { if (!exists()) mkdirs() }
 
-    fun getDownloadDir(): File = downloadDir
-
     /** Whatever file is stored for [songId] (any container extension), if any. */
     fun getSongFile(songId: String): File? =
         downloadDir.listFiles()?.firstOrNull { it.isFile && it.name.startsWith(SONG_PREFIX + songId + ".") }
