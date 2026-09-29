@@ -93,10 +93,12 @@ class PlayerManager @Inject constructor(
     private fun initializePlayer() {
         if (exoPlayer != null) return
 
+        // Fail fast: a stalled CDN connection has to hand over to the next resolved URL (or
+        // report the failure) within seconds, not after a minute of silence.
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(InnerTubeClients.STREAM_USER_AGENT)
-            .setConnectTimeoutMs(30_000)
-            .setReadTimeoutMs(60_000)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
             .setAllowCrossProtocolRedirects(true)
 
         // Stock data source stack - `DefaultDataSource` (files, `content://`, assets) in front
@@ -131,7 +133,10 @@ class PlayerManager @Inject constructor(
                 true
             )
             .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_LOCAL)
+            // WAKE_MODE_NETWORK, not LOCAL: the local mode only holds a wake lock once the
+            // player is ready, so with the screen off a buffering network stream let the CPU
+            // suspend mid-load, which left playback stuck on "buffering" for good.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
 
         // Snapping to the nearest sync sample makes scrubbing (and the seek before a
