@@ -2,6 +2,7 @@ package com.lunara.app.player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
@@ -180,6 +181,12 @@ class PlayerManager @Inject constructor(
                 // PO-token gate). Swapping to the next resolved format keeps the music going
                 // instead of dropping out with "source error".
                 val song = _playbackState.value.currentSong
+                Log.e(
+                    TAG,
+                    "Playback failed (code ${error.errorCode}) for " +
+                        "\"${song?.title}\" from ${currentStreamUri?.substringBefore('?')}",
+                    error
+                )
                 currentStreamUri?.let { failedUris.add(it) }
                 // Remember that this track's URL is dead so the next attempt asks for a new
                 // signature instead of being served the expired one from the resolver cache.
@@ -220,17 +227,48 @@ class PlayerManager @Inject constructor(
                                 media.contentLength
                             )
                         } else {
-                            reportError(error.localizedMessage ?: "Playback failed")
+                            reportError(describePlaybackError(error))
                         }
                     }
                     return
                 }
 
-                reportError(error.localizedMessage ?: "Playback error occurred")
+                reportError(describePlaybackError(error))
             }
         })
 
         exoPlayer = player
+    }
+
+    /**
+     * Turns a [PlaybackException] into something the listener can act on.
+     *
+     * ExoPlayer's own message for the failures that matter here is just "Source error", which
+     * told neither the user nor us what actually went wrong. The numeric code always does, so
+     * it is appended to the plain English reason and kept in the UI's error text.
+     */
+    private fun describePlaybackError(error: PlaybackException): String {
+        val reason = when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                "Network problem - check your connection"
+
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                "YouTube refused the audio stream (HTTP error)"
+
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+                "This track is no longer available on YouTube"
+
+            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE ->
+                "YouTube cut the stream short"
+
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ->
+                "Unsupported audio format"
+
+            else -> error.localizedMessage ?: "Playback failed"
+        }
+        return "$reason (code ${error.errorCode})"
     }
 
     private fun reportError(message: String) {
@@ -647,6 +685,9 @@ class PlayerManager @Inject constructor(
     }
 
     private companion object {
+        /** Logcat tag for playback failures (`adb logcat -s LunaraPlayer`). */
+        const val TAG = "LunaraPlayer"
+
         /**
          * Playback cushion. A tiny start buffer is what makes play/pause/next feel instant;
          * the large ceiling absorbs CDN hiccups without a visible re-buffer.
