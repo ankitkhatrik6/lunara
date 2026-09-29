@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -96,19 +98,31 @@ class PlayerManager @Inject constructor(
 
         // Fail fast: a stalled CDN connection has to hand over to the next resolved URL (or
         // report the failure) within seconds, not after a minute of silence.
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(InnerTubeClients.STREAM_USER_AGENT)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(20_000)
-            .setAllowCrossProtocolRedirects(true)
-
-        // Stock data source stack - `DefaultDataSource` (files, `content://`, assets) in front
-        // of a plain `DefaultHttpDataSource`, exactly what every InnerTune-derived player uses -
-        // wrapped so that requests against YouTube always carry a *closed* byte range. Without
-        // that wrapper the CDN throttles them to ~31 KB/s and playback only ever buffers; the
-        // measurements are in [RangedHttpDataSourceFactory]'s documentation.
+        //
+        // One HTTP data source per user agent, created lazily. A YouTube stream URL only serves
+        // bytes to the client identity it was signed for (`&c=` in the URL), and the resolved
+        // fallback URLs usually come from *different* identities, so the agent has to follow the
+        // URL being fetched instead of being fixed for the session.
+        val httpDataSourceFactories = ConcurrentHashMap<String, DataSource.Factory>()
         val dataSourceFactory = RangedHttpDataSourceFactory(
-            DefaultDataSource.Factory(context, httpDataSourceFactory)
+            upstreamFactoryFor = { userAgent ->
+                httpDataSourceFactories.getOrPut(userAgent) {
+                    // Stock data source stack - `DefaultDataSource` (files, `content://`, assets)
+                    // in front of a plain `DefaultHttpDataSource`, exactly what every
+                    // InnerTune-derived player uses - wrapped so that requests against YouTube
+                    // always carry a *closed* byte range. Without that wrapper the CDN throttles
+                    // them to ~31 KB/s and playback only ever buffers; the measurements are in
+                    // [RangedHttpDataSourceFactory]'s documentation.
+                    DefaultDataSource.Factory(
+                        context,
+                        DefaultHttpDataSource.Factory()
+                            .setUserAgent(userAgent)
+                            .setConnectTimeoutMs(15_000)
+                            .setReadTimeoutMs(20_000)
+                            .setAllowCrossProtocolRedirects(true)
+                    )
+                }
+            }
         )
 
         // Blazify-style tuning: start on a very small cushion so the first note is instant,
@@ -181,10 +195,14 @@ class PlayerManager @Inject constructor(
                 // PO-token gate). Swapping to the next resolved format keeps the music going
                 // instead of dropping out with "source error".
                 val song = _playbackState.value.currentSong
+                val failedTag = InnerTubeClients.streamTagOf(
+                    currentStreamUri?.let { Uri.parse(it) }
+                )
                 Log.e(
                     TAG,
                     "Playback failed (code ${error.errorCode}) for " +
-                        "\"${song?.title}\" from ${currentStreamUri?.substringBefore('?')}",
+                        "\"${song?.title}\" from ${currentStreamUri?.substringBefore('?')} " +
+                        "(client ${failedTag ?: "unknown"})",
                     error
                 )
                 currentStreamUri?.let { failedUris.add(it) }
@@ -192,7 +210,14 @@ class PlayerManager @Inject constructor(
                 // signature instead of being served the expired one from the resolver cache.
                 song?.id?.let { staleStreamSongIds.add(it) }
 
-                val nextUri = currentFallbackUris.firstOrNull { it !in failedUris }
+                // Prefer a fallback minted by a *different* client identity. When one identity's
+                // URLs stop being served (signature binding, PO-token gate) the others normally
+                // still work, so this is what makes the swap worthwhile - and the same identity
+                // would just fail again.
+                val candidates = currentFallbackUris.filter { it !in failedUris }
+                val nextUri = candidates.firstOrNull {
+                    InnerTubeClients.streamTagOf(Uri.parse(it)) != failedTag
+                } ?: candidates.firstOrNull()
                 if (song != null && nextUri != null) {
                     startPlayback(player, song, nextUri, mimeTypeOf(nextUri, null))
                     return
