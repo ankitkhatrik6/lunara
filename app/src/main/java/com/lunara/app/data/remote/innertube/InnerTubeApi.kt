@@ -163,7 +163,10 @@ class InnerTubeApi @Inject constructor(
             context(client).toMutableMap().apply {
                 put(
                     "thirdParty",
-                    buildJsonObject { put("embedUrl", "https://www.youtube.com/watch?v=$videoId") }
+                    // The embedded player is handed the `/embed/` URL, not the watch page: the
+                    // watch form makes WEB_EMBEDDED_PLAYER answer UNPLAYABLE ("video
+                    // unavailable"), while `/embed/` is what yt-dlp sends and is accepted.
+                    buildJsonObject { put("embedUrl", "https://www.youtube.com/embed/$videoId") }
                 )
             }
         )

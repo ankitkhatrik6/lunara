@@ -1,5 +1,8 @@
 package com.lunara.app.data.remote.innertube
 
+import android.net.Uri
+import java.util.Locale
+
 /**
  * YouTube Music client identities used when talking to the InnerTube endpoints.
  *
@@ -91,6 +94,57 @@ object InnerTubeClients {
     )
 
     /**
+     * Newer Oculus build of the same VR app. YouTube started gating the streaming endpoints per
+     * app version, so an identity that answers with plain URLs today can start answering with
+     * SABR-only ones tomorrow; keeping a second pinned version means one of them normally still
+     * hands out a ready-to-stream format.
+     */
+    val ANDROID_VR_1_61 = InnerTubeClient(
+        clientName = "ANDROID_VR",
+        clientVersion = "1.61.48",
+        clientId = "28",
+        userAgent = "com.google.android.apps.youtube.vr.oculus/1.61.48 " +
+            "(Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)",
+        osName = "Android",
+        osVersion = "12",
+        androidSdkVersion = 32,
+        deviceMake = "Oculus",
+        deviceModel = "Quest 3"
+    )
+
+    /**
+     * visionOS build (Apple Vision Pro). One of the identities yt-dlp still lists as free of the
+     * GVS PO-token policy, so it is the most promising alternative when the Android/Oculus
+     * identities get gated.
+     */
+    val VISIONOS = InnerTubeClient(
+        clientName = "VISIONOS",
+        clientVersion = "1.02",
+        clientId = "101",
+        userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5) AppleWebKit/605.1.15 " +
+            "(KHTML, like Gecko) Version/18.5 Safari/605.1.15",
+        osName = "visionOS",
+        osVersion = "2.5.21O556o",
+        deviceMake = "Apple",
+        deviceModel = "RealityDevice17,1"
+    )
+
+    /**
+     * Player embedded on third party pages. Also free of the PO-token policy, so it is the
+     * second web identity worth trying - it only ever answers for videos that allow embedding,
+     * which is most music.
+     */
+    val WEB_EMBEDDED_PLAYER = InnerTubeClient(
+        clientName = "WEB_EMBEDDED_PLAYER",
+        clientVersion = "2.20260708.00.00",
+        clientId = "56",
+        userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        isEmbedded = true,
+        useSignatureTimestamp = true
+    )
+
+    /**
      * Age-gate/consent flags required by the TV clients; mirrors
      * `TVHTML5Client.playbackContext` in yt-dlp.
      */
@@ -106,27 +160,72 @@ object InnerTubeClients {
     /**
      * Order used when resolving a playable audio URL, best first.
      *
-     * [ANDROID_VR] leads because it is the only widely available identity that still answers
-     * with plain, ready-to-stream `url` formats: no `signatureCipher`, no PO-token gate, no
-     * SABR. The other three are fallbacks for the tracks it refuses. WEB_REMIX is deliberately
-     * absent - it only answers with cipher-protected formats (no plain URL), so it could never
-     * feed ExoPlayer directly.
+     * [ANDROID_VR] and [IOS] lead because they are the identities that still answer with plain,
+     * ready-to-stream `url` formats: no `signatureCipher`, no SABR-only streaming response.
+     * Everything after them is a fallback for the tracks they refuse - in particular
+     * [VISIONOS] and [WEB_EMBEDDED_PLAYER], the identities yt-dlp still lists as exempt from
+     * YouTube's PO-token policy. WEB_REMIX is deliberately absent: it only answers with
+     * cipher-protected formats (no plain URL), so it could never feed ExoPlayer directly.
      *
-     * Putting a gated client first (as earlier builds did) meant every play wasted a round
-     * trip on a response whose formats all have to be dropped, which is what made tracks take
-     * seconds to start.
+     * The order is only a starting point. Which identity really works is decided per track by
+     * probing the URLs it returns (see `YouTubeMusicRemoteDataSource.resolveAudioStream`), and
+     * the list is rotated between attempts so a retry never begins with the identity that just
+     * failed.
      */
-    val STREAM_CLIENTS = listOf(ANDROID_VR, IOS, TVHTML5, ANDROID)
+    val STREAM_CLIENTS = listOf(
+        ANDROID_VR,
+        IOS,
+        ANDROID,
+        ANDROID_VR_1_61,
+        VISIONOS,
+        WEB_EMBEDDED_PLAYER,
+        TVHTML5
+    )
 
     /**
-     * User agent used for every `*.googlevideo.com` request, both the readiness probe and the
-     * actual playback fetch.
+     * User agent for every `&c=<client>` tag that can appear in a stream URL.
      *
-     * It is the user agent of [ANDROID_VR] - the identity that mints almost every URL - so the
-     * bytes request always matches the client the URL was signed for, and a probe can never
-     * succeed where the player would have been rejected.
+     * `distinctBy` matters: several identities share a client name (the two Oculus builds both
+     * report `ANDROID_VR`), and the first declared one is the version this app prefers.
      */
+    private val USER_AGENTS_BY_TAG: Map<String, String> =
+        STREAM_CLIENTS.distinctBy { it.clientName }
+            .associate { it.clientName.uppercase(Locale.ROOT) to it.userAgent } +
+            mapOf(
+                // Alias YouTube uses for the classic TV/embedded identities, plus the web
+                // catalogue client that never mints stream URLs itself.
+                "TVHTML5_SIMPLY_EMBEDDED_PLAYER" to TVHTML5.userAgent,
+                "WEB" to USER_AGENT_WEB,
+                "MWEB" to USER_AGENT_WEB,
+                "WEB_REMIX" to USER_AGENT_WEB
+            )
+
+    /** Fallback user agent for a stream URL that carries no usable `&c=` tag. */
     val STREAM_USER_AGENT = ANDROID_VR.userAgent
+
+    /**
+     * Client name of the identity that minted [uri], read from YouTube's own `&c=` tag, or
+     * `null` when the URL does not carry one.
+     */
+    fun streamTagOf(uri: Uri?): String? =
+        uri?.let { runCatching { it.getQueryParameter("c") }.getOrNull() }
+            ?.takeIf { it.isNotBlank() }
+            ?.uppercase(Locale.ROOT)
+
+    /**
+     * Best effort user agent for [uri], derived from the client tag it carries.
+     *
+     * YouTube binds a stream URL to the client that asked for it and answers `403` to other user
+     * agents - the URLs carry the client name in `&c=` for exactly that reason. Pinning a single
+     * fixed user agent (as earlier builds did) therefore doomed every URL minted by any other
+     * identity, which is why the user agent is always derived from the URL that is fetched. The
+     * exact user agent of the minting client is remembered per URL in `StreamUserAgents`, this
+     * lookup is the fallback for URLs this process did not resolve itself.
+     */
+    fun playbackUserAgentFor(uri: Uri?): String {
+        val tag = streamTagOf(uri) ?: return STREAM_USER_AGENT
+        return USER_AGENTS_BY_TAG[tag] ?: STREAM_USER_AGENT
+    }
 }
 
 object InnerTubeParams {
