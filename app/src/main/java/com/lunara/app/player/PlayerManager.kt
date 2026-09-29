@@ -99,16 +99,14 @@ class PlayerManager @Inject constructor(
             .setReadTimeoutMs(60_000)
             .setAllowCrossProtocolRedirects(true)
 
-        // Stock data source, exactly what every InnerTune-derived player (Blazify, Metrolist)
-        // uses: a plain `DefaultHttpDataSource` behind `DefaultDataSource`.
-        //
-        // The previous build wrapped this in a factory that rewrote each request into a
-        // *closed* range covering the whole file (`clen` from the URL). That tells ExoPlayer
-        // "this single request is the entire stream", so when YouTube's CDN ended the long
-        // ranged response early ExoPlayer hit an unexpected EOF in the middle of `prepare()`
-        // and reported it as a "source error" instead of starting playback. ExoPlayer's own
-        // open-ended requests are what the CDN actually serves.
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+        // Stock data source stack - `DefaultDataSource` (files, `content://`, assets) in front
+        // of a plain `DefaultHttpDataSource`, exactly what every InnerTune-derived player uses -
+        // wrapped so that requests against YouTube always carry a *closed* byte range. Without
+        // that wrapper the CDN throttles them to ~31 KB/s and playback only ever buffers; the
+        // measurements are in [RangedHttpDataSourceFactory]'s documentation.
+        val dataSourceFactory = RangedHttpDataSourceFactory(
+            DefaultDataSource.Factory(context, httpDataSourceFactory)
+        )
 
         // Blazify-style tuning: start on a very small cushion so the first note is instant,
         // keep a generous ceiling so long tracks never re-buffer, and prefer time over bytes.
