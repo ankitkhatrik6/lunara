@@ -169,11 +169,17 @@ private class RangedHttpDataSource(
         upstreams.values.forEach { it.addTransferListener(transferListener) }
     }
 
-    override val uri: Uri?
-        get() = upstream?.uri
+    /**
+     * The URL the currently open request went to, or `null` before the first [open].
+     *
+     * Media3 declares this as a method on `DataSource` (not a JavaBean getter that Kotlin would
+     * turn into a property), so it is implemented as one.
+     */
+    override fun getUri(): Uri? = upstream?.getUri()
 
-    override val responseHeaders: Map<String, List<String>>
-        get() = upstream?.responseHeaders ?: emptyMap()
+    /** Response headers of the open request, forwarded from the upstream that served it. */
+    override fun getResponseHeaders(): Map<String, List<String>> =
+        upstream?.getResponseHeaders() ?: emptyMap()
 
     override fun open(dataSpec: DataSpec): Long {
         currentSpec = dataSpec
@@ -316,7 +322,7 @@ private class RangedHttpDataSource(
      */
     private fun learnSize(uri: Uri) {
         if (totalBytes > 0L) return
-        val contentRange = responseHeaders.entries
+        val contentRange = getResponseHeaders().entries
             .firstOrNull { it.key.equals("Content-Range", ignoreCase = true) }
             ?.value
             ?.firstOrNull()
