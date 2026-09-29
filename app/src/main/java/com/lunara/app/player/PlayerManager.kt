@@ -207,7 +207,13 @@ class PlayerManager @Inject constructor(
                         if (media != null && media.mediaUri.isNotBlank()) {
                             currentFallbackUris = emptyList()
                             failedUris.clear()
-                            startPlayback(player, media.song.copy(streamUrl = media.mediaUri), media.mediaUri, media.mimeType)
+                            startPlayback(
+                                player,
+                                media.song.copy(streamUrl = media.mediaUri),
+                                media.mediaUri,
+                                media.mimeType,
+                                media.contentLength
+                            )
                         } else {
                             reportError(error.localizedMessage ?: "Playback failed")
                         }
@@ -344,7 +350,7 @@ class PlayerManager @Inject constructor(
             queueManager.updateSong(playableSong)
             // Keep the other resolved formats at hand for a mid-track CDN failure.
             currentFallbackUris = media.fallbackUris
-            startPlayback(player, playableSong, uri, media.mimeType)
+            startPlayback(player, playableSong, uri, media.mimeType, media.contentLength)
         }
     }
 
@@ -369,13 +375,19 @@ class PlayerManager @Inject constructor(
      * [mimeType] is the mime type the InnerTube format declared (e.g.
      * `audio/webm; codecs="opus"`); passing it through avoids ExoPlayer sniffing a
      * single chunk and settling on the wrong extractor, which stalls on "buffering".
+     *
+     * [contentLength] is the size that format declared. The data source closes its byte
+     * ranges with it, which is what keeps YouTube's CDN from throttling the stream.
      */
     private fun startPlayback(
         player: ExoPlayer,
         song: Song,
         uri: String,
-        mimeType: String? = null
+        mimeType: String? = null,
+        contentLength: Long = 0L
     ) {
+        StreamSizes.remember(uri, contentLength)
+
         // A different track: allow its own one-shot recovery re-resolve.
         if (_playbackState.value.currentSong?.id != song.id) {
             reResolvedSongIds.remove(song.id)

@@ -42,7 +42,13 @@ data class PlayableMedia(
      * mid playback (expired signature, throttled edge, PO-token gate) the player swaps to the
      * next one instead of stopping with "source error".
      */
-    val fallbackUris: List<String> = emptyList()
+    val fallbackUris: List<String> = emptyList(),
+    /**
+     * Exact size of [mediaUri] in bytes when the resolver knows it. The player needs it to
+     * close its requests into a single byte range instead of discovering the size chunk by
+     * chunk, which is what keeps YouTube's CDN from throttling playback.
+     */
+    val contentLength: Long = 0L
 )
 
 data class PlaybackQueue(

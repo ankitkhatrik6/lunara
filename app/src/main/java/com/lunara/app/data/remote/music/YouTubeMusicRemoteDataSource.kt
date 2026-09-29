@@ -12,6 +12,7 @@ import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
 import com.lunara.app.domain.model.PlayableMedia
 import com.lunara.app.domain.model.Song
+import com.lunara.app.player.StreamSizes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -228,6 +229,11 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
         val ordered = (verified + unverified).distinctBy { it.url }
         val best = ordered.firstOrNull() ?: return@withContext null
 
+        // Remember every candidate's size. The player closes its byte ranges with it, and the
+        // fallback URLs are swapped in mid-track without another resolve, so all of them have
+        // to be known up front.
+        ordered.forEach { StreamSizes.remember(it.url, it.contentLength) }
+
         ResolvedStream(
             url = best.url,
             contentLength = best.contentLength,
@@ -301,6 +307,7 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             isLocal = false,
             mimeType = stream.mimeType,
             isHls = stream.isHls,
+            contentLength = stream.contentLength,
             fallbackUris = stream.fallbackUrls
         )
     }
