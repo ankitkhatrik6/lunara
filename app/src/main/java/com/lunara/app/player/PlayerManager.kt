@@ -327,11 +327,17 @@ class PlayerManager @Inject constructor(
         reResolvedSongIds.remove(song.id)
         resolveJob = scope.launch {
             val result = try {
-                musicRepository.resolvePlayableMedia(
-                    freshResolveTarget(song),
-                    // `remove` also consumes the flag: one forced refresh per CDN failure.
-                    forceRefresh = staleStreamSongIds.remove(song.id) != null
-                )
+                // A wedged resolve has to surface as an error the user can retry, never as a
+                // spinner that never stops: every client identity costs a blocking round trip.
+                withTimeout(RESOLVE_TIMEOUT_MS) {
+                    musicRepository.resolvePlayableMedia(
+                        freshResolveTarget(song),
+                        // `remove` also consumes the flag: one forced refresh per CDN failure.
+                        forceRefresh = staleStreamSongIds.remove(song.id) != null
+                    )
+                }
+            } catch (e: TimeoutCancellationException) {
+                Resource.Error("Timed out resolving the audio stream", e)
             } catch (e: CancellationException) {
                 // Superseded by a newer tap: leave the new track's state alone.
                 throw e
@@ -652,6 +658,12 @@ class PlayerManager @Inject constructor(
 
         /** How many upcoming tracks get their stream resolved ahead of time. */
         const val PREFETCH_AHEAD = 2
+
+        /**
+         * Hard ceiling on one stream resolve. Without it a request that never answers left the
+         * UI spinning on "buffering" for as long as the socket stayed open.
+         */
+        const val RESOLVE_TIMEOUT_MS = 30_000L
 
         /** Lunara stores every YouTube Music track under a `yt_<videoId>` id. */
         const val YOUTUBE_ID_PREFIX = "yt_"
