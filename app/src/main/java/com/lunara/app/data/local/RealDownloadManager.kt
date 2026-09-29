@@ -2,7 +2,7 @@ package com.lunara.app.data.local
 
 import android.content.Context
 import android.net.Uri
-import com.lunara.app.data.remote.innertube.InnerTubeClients
+import com.lunara.app.player.StreamUserAgents
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -63,7 +63,9 @@ class RealDownloadManager @Inject constructor(
 
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", InnerTubeClients.STREAM_USER_AGENT)
+            // The URL is bound to the client identity that minted it, so the agent has to come
+            // from the URL (see StreamUserAgents) - a fixed agent is answered with 403.
+            .header("User-Agent", StreamUserAgents.userAgentFor(url))
             .apply { if (declaredLength > 0L) header("Range", "bytes=0-${declaredLength - 1}") }
             .build()
 
