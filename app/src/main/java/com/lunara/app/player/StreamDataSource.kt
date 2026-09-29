@@ -114,7 +114,11 @@ private class RangedHttpDataSource(
 
         passthrough = false
         totalBytes = StreamSizes.sizeOf(dataSpec.uri.toString())
-        return upstream.open(rangeSpecFor(dataSpec, dataSpec.position))
+        val ranged = rangeSpecFor(dataSpec, dataSpec.position)
+        val opened = upstream.open(ranged)
+        // Only now does the response carry the size (see [learnSize]).
+        learnSize(ranged.uri)
+        return opened
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
@@ -171,7 +175,9 @@ private class RangedHttpDataSource(
         if (end < position) return false
         return try {
             upstream.close()
-            upstream.open(rangeSpecFor(spec, position))
+            val ranged = rangeSpecFor(spec, position)
+            upstream.open(ranged)
+            learnSize(ranged.uri)
             true
         } catch (e: IOException) {
             false
@@ -188,12 +194,10 @@ private class RangedHttpDataSource(
         }
         nextPosition = position
         requestEnd = maxOf(end, position)
-        val ranged = dataSpec.buildUpon()
+        return dataSpec.buildUpon()
             .setPosition(position)
             .setLength(requestEnd - position + 1L)
             .build()
-        learnSize(ranged.uri)
-        return ranged
     }
 
     /**

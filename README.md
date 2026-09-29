@@ -9,6 +9,7 @@ Lunara adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
 ## Features
 
 - **Audio Engine**: Powered by AndroidX Media3 ExoPlayer & MediaSessionService for gapless audio, audio attributes, wake lock, background playback, and system media notifications.
+- **Throttle-Proof Streaming**: every `*.googlevideo.com` request goes out as a *closed* byte range. YouTube throttles a range-less request to ~31 KB/s but serves the same URL at several MB/s with `Range: bytes=0-<size - 1>`, so the data source closes each request (the whole file when the size is known from InnerTube, transparently chained 1 MiB ranges otherwise), resumes a range the CDN cuts short instead of leaking a bogus end of stream into the extractor, and never lets playback sit on "buffering".
 - **YouTube Music Streaming Source**: Powered by InnerTube / Piped extractor architecture matching Blazify and ViMusic. Searches songs, albums, and artists, resolving direct high-bitrate Opus (160kbps) and M4A audio streams on demand.
 - **Multi-Provider Synced Lyrics**:
   - **Paxsenix / Apple Music Provider**: Fast duration-matched and word-synced lyrics with agent-tag parsing (`v1`, `v2`, `bg`).
