@@ -17,6 +17,15 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.6.0",
+        headline = "Faster start for every track",
+        highlights = listOf(
+            "One fewer network round trip per play: the mid-file check now decides on its own when the stream's size is known.",
+            "Lunara remembers the client identity that last streamed a track to the end and starts there.",
+            "Fallbacks are untouched: a stream that cuts out still swaps to the next candidate mid track."
+        )
+    ),
+    LunaraRelease(
         version = "2.5.0",
         headline = "Offline playback that works",
         highlights = listOf(

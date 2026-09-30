@@ -181,6 +181,16 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
     private val prefixOnlyClients = ConcurrentHashMap.newKeySet<String>()
 
     /**
+     * The identity that last produced a stream the CDN served to the end.
+     *
+     * Being right once is worth remembering: a resolve costs one `player` round trip per identity
+     * plus a probe, so starting on the identity that worked last time is often the difference
+     * between an instant play and a few seconds of silence.
+     */
+    @Volatile
+    private var lastGoodClientKey: String? = null
+
+    /**
      * Resolves the audio of a track, failing over between the client identities.
      *
      * Every client's formats are collected instead of stopping at the first usable one, so the
@@ -231,6 +241,7 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
                 // offered playlist wins outright.
                 if (probe(manifest, client.userAgent, range = null).code in 200..299) {
                     fullyServable.add(candidate)
+                    lastGoodClientKey = keyOf(client)
                     Log.d(LOG_TAG, "${client.clientName}: HLS playlist offered, preferring it")
                     break
                 }
@@ -278,11 +289,13 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
                 when (clientVerdict) {
                     ProbeVerdict.FULLY_SERVABLE -> {
                         prefixOnlyClients.remove(keyOf(client))
+                        lastGoodClientKey = keyOf(client)
                         fullyServable.add(candidate)
                     }
                     ProbeVerdict.UNVERIFIED -> unverified.add(candidate)
                     ProbeVerdict.PREFIX_ONLY -> {
                         prefixOnlyClients.add(keyOf(client))
+                        if (lastGoodClientKey == keyOf(client)) lastGoodClientKey = null
                         prefixOnly.add(candidate)
                     }
                     ProbeVerdict.REJECTED -> rejected.add(candidate)
@@ -340,12 +353,39 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
 
     /**
      * Measures [url] with the user agent of the identity that minted it - the agent the player
-     * will send - and, when the file is big enough, asks for a range deep inside it.
+     * will send - by asking for a range deep inside the file.
      *
      * The deep range is what separates a URL that streams to the end from one that dies after
-     * the intro. It costs one extra round trip, so callers ration it ([MAX_DEEP_PROBED_CLIENTS]).
+     * the intro. When the player response already declared the file size, that range is also the
+     * *only* request needed: a `206` for bytes around 60% of the file proves the signature covers
+     * the whole thing, and a `403` proves it does not. Asking for the opening bytes first - as
+     * this used to - only adds a round trip to every play.
+     *
+     * An HLS playlist never reaches here; playlists are index files and are not range gated.
      */
     private fun probeVerdict(url: String, declaredSize: Long, userAgent: String): ProbeVerdict {
+        if (declaredSize > DEEP_PROBE_MIN_BYTES) {
+            val offset = declaredSize * DEEP_PROBE_POSITION_PERCENT / 100L
+            return when (probe(url, userAgent, "bytes=$offset-${offset + PROBE_BYTES - 1}").code) {
+                in 200..299 -> ProbeVerdict.FULLY_SERVABLE
+                401, 403 -> ProbeVerdict.PREFIX_ONLY
+                // No usable answer: measure the long way round rather than judging an identity on
+                // one request that may simply have been dropped.
+                else -> openingRangeVerdict(url, declaredSize, userAgent)
+            }
+        }
+        return openingRangeVerdict(url, declaredSize, userAgent)
+    }
+
+    /**
+     * The measured path for a URL whose size is unknown: ask for the opening bytes, then decide
+     * whether the reported size makes a mid-file check worthwhile.
+     */
+    private fun openingRangeVerdict(
+        url: String,
+        declaredSize: Long,
+        userAgent: String
+    ): ProbeVerdict {
         val first = probe(url, userAgent, FIRST_RANGE)
         if (first.code !in 200..299) return ProbeVerdict.REJECTED
 
@@ -396,8 +436,13 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
     private fun orderedClients(): List<InnerTubeClient> {
         val clients = InnerTubeClients.STREAM_CLIENTS
         val offset = rotation.getAndIncrement().mod(clients.size)
-        return (clients.drop(offset) + clients.take(offset))
+        val rotated = clients.drop(offset) + clients.take(offset)
+        val preferred = lastGoodClientKey
+        return rotated
             .sortedBy { if (prefixOnlyClients.contains(keyOf(it))) 1 else 0 }
+            // `sortedBy` is stable, so this only lifts the last winning identity to the front and
+            // leaves everything else in the order decided above.
+            .sortedBy { if (preferred != null && keyOf(it) == preferred) 0 else 1 }
     }
 
     /** Identifies one client identity, version included (two builds can share a name). */
