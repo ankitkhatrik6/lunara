@@ -74,8 +74,8 @@ data class UserSettings(
     val lyricsFontSize: Float = 18f,
     val dynamicColorsEnabled: Boolean = false,
     /**
-     * Stays DARK for now on purpose: screens are migrated to the palette in a follow-up, and a
-     * half-migrated UI would mix dark brand tokens with light Material surfaces.
+     * Appearance of the app. SYSTEM follows the device dark-theme setting, which is the default
+     * because the palette drives every screen.
      */
-    val themeMode: ThemeMode = ThemeMode.DARK
+    val themeMode: ThemeMode = ThemeMode.SYSTEM
 )

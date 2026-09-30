@@ -49,7 +49,7 @@ private fun lightColorSchemeFor(palette: LunaraPalette) = lightColorScheme(
 
 @Composable
 fun LunaraTheme(
-    themeMode: ThemeMode = ThemeMode.DARK,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {

@@ -1,28 +1,32 @@
 package com.lunara.app.ui.theme
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-// Primary Dark Theme Colors
-val LunaraBackground = Color(0xFF0B0D0F)
-val LunaraSurface = Color(0xFF121519)
-val LunaraSurfaceElevated = Color(0xFF191D22)
-val LunaraSurfaceHigh = Color(0xFF22272E)
+/*
+ * Raw brand shades.
+ *
+ * These stay plain values on purpose: the palettes below (and any drawing that happens outside of
+ * composition) can always read them. Screens should use the theme-aware tokens further down.
+ */
+private val Ink = Color(0xFF0B0D0F)
+private val InkSurface = Color(0xFF121519)
+private val InkSurfaceElevated = Color(0xFF191D22)
+private val InkSurfaceHigh = Color(0xFF22272E)
 
-// Text Colors
-val LunaraTextPrimary = Color(0xFFF5F7F8)
-val LunaraTextSecondary = Color(0xFFA8AFB7)
-val LunaraTextMuted = Color(0xFF6E7681)
+private val Snow = Color(0xFFF5F7F8)
+private val Ash = Color(0xFFA8AFB7)
+private val Smoke = Color(0xFF6E7681)
 
-// Accent Colors
-val LunaraAccent = Color(0xFF35D6C2)         // Electric Teal / Mint-cyan
-val LunaraAccentVariant = Color(0xFF2AB3A2)
-val LunaraAccentSecondary = Color(0xFF8B7CFF) // Supporting Lavender / Purple
+private val Teal = Color(0xFF35D6C2)          // Electric Teal / Mint-cyan
+private val TealDeep = Color(0xFF2AB3A2)
+private val Lavender = Color(0xFF8B7CFF)      // Supporting Lavender / Purple
 
-// Status & Indicators
-val LunaraError = Color(0xFFFF5252)
-val LunaraSuccess = Color(0xFF4CAF50)
-val LunaraBorder = Color(0xFF262C34)
+private val Rose = Color(0xFFFF5252)
+private val Leaf = Color(0xFF4CAF50)
+private val InkBorder = Color(0xFF262C34)
 
 /**
  * The complete set of brand colours the UI draws with.
@@ -50,19 +54,19 @@ data class LunaraPalette(
 
 /** Default look: near-black canvas with the electric-teal accent. */
 val LunaraDarkPalette = LunaraPalette(
-    background = LunaraBackground,
-    surface = LunaraSurface,
-    surfaceElevated = LunaraSurfaceElevated,
-    surfaceHigh = LunaraSurfaceHigh,
-    textPrimary = LunaraTextPrimary,
-    textSecondary = LunaraTextSecondary,
-    textMuted = LunaraTextMuted,
-    accent = LunaraAccent,
-    accentVariant = LunaraAccentVariant,
-    accentSecondary = LunaraAccentSecondary,
-    error = LunaraError,
-    success = LunaraSuccess,
-    border = LunaraBorder,
+    background = Ink,
+    surface = InkSurface,
+    surfaceElevated = InkSurfaceElevated,
+    surfaceHigh = InkSurfaceHigh,
+    textPrimary = Snow,
+    textSecondary = Ash,
+    textMuted = Smoke,
+    accent = Teal,
+    accentVariant = TealDeep,
+    accentSecondary = Lavender,
+    error = Rose,
+    success = Leaf,
+    border = InkBorder,
     isDark = true
 )
 
@@ -92,3 +96,50 @@ val LunaraLightPalette = LunaraPalette(
  * (see `LocalLunaraPalette.current`), so no screen needs to know which mode is active.
  */
 val LocalLunaraPalette = staticCompositionLocalOf { LunaraDarkPalette }
+
+/*
+ * Theme-aware brand tokens.
+ *
+ * Every screen keeps writing `color = LunaraTextPrimary` exactly as before; the difference is that
+ * these now resolve against the palette [LunaraTheme] provides, so one switch flips the whole app
+ * between light and dark without a conditional anywhere in the UI.
+ */
+
+val LunaraBackground: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.background
+
+val LunaraSurface: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.surface
+
+val LunaraSurfaceElevated: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.surfaceElevated
+
+val LunaraSurfaceHigh: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.surfaceHigh
+
+val LunaraTextPrimary: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.textPrimary
+
+val LunaraTextSecondary: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.textSecondary
+
+val LunaraTextMuted: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.textMuted
+
+val LunaraAccent: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.accent
+
+val LunaraAccentVariant: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.accentVariant
+
+val LunaraAccentSecondary: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.accentSecondary
+
+val LunaraError: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.error
+
+val LunaraSuccess: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.success
+
+val LunaraBorder: Color
+    @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.border

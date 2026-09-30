@@ -11,17 +11,17 @@ import androidx.compose.ui.unit.sp
  * Dark-theme typography, kept for previews and any non-themed call site.
  * The live theme builds its own copy from the active palette.
  */
-val LunaraTypography: Typography = lunaraTypography()
+val LunaraTypography: Typography = lunaraTypography(
+    textPrimary = LunaraDarkPalette.textPrimary,
+    textSecondary = LunaraDarkPalette.textSecondary,
+    textMuted = LunaraDarkPalette.textMuted
+)
 
 /**
  * Text styles whose colours come from the active palette, so typography follows light/dark mode
  * exactly like the surfaces behind it do.
  */
-fun lunaraTypography(
-    textPrimary: Color = LunaraTextPrimary,
-    textSecondary: Color = LunaraTextSecondary,
-    textMuted: Color = LunaraTextMuted
-): Typography = Typography(
+fun lunaraTypography(textPrimary: Color, textSecondary: Color, textMuted: Color): Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
