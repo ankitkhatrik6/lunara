@@ -68,4 +68,5 @@ interface SettingsRepository {
     suspend fun updateAutoPlay(enabled: Boolean)
     suspend fun updateOfflineMode(enabled: Boolean)
     suspend fun updateLyricsFontSize(size: Float)
+    suspend fun updateThemeMode(mode: com.lunara.app.domain.model.ThemeMode)
 }

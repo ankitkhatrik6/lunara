@@ -528,4 +528,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun updateLyricsFontSize(size: Float) {
         dataStore.setLyricsFontSize(size)
     }
+
+    override suspend fun updateThemeMode(mode: ThemeMode) {
+        dataStore.setThemeMode(mode)
+    }
 }

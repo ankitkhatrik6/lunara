@@ -1,19 +1,34 @@
 package com.lunara.app.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val LunaraTypography = Typography(
+/**
+ * Dark-theme typography, kept for previews and any non-themed call site.
+ * The live theme builds its own copy from the active palette.
+ */
+val LunaraTypography: Typography = lunaraTypography()
+
+/**
+ * Text styles whose colours come from the active palette, so typography follows light/dark mode
+ * exactly like the surfaces behind it do.
+ */
+fun lunaraTypography(
+    textPrimary: Color = LunaraTextPrimary,
+    textSecondary: Color = LunaraTextSecondary,
+    textMuted: Color = LunaraTextMuted
+): Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 32.sp,
         lineHeight = 38.sp,
         letterSpacing = (-0.5).sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
@@ -21,7 +36,7 @@ val LunaraTypography = Typography(
         fontSize = 24.sp,
         lineHeight = 30.sp,
         letterSpacing = (-0.2).sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -29,7 +44,7 @@ val LunaraTypography = Typography(
         fontSize = 20.sp,
         lineHeight = 26.sp,
         letterSpacing = 0.sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
@@ -37,7 +52,7 @@ val LunaraTypography = Typography(
         fontSize = 16.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.1.sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -45,7 +60,7 @@ val LunaraTypography = Typography(
         fontSize = 15.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.2.sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
@@ -53,7 +68,7 @@ val LunaraTypography = Typography(
         fontSize = 13.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.2.sp,
-        color = LunaraTextSecondary
+        color = textSecondary
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -61,7 +76,7 @@ val LunaraTypography = Typography(
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
-        color = LunaraTextPrimary
+        color = textPrimary
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
@@ -69,6 +84,6 @@ val LunaraTypography = Typography(
         fontSize = 11.sp,
         lineHeight = 14.sp,
         letterSpacing = 0.4.sp,
-        color = LunaraTextMuted
+        color = textMuted
     )
 )

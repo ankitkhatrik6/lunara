@@ -8,11 +8,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.lunara.app.core.state.SongStates
+import com.lunara.app.domain.model.UserSettings
+import com.lunara.app.domain.repository.SettingsRepository
 import com.lunara.app.features.splash.SplashGate
 import com.lunara.app.navigation.LunaraApp
 import com.lunara.app.player.MediaSessionService
@@ -30,6 +34,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var songStates: SongStates
 
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     /**
      * Connection to [MediaSessionService].
      *
@@ -46,7 +53,10 @@ class MainActivity : ComponentActivity() {
         ensureNotificationPermission()
         connectToPlaybackService()
         setContent {
-            LunaraTheme {
+            // Only the appearance is read here; the player and downloads consume the rest of the
+            // settings where they are needed.
+            val settings by settingsRepository.settingsFlow.collectAsState(initial = UserSettings())
+            LunaraTheme(themeMode = settings.themeMode) {
                 // Branded start-up screen; the app composes underneath it so startup work overlaps
                 // with the animation (see SplashGate).
                 SplashGate {

@@ -1,54 +1,90 @@
 package com.lunara.app.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.lunara.app.domain.model.ThemeMode
 
-private val DarkColorScheme = darkColorScheme(
-    primary = LunaraAccent,
-    onPrimary = LunaraBackground,
-    primaryContainer = LunaraSurfaceElevated,
-    onPrimaryContainer = LunaraAccent,
-    secondary = LunaraAccentSecondary,
-    onSecondary = LunaraBackground,
-    background = LunaraBackground,
-    onBackground = LunaraTextPrimary,
-    surface = LunaraSurface,
-    onSurface = LunaraTextPrimary,
-    surfaceVariant = LunaraSurfaceElevated,
-    onSurfaceVariant = LunaraTextSecondary,
-    outline = LunaraBorder,
-    error = LunaraError
+private fun darkColorSchemeFor(palette: LunaraPalette) = darkColorScheme(
+    primary = palette.accent,
+    onPrimary = palette.background,
+    primaryContainer = palette.surfaceElevated,
+    onPrimaryContainer = palette.accent,
+    secondary = palette.accentSecondary,
+    onSecondary = palette.background,
+    background = palette.background,
+    onBackground = palette.textPrimary,
+    surface = palette.surface,
+    onSurface = palette.textPrimary,
+    surfaceVariant = palette.surfaceElevated,
+    onSurfaceVariant = palette.textSecondary,
+    outline = palette.border,
+    error = palette.error
+)
+
+private fun lightColorSchemeFor(palette: LunaraPalette) = lightColorScheme(
+    primary = palette.accent,
+    onPrimary = palette.surface,
+    primaryContainer = palette.surfaceHigh,
+    onPrimaryContainer = palette.accentVariant,
+    secondary = palette.accentSecondary,
+    onSecondary = palette.surface,
+    background = palette.background,
+    onBackground = palette.textPrimary,
+    surface = palette.surface,
+    onSurface = palette.textPrimary,
+    surfaceVariant = palette.surfaceElevated,
+    onSurfaceVariant = palette.textSecondary,
+    outline = palette.border,
+    error = palette.error
 )
 
 @Composable
 fun LunaraTheme(
+    themeMode: ThemeMode = ThemeMode.DARK,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val palette = if (darkTheme) LunaraDarkPalette else LunaraLightPalette
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = LunaraBackground.toArgb()
-                window.navigationBarColor = LunaraBackground.toArgb()
+                window.statusBarColor = palette.background.toArgb()
+                window.navigationBarColor = palette.background.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
-                    isAppearanceLightStatusBars = false
-                    isAppearanceLightNavigationBars = false
+                    // Light bars on a light canvas, and vice versa, keeps the clock readable.
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
                 }
             }
         }
     }
 
-    MaterialTheme(
-        colorScheme = DarkColorScheme,
-        typography = LunaraTypography,
-        shapes = LunaraShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalLunaraPalette provides palette) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) darkColorSchemeFor(palette) else lightColorSchemeFor(palette),
+            typography = lunaraTypography(
+                textPrimary = palette.textPrimary,
+                textSecondary = palette.textSecondary,
+                textMuted = palette.textMuted
+            ),
+            shapes = LunaraShapes,
+            content = content
+        )
+    }
 }

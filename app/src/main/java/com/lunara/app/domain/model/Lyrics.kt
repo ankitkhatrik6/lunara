@@ -72,5 +72,10 @@ data class UserSettings(
     val autoPlay: Boolean = true,
     val offlineModeOnly: Boolean = false,
     val lyricsFontSize: Float = 18f,
-    val dynamicColorsEnabled: Boolean = false
+    val dynamicColorsEnabled: Boolean = false,
+    /**
+     * Stays DARK for now on purpose: screens are migrated to the palette in a follow-up, and a
+     * half-migrated UI would mix dark brand tokens with light Material surfaces.
+     */
+    val themeMode: ThemeMode = ThemeMode.DARK
 )

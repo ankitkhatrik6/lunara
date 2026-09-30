@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.lunara.app.core.constants.AppConstants
+import com.lunara.app.domain.model.ThemeMode
 import com.lunara.app.domain.model.UserSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_OFFLINE_MODE = booleanPreferencesKey("pref_offline_mode")
         val KEY_LYRICS_FONT_SIZE = floatPreferencesKey("pref_lyrics_font_size")
         val KEY_DYNAMIC_COLORS = booleanPreferencesKey("pref_dynamic_colors")
+        val KEY_THEME_MODE = stringPreferencesKey("pref_theme_mode")
     }
 
     val userSettings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
@@ -30,7 +32,8 @@ class PreferencesDataStore @Inject constructor(
             autoPlay = prefs[KEY_AUTO_PLAY] ?: true,
             offlineModeOnly = prefs[KEY_OFFLINE_MODE] ?: false,
             lyricsFontSize = prefs[KEY_LYRICS_FONT_SIZE] ?: 18f,
-            dynamicColorsEnabled = prefs[KEY_DYNAMIC_COLORS] ?: false
+            dynamicColorsEnabled = prefs[KEY_DYNAMIC_COLORS] ?: false,
+            themeMode = ThemeMode.fromStorage(prefs[KEY_THEME_MODE])
         )
     }
 
@@ -48,5 +51,9 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setLyricsFontSize(size: Float) {
         context.dataStore.edit { it[KEY_LYRICS_FONT_SIZE] = size }
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
 }
