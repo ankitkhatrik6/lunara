@@ -728,11 +728,6 @@ private fun MoodChips(
 }
 
 /**
- * Shown when every rail came back empty (offline, blocked or rate limited) so the screen explains
- * itself instead of showing a blank feed.
- */
-@Composable
-/**
  * Shown when the feed cannot be filled.
  *
  * Offline is not an error: it is the moment the saved music matters, so the card says that warmly
