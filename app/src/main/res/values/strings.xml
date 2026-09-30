@@ -3,4 +3,46 @@
     <string name="app_tagline">Music without limits</string>
     <string name="splash_loading">Loading your library</string>
     <string name="notification_channel_playback">Playback</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="common_close">Close</string>
+    <string name="common_ok">OK</string>
+
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_summary">How Lunara looks on this device</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
+    <string name="settings_playback">Playback</string>
+    <string name="settings_high_quality">High quality audio</string>
+    <string name="settings_high_quality_summary">Stream the best bitrate the source offers</string>
+    <string name="settings_autoplay">Autoplay similar tracks</string>
+    <string name="settings_autoplay_summary">Keep music playing when the queue ends</string>
+
+    <string name="settings_storage">Storage and downloads</string>
+    <string name="settings_offline_mode">Offline mode only</string>
+    <string name="settings_offline_mode_summary">Only play downloaded songs to save mobile data</string>
+
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_engine">Built with Jetpack Compose, Material 3 and Media3 ExoPlayer.</string>
+    <string name="settings_lyrics_credit">Lyrics provided by LRCLIB and Paxsenix.</string>
+    <string name="settings_changelog">What\'s new</string>
+    <string name="settings_changelog_summary">Release notes for the versions you have</string>
+
+    <string name="settings_updates">Updates</string>
+    <string name="settings_updates_summary">Lunara releases are published on GitHub</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_update_checking">Checking for updates\u2026</string>
+    <string name="settings_update_up_to_date">You are on the latest version</string>
+    <string name="settings_update_failed">Could not reach the release server</string>
+    <string name="settings_update_available">Version %1$s is available</string>
+    <string name="settings_update_download">Download</string>
+    <string name="settings_update_later">Later</string>
+    <string name="settings_release_notes">Release notes</string>
 </resources>
+
