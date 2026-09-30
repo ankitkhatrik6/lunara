@@ -20,6 +20,7 @@ Lunara adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
 - **Local Audio (`MediaStore`)**: Scans on-device audio files alongside streamed music with folder indexing.
 - **Dynamic Queue Management**: Reorderable playback queue, radio mode, queue autogeneration, shuffle, and cycle repeat modes (Off, All, One).
 - **Local Persistence**: Room Database storing favorites, listening history, playlists, downloads, and cached tracks without any tracking or accounts.
+- **Branded Start-Up**: the launcher icon, the Android 12 splash screen and the in-app loading screen all use the Lunara logo; regenerate the derived assets from the master artwork with `python3 tools/generate_brand_assets.py logo.png`.
 
 ---
 

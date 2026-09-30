@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Android 12+ splash screen. The platform owns this window, so the logo, the backdrop and
+        the accented progress spinner are declared here rather than drawn by Compose.
+    -->
+    <style name="Theme.Lunara" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/lunara_background</item>
+        <item name="android:navigationBarColor">@color/lunara_background</item>
+        <item name="android:windowSplashScreenBackground">@color/lunara_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/lunara_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/lunara_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+</resources>

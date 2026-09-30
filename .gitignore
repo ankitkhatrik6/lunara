@@ -23,3 +23,6 @@ local.properties
 *.keystore
 keystore.properties
 
+# Branding source artwork (derived launcher icons and in-app logo are committed)
+/logo.png
+

@@ -4,6 +4,12 @@ object AppConstants {
     const val DATABASE_NAME = "lunara_database"
     const val DATASTORE_NAME = "lunara_preferences"
 
+    // Branding / release metadata. The user-facing brand strings live in res/values/strings.xml.
+    const val GITHUB_REPOSITORY = "ankitkhatrik6/lunara"
+
+    /** How long the branded start-up screen stays on screen while the app composes. */
+    const val SPLASH_MIN_DURATION_MILLIS = 1200L
+
     // Multi-provider lyrics backends (same order as Blazify):
     // 1. Paxsenix (Apple Music synced lyrics)  2. LRCLIB (community LRC)
     const val PAXSENIX_BASE_URL = "https://lyrics.paxsenix.org"

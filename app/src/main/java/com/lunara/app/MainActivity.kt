@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.lunara.app.core.state.SongStates
+import com.lunara.app.features.splash.SplashGate
 import com.lunara.app.navigation.LunaraApp
 import com.lunara.app.player.MediaSessionService
 import com.lunara.app.player.PlayerManager
@@ -46,7 +47,11 @@ class MainActivity : ComponentActivity() {
         connectToPlaybackService()
         setContent {
             LunaraTheme {
-                LunaraApp(playerManager = playerManager, songStates = songStates)
+                // Branded start-up screen; the app composes underneath it so startup work overlaps
+                // with the animation (see SplashGate).
+                SplashGate {
+                    LunaraApp(playerManager = playerManager, songStates = songStates)
+                }
             }
         }
     }
