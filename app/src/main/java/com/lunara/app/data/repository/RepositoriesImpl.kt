@@ -2,6 +2,7 @@ package com.lunara.app.data.repository
 
 import android.net.Uri
 import com.lunara.app.core.result.Resource
+import com.lunara.app.core.utils.isPlayableAudioFile
 import com.lunara.app.data.local.PreferencesDataStore
 import com.lunara.app.data.local.dao.*
 import com.lunara.app.data.local.entity.*
@@ -410,6 +411,13 @@ class DownloadRepositoryImpl @Inject constructor(
                     }
                 }
                 val size = file.length()
+                // Whatever came down has to be audio. A playlist, an HTML error page or a stub
+                // must never be recorded as a finished download: it would be unplayable offline
+                // and would fail as "unsupported audio format" instead of re-fetching. The catch
+                // block below deletes the file and marks the attempt failed.
+                if (!isPlayableAudioFile(file)) {
+                    error("The server did not return playable audio")
+                }
                 val fileUri = Uri.fromFile(file).toString()
                 downloadDao.insertOrUpdateDownload(
                     DownloadEntity(
@@ -473,14 +481,23 @@ class DownloadRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Resolves an online stream URL for a track that has none yet (YouTube Music rows).
+     * Resolves a progressive audio URL for a track that has none yet (YouTube Music rows).
+     *
      * Returns null when nothing playable could be found, e.g. while offline.
+     *
+     * The resolve is asked for progressive audio only: `resolvePlayableMedia` would otherwise
+     * prefer an HLS playlist (playlists are not range gated, so they stream best), and saving a
+     * playlist produces a few kilobytes of text that ExoPlayer rejects as "unsupported audio
+     * format" - which is exactly how offline downloads ended up unplayable.
      */
     private suspend fun resolveDownloadUrl(song: Song): String? = runCatching {
         // Clear any URL stored on the row first: `resolvePlayableMedia` hands a preset
-        // `streamUrl` straight back, and an expired signature only ever produces a 403.
-        val media = remoteSource.resolvePlayableMedia(song.copy(streamUrl = null))
-        media.mediaUri.takeIf { it.isNotBlank() && !media.isLocal }
+        // `streamUrl` straight back, and an expired signature only ever produces a 403. The
+        // saved copy is dropped from the request too, so a re-download gets a fresh URL.
+        val media = remoteSource.resolveDownloadableMedia(
+            song.copy(streamUrl = null, localUri = null)
+        )
+        media.mediaUri.takeIf { it.isNotBlank() && !media.isLocal && !media.isHls }
     }.getOrNull()
 
     override suspend fun cancelDownload(songId: String) {
@@ -494,6 +511,25 @@ class DownloadRepositoryImpl @Inject constructor(
         activeJobs.remove(songId)?.cancelAndJoin()
         realDownloadManager.deleteDownloadedFile(songId)
         downloadDao.deleteDownload(songId)
+        songDao.updateDownloadStatus(songId, false, null)
+    }
+
+    /**
+     * Files that turned out to be unplayable (a playlist saved as audio, a truncated download)
+     * are parked as [DownloadStatus.FAILED] so nothing keeps handing them to the player, and the
+     * song row stops advertising a local copy.
+     */
+    override suspend fun markLocalCopyUnusable(songId: String) {
+        downloadDao.insertOrUpdateDownload(
+            DownloadEntity(
+                songId = songId,
+                status = DownloadStatus.FAILED.name,
+                progress = 0f,
+                localFilePath = null,
+                totalBytes = 0L,
+                downloadedBytes = 0L
+            )
+        )
         songDao.updateDownloadStatus(songId, false, null)
     }
 

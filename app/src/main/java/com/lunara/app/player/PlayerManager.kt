@@ -15,6 +15,8 @@ import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.lunara.app.core.result.Resource
 import com.lunara.app.core.utils.NetworkMonitor
+import com.lunara.app.core.utils.audioMimeTypeOf
+import com.lunara.app.core.utils.isPlayableAudioFile
 import com.lunara.app.data.remote.innertube.InnerTubeClients
 import com.lunara.app.domain.model.DownloadStatus
 import com.lunara.app.domain.model.Song
@@ -27,7 +29,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -242,6 +243,31 @@ class PlayerManager @Inject constructor(
                 // Remember that this track's URL is dead so the next attempt asks for a new
                 // signature instead of being served the expired one from the resolver cache.
                 song?.id?.let { staleStreamSongIds.add(it) }
+
+                // A *local* file the player cannot parse is a damaged saved copy: a playlist that
+                // was stored as audio, or a truncated transfer. It is parked as failed so the next
+                // attempt streams instead of repeating the same error - and while offline that is
+                // said plainly, because no retry can help until the connection is back.
+                val localFailure = currentStreamUri?.let { uri ->
+                    uri.startsWith("file:") || uri.startsWith("content:")
+                } == true
+                if (localFailure) {
+                    val localSong = song
+                    if (localSong != null) {
+                        val localSongId = localSong.id
+                        val localTitle = localSong.title
+                        scope.launch {
+                            runCatching { downloadRepository.markLocalCopyUnusable(localSongId) }
+                        }
+                        if (!isOnline) {
+                            reportError(
+                                "\"$localTitle\" has no playable saved copy. " +
+                                    "Reconnect to download it again."
+                            )
+                            return
+                        }
+                    }
+                }
 
                 // Prefer a fallback minted by a *different* client identity. When one identity's
                 // URLs stop being served (signature binding, PO-token gate) the others normally
@@ -491,8 +517,10 @@ class PlayerManager @Inject constructor(
     private fun usableLocalUri(uri: String?): String? {
         if (uri.isNullOrBlank()) return null
         if (!uri.startsWith("file:")) return uri
-        val path = runCatching { Uri.parse(uri).path }.getOrNull() ?: return null
-        return if (File(path).let { it.exists() && it.length() > 0L }) uri else null
+        // `isPlayableAudioFile` rejects a playlist or a stub that was saved as audio as well as a
+        // file that is gone: those are answered by ExoPlayer with "unsupported audio format"
+        // instead of music, so streaming is the better answer.
+        return if (isPlayableAudioFile(uri)) uri else null
     }
 
     /**
@@ -760,10 +788,14 @@ class PlayerManager @Inject constructor(
     private fun mimeTypeOf(uri: String, resolved: String?): String? {
         // HLS needs its type up front; keep the detection below untouched.
         hlsMimeTypeOrNull(uri)?.let { return it }
-        // Saved tracks: the container is encoded in the stored extension, which is a far
-        // safer hint than guessing. Only unambiguous extensions are used; anything else
-        // stays `null` so ExoPlayer can sniff it.
+        // Saved tracks: the file itself is asked first, because the stored extension is only a
+        // guess made from the download URL. Anything unrecognised falls back to the extension
+        // hint, and an unknown extension stays `null` so ExoPlayer can sniff it.
         if (!uri.startsWith("http")) {
+            // A saved download can carry the wrong extension - an Opus/WebM stream stored as
+            // `.m4a` is rejected by the MP4 extractor with "unsupported audio format" - and magic
+            // bytes never lie.
+            audioMimeTypeOf(uri)?.let { return it }
             return when (uri.substringAfterLast('.', "").lowercase()) {
                 "m4a", "mp4", "aac", "m4b" -> MimeTypes.AUDIO_MP4
                 "webm", "opus" -> MimeTypes.AUDIO_WEBM

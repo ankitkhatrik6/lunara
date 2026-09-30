@@ -60,6 +60,15 @@ interface DownloadRepository {
     suspend fun cancelDownload(songId: String)
     suspend fun removeDownload(songId: String)
     suspend fun isDownloaded(songId: String): Boolean
+
+    /**
+     * Marks a saved copy as unusable: a damaged file, or a playlist that was saved as audio and
+     * is rejected by the player as "unsupported audio format".
+     *
+     * The bytes are left on disk - they cost nothing, and seeing the failed row is more honest
+     * than silently deleting the user's download - but nothing will try to play them again.
+     */
+    suspend fun markLocalCopyUnusable(songId: String)
 }
 
 interface SettingsRepository {

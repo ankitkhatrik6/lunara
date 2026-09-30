@@ -2,6 +2,7 @@ package com.lunara.app.data.remote.music
 
 import android.net.Uri
 import android.util.Log
+import com.lunara.app.core.utils.isPlayableAudioFile
 import com.lunara.app.data.remote.innertube.AudioStream
 import com.lunara.app.data.remote.innertube.InnerTubeApi
 import com.lunara.app.data.remote.innertube.InnerTubeClient
@@ -206,11 +207,14 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
      */
     suspend fun resolveAudioStream(
         videoId: String,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        allowHls: Boolean = true
     ): ResolvedStream? = withContext(Dispatchers.IO) {
         val cleanId = videoId.removePrefix("yt_")
 
-        if (!forceRefresh) {
+        // The cache may hold a playlist URL from an ordinary resolve, and a caller that asked for
+        // progressive audio only cannot use one, so its cache is skipped entirely.
+        if (!forceRefresh && allowHls) {
             streamCache[cleanId]
                 ?.takeIf { System.currentTimeMillis() - it.resolvedAtMs < STREAM_CACHE_TTL_MS }
                 ?.let { return@withContext it.stream }
@@ -232,7 +236,9 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
 
             var verdict: ProbeVerdict? = null
 
-            val manifest = InnerTubeParser.parseHlsManifestUrl(root)
+            // Downloads ask for progressive audio only: saving a playlist would produce a file that
+            // ExoPlayer rejects as "unsupported audio format" instead of music.
+            val manifest = if (allowHls) InnerTubeParser.parseHlsManifestUrl(root) else null
             if (manifest != null) {
                 val candidate = Candidate(manifest, "application/x-mpegURL", 0L, isHls = true)
                 StreamUserAgents.remember(candidate.url, client.userAgent)
@@ -463,10 +469,14 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
      *
      * [forceRefresh] additionally bypasses that cache, used when the player reports that the
      * URL it was handed has just stopped working.
+     *
+     * [allowHls] is `false` for downloads, which must store progressive audio and never a
+     * playlist.
      */
     suspend fun resolvePlayableMedia(
         song: Song,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        allowHls: Boolean = true
     ): PlayableMedia = withContext(Dispatchers.IO) {
         song.localUri?.takeIf { it.isUsableLocalUri() }?.let {
             return@withContext PlayableMedia(song, it, isLocal = true)
@@ -480,7 +490,7 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             }
         }
 
-        val stream = resolveAudioStream(song.id, forceRefresh = forceRefresh)
+        val stream = resolveAudioStream(song.id, forceRefresh = forceRefresh, allowHls = allowHls)
             ?: throw IllegalStateException(
                 "YouTube did not return a playable stream for \"${song.title}\""
             )
@@ -500,14 +510,10 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
      *
      * A downloaded track whose file has been deleted (app data cleared, storage trimmed) must
      * fall through to streaming instead of being handed over as a dead `file://` URI, which
-     * ExoPlayer reports as a "source error" that never recovers.
+     * ExoPlayer reports as a "source error" that never recovers. The same goes for a saved file
+     * that turns out to be a playlist or a stub - see [isPlayableAudioFile].
      */
-    private fun String.isUsableLocalUri(): Boolean {
-        if (isBlank()) return false
-        if (!startsWith("file:")) return true
-        val path = runCatching { Uri.parse(this).path }.getOrNull() ?: return false
-        return File(path).let { it.exists() && it.length() > 0L }
-    }
+    private fun String.isUsableLocalUri(): Boolean = isPlayableAudioFile(this)
 
     private companion object {
         /** How long a resolved stream stays reusable before it is resolved again. */

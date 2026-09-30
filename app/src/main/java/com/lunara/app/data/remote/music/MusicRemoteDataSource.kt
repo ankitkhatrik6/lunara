@@ -35,5 +35,14 @@ class MusicRemoteDataSource @Inject constructor(
 
     suspend fun resolvePlayableMedia(song: Song, forceRefresh: Boolean = false): PlayableMedia =
         youTubeMusic.resolvePlayableMedia(song, forceRefresh)
+
+    /**
+     * Progressive audio only, for saving a track.
+     *
+     * A download must be real audio: saving an HLS playlist produces a file ExoPlayer rejects with
+     * "unsupported audio format" (3003), which is why downloaded tracks used to be unplayable.
+     */
+    suspend fun resolveDownloadableMedia(song: Song): PlayableMedia =
+        youTubeMusic.resolvePlayableMedia(song, forceRefresh = false, allowHls = false)
 }
 
