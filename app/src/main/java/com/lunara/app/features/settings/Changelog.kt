@@ -17,6 +17,26 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.4.0",
+        headline = "A home screen that is actually alive",
+        highlights = listOf(
+            "Trending, Quick picks, New releases and Popular rails are fetched from YouTube Music on every launch.",
+            "Moods and genres: pick a mood and the rail beside it becomes that mix, ready to play.",
+            "Lunara wordmark centred at the top with the settings icon on the right, plus a search bar in the feed.",
+            "Skeleton placeholders while rails load, and a retry card when the catalogue cannot be reached."
+        )
+    ),
+    LunaraRelease(
+        version = "2.3.0",
+        headline = "Settings you can actually use",
+        highlights = listOf(
+            "Theme selector: System, Light or Dark, saved with your other preferences.",
+            "In-app updates: Lunara checks GitHub releases and offers the APK directly.",
+            "What's new: release notes for the versions you have installed.",
+            "Grouped sections for playback, storage and about, with the version you are running."
+        )
+    ),
+    LunaraRelease(
         version = "2.2.0",
         headline = "Light and dark themes",
         highlights = listOf(

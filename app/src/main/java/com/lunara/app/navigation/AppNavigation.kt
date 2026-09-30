@@ -158,6 +158,8 @@ fun LunaraApp(
                 HomeScreen(
                     onNavigateToFavorites = { navController.navigate(Screen.Library.route) },
                     onNavigateToDownloads = { navController.navigate(Screen.Downloads.route) },
+                    onNavigateToSearch = { navController.navigate(Screen.Search.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onSongActionClick = { selectedActionSong = it }
                 )
             }
