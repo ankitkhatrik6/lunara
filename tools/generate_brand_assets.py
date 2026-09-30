@@ -11,7 +11,13 @@ committed). The script writes:
 * `mipmap-<density>/ic_launcher.png` and `ic_launcher_round.png` for the legacy launcher icon
 * `drawable-<density>/ic_launcher_foreground.png` for the adaptive icon (108dp canvas, artwork
   kept inside the 66dp safe zone so no launcher mask clips it)
-* `drawable-nodpi/lunara_logo.png` used by the splash screen and the in-app branding
+* `drawable-<density>/splash_logo.png` for the launch screen at an exact dp size, which is what
+  keeps the platform splash from cropping the artwork
+* `drawable-nodpi/lunara_logo.png` used by the in-app branding
+
+Everything is a **density-correct** bitmap on purpose: a density-less (`drawable-nodpi`) image has
+no dp size of its own, so the system draws it at its raw pixel size and clips whatever does not fit.
+That is what used to cut the logo in half during launch.
 """
 
 import os
@@ -21,6 +27,9 @@ from PIL import Image, ImageDraw
 
 LEGACY_SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 ADAPTIVE_SIZES = {"mdpi": 108, "hdpi": 162, "xhdpi": 216, "xxhdpi": 324, "xxxhdpi": 432}
+# Splash artwork keeps the same visual size as the Compose splash logo (132dp).
+SPLASH_DP = 132
+DENSITY_SCALE = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
 RES_DIR = os.path.join("app", "src", "main", "res")
 
 
@@ -65,7 +74,16 @@ def main() -> int:
 
     nodpi = os.path.join(RES_DIR, "drawable-nodpi")
     os.makedirs(nodpi, exist_ok=True)
-    fit(source, 512).save(os.path.join(nodpi, "lunara_logo.png"))
+    logo_path = os.path.join(nodpi, "lunara_logo.png")
+    fit(source, 512).save(logo_path)
+
+    # Splash art is derived from the committed in-app logo so both screens always match.
+    splash_source = Image.open(logo_path).convert("RGBA")
+    for density, scale in DENSITY_SCALE.items():
+        directory = os.path.join(RES_DIR, f"drawable-{density}")
+        os.makedirs(directory, exist_ok=True)
+        pixels = int(round(SPLASH_DP * scale))
+        fit(splash_source, pixels).save(os.path.join(directory, "splash_logo.png"))
 
     print("brand assets written")
     return 0

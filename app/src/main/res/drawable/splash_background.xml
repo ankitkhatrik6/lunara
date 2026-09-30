@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Cold start window background: the app colour with the Lunara logo centred on it.
-    It is what the launcher shows while the process comes up, so the brand is visible
-    before Compose draws anything.
+    The artwork is `drawable-<density>/splash_logo.png`, a density-correct 132dp bitmap. The old
+    version used the density-less `drawable-nodpi` logo, which the window painted at its raw pixel
+    size, so only part of it fitted on screen: that was the half logo before the loading screen.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/lunara_background" />
-    <item>
+    <item
+        android:width="132dp"
+        android:height="132dp"
+        android:gravity="center">
         <bitmap
             android:antialias="true"
-            android:gravity="center"
-            android:src="@drawable/lunara_logo" />
+            android:gravity="fill"
+            android:src="@drawable/splash_logo" />
     </item>
 </layer-list>
