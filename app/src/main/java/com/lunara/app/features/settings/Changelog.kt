@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.7.0",
+        headline = "Downloads that really play",
+        highlights = listOf(
+            "Fixed saved tracks that refused to play with \"unsupported audio format\": a download is progressive audio now, never the stream playlist that had been stored under a song's name.",
+            "Every saved file is checked before Lunara trusts it, so a playlist, a stub or a truncated transfer can no longer break playback - the next attempt downloads again.",
+            "The player reads a file's real container from its own bytes, so an Opus/WebM download carrying another extension opens correctly.",
+            "Offline is handled warmly: Home greets you, hides what needs the network and puts your downloads and on-device music first."
+        )
+    ),
+    LunaraRelease(
         version = "2.6.0",
         headline = "Faster start for every track",
         highlights = listOf(

@@ -16,7 +16,8 @@ Lunara adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
   - **Paxsenix / Apple Music Provider**: Fast duration-matched and word-synced lyrics with agent-tag parsing (`v1`, `v2`, `bg`).
   - **LRCLIB Provider**: Exact `.lrc` and fuzzy title/artist matching.
   - **KuGou & Binimum / LyricsPlus** fallbacks.
-- **Instant Offline Downloads**: `DownloadRepository` streams a track's resolved audio straight into the app's private media folder (`filesDir/lunara_media`) with chunked I/O, closed byte ranges and throttled Room progress — no shared Downloads folder, no WorkManager scheduling delay — plus atomic temp-file persistence and full playback of the saved file.
+- **Instant Offline Downloads**: `DownloadRepository` streams a track's *progressive* audio (never an HLS playlist, which used to be saved under a song's name and rejected by the player as "unsupported audio format") straight into the app's private media folder (`filesDir/lunara_media`) with chunked I/O, closed byte ranges and throttled Room progress — no shared Downloads folder, no WorkManager scheduling delay — plus atomic temp-file persistence and validation: a playlist, stub or truncated file is discarded instead of being recorded as a finished download.
+- **Offline-First Feed**: without a connection Home swaps the network rails for your downloads and the music already on the device, with a friendly banner instead of an error card.
 - **Local Audio (`MediaStore`)**: Scans on-device audio files alongside streamed music with folder indexing.
 - **Dynamic Queue Management**: Reorderable playback queue, radio mode, queue autogeneration, shuffle, and cycle repeat modes (Off, All, One).
 - **Local Persistence**: Room Database storing favorites, listening history, playlists, downloads, and cached tracks without any tracking or accounts.
