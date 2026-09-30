@@ -82,7 +82,8 @@ Lunara adheres to a dark-first aesthetic featuring a charcoal palette (`#0B0D0F`
 ### Option A — GitHub Releases (recommended)
 
 Every tag matching `v*` triggers the **Android Release** workflow, which builds a
-signed release APK + AAB and attaches them to a new GitHub Release:
+signed release APK + AAB and attaches them to a new GitHub Release. Pushes to `master`
+run the same build without publishing, so every change is compile-checked:
 
 ```bash
 git tag v1.0.0
@@ -91,7 +92,7 @@ git push origin v1.0.0
 
 Download the `.apk` / `.aab` from the **Releases** page of the repository.
 
-Optional repository secrets (if omitted, an ephemeral CI keystore is used):
+Repository secrets used to sign releases (already configured for this repository):
 
 | Secret | Purpose |
 | --- | --- |
@@ -99,6 +100,16 @@ Optional repository secrets (if omitted, an ephemeral CI keystore is used):
 | `RELEASE_KEYSTORE_PASSWORD` | Keystore password |
 | `RELEASE_KEY_ALIAS` | Key alias (default `lunara`) |
 | `RELEASE_KEY_PASSWORD` | Key password |
+
+> **Why this matters.** Android only replaces an installed app when the new APK is signed with the
+> *same* key. A throwaway per-build key produces `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
+> ("package appears to be invalid" / "app not installed"), so the app has to be uninstalled first —
+> losing its data. Keep the keystore safe: if it is ever lost, every user has to uninstall once more.
+>
+> A local backup of the keystore used by this repository lives at `keystore/lunara-release.jks`
+> with its passwords in `keystore/keystore.properties` (both git-ignored). **Back that folder up.**
+> Without the secret, CI falls back to `keystore/lunara-release.jks` if it is present, and only
+> generates a throwaway key — with a warning — when neither exists.
 
 ### Option B — Android Studio / local Gradle
 

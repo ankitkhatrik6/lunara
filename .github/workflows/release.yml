@@ -1,7 +1,11 @@
 name: Android Release
 
+# Every push to master builds (compile feedback for each change), but only a `v*` tag publishes
+# a release. That way a broken build can never be published, and no chunk lands unverified.
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -39,8 +43,15 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/lunara-release.jks"
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            echo "Signing with the repository keystore (stable across every release)."
+          elif [ -f "keystore/lunara-release.jks" ]; then
+            cp "keystore/lunara-release.jks" "$KEYSTORE_PATH"
+            echo "Signing with the committed keystore."
           else
-            # Fallback: ephemeral keystore so the pipeline always produces a signed APK.
+            # Last resort only. A fresh key per run means the APK can never update an installed
+            # copy (INSTALL_FAILED_UPDATE_INCOMPATIBLE, "package appears to be invalid"), so this
+            # path is a warning, not a normal mode.
+            echo "::warning::No RELEASE_KEYSTORE_BASE64 secret - generating a throwaway key. Updates will not install over an existing app."
             keytool -genkeypair -v \
               -keystore "$KEYSTORE_PATH" \
               -alias lunara \
@@ -59,21 +70,29 @@ jobs:
 
       - name: Rename outputs
         run: |
-          VERSION="${GITHUB_REF_NAME:-snapshot}"
-          VERSION="${VERSION#v}"
+          # On a tag the tag name is authoritative; on a branch build fall back to the
+          # versionName in Gradle so the artifact is still recognisable.
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          fi
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/Lunara-${VERSION}-release.apk"
           cp app/build/outputs/bundle/release/app-release.aab "dist/Lunara-${VERSION}-release.aab"
+          echo "LUNARA_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: lunara-release
+          name: lunara-release-${{ env.LUNARA_VERSION }}
           path: dist/*
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: Lunara ${{ env.LUNARA_VERSION }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: dist/*
