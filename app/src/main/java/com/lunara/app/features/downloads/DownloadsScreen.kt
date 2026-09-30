@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -62,6 +63,13 @@ class DownloadsViewModel @Inject constructor(
     fun removeDownload(songId: String) {
         viewModelScope.launch {
             manageDownloadsUseCase.remove(songId)
+        }
+    }
+
+    /** Tries a failed save again; the repository re-resolves a fresh URL for it. */
+    fun retryDownload(song: Song) {
+        viewModelScope.launch {
+            runCatching { manageDownloadsUseCase.download(song) }
         }
     }
 
@@ -151,6 +159,15 @@ fun DownloadsScreen(
                                 )
                             }
                         }
+                    } else if (
+                        item.status == DownloadStatus.FAILED ||
+                        item.status == DownloadStatus.CANCELLED
+                    ) {
+                        FailedDownloadRow(
+                            item = item,
+                            onRetry = { viewModel.retryDownload(item.song) },
+                            onRemove = { viewModel.removeDownload(item.song.id) }
+                        )
                     } else {
                         // Completed item
                         SongListItem(
@@ -162,6 +179,65 @@ fun DownloadsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * A save that did not finish.
+ *
+ * Nothing unplayable is ever kept (a playlist, a stub or a truncated transfer is discarded), so
+ * this row offers the two answers that help: try again, or remove it.
+ */
+@Composable
+private fun FailedDownloadRow(
+    item: DownloadItem,
+    onRetry: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LunaraArtwork(
+            url = item.song.artworkUrl,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.song.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = LunaraTextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = item.song.artistName,
+                style = MaterialTheme.typography.bodySmall,
+                color = LunaraTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Could not be saved. Retry while you have a connection.",
+                style = MaterialTheme.typography.labelSmall,
+                color = LunaraAccentSecondary
+            )
+        }
+        TextButton(onClick = onRetry) {
+            Text(text = "Retry", color = LunaraAccent)
+        }
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Default.DeleteOutline,
+                contentDescription = "Remove download",
+                tint = LunaraTextSecondary
+            )
         }
     }
 }

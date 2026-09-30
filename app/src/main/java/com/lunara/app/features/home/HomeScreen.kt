@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
@@ -34,7 +35,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lunara.app.R
 import com.lunara.app.core.result.Resource
+import com.lunara.app.core.utils.NetworkMonitor
 import com.lunara.app.domain.model.Song
+import com.lunara.app.domain.repository.DownloadRepository
 import com.lunara.app.domain.repository.LibraryRepository
 import com.lunara.app.domain.repository.MusicRepository
 import com.lunara.app.player.PlayerManager
@@ -71,6 +74,10 @@ private val HOME_RAILS = listOf(
 
 private const val MOOD_RAIL_ID = "mood"
 
+/** Rail ids for the offline feed, which is built from local data. */
+private const val OFFLINE_DOWNLOADS_ID = "offline_downloads"
+private const val OFFLINE_DEVICE_ID = "offline_device"
+
 private val DEFAULT_MOODS = listOf(
     "Chill", "Focus", "Party", "Workout", "Sleep", "Romantic", "Study", "Drive"
 )
@@ -81,7 +88,9 @@ data class HomeUiState(
     val rails: List<HomeRail> = HOME_RAILS.map { HomeRail(id = it.id, title = it.title) },
     val moods: List<String> = DEFAULT_MOODS,
     val selectedMood: String? = null,
-    val moodRail: HomeRail? = null
+    val moodRail: HomeRail? = null,
+    /** True when the device has no usable connection; the feed then shows local music only. */
+    val isOffline: Boolean = false
 ) {
     /** True while every rail is still empty and none has finished loading. */
     val isInitialLoad: Boolean
@@ -93,13 +102,22 @@ data class HomeUiState(
      */
     val isFeedEmpty: Boolean
         get() = rails.isNotEmpty() && rails.none { it.isLoading } && rails.all { it.songs.isEmpty() }
+
+    /**
+     * Offline with nothing saved either: no downloads, no music on the device, no history. That is
+     * the moment to tell the user how to fill the feed for next time.
+     */
+    val isOfflineAndEmpty: Boolean
+        get() = isOffline && rails.isEmpty() && recentlyPlayed.isEmpty()
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val libraryRepository: LibraryRepository,
-    private val playerManager: PlayerManager
+    private val downloadRepository: DownloadRepository,
+    private val playerManager: PlayerManager,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -110,7 +128,69 @@ class HomeViewModel @Inject constructor(
     init {
         determineGreeting()
         observeHistory()
-        refresh()
+        observeConnectivity()
+    }
+
+    /**
+     * The feed follows the connection.
+     *
+     * Online it is YouTube Music's rails; offline it becomes what can actually play - the
+     * downloads and the music already on the device - instead of a spinner that can never finish.
+     * `isOnline` emits the current state as soon as it is collected, so the first load happens
+     * here and there is no separate initial `refresh()`.
+     */
+    private fun observeConnectivity() {
+        viewModelScope.launch {
+            networkMonitor.isOnline.collect { online ->
+                val wasOffline = _uiState.value.isOffline
+                _uiState.update { state -> state.copy(isOffline = !online) }
+                when {
+                    !online -> if (!wasOffline) loadOfflineRails()
+                    else -> refresh()
+                }
+            }
+        }
+    }
+
+    /** Downloads plus the device's own audio: everything that plays with no connection at all. */
+    private fun loadOfflineRails() {
+        viewModelScope.launch {
+            val downloads = runCatching {
+                downloadRepository.getDownloads().first()
+                    .filter { item -> item.localFilePath != null }
+                    .map { item -> item.song }
+                    .distinctBy { song -> song.id }
+            }.getOrDefault(emptyList())
+
+            val onDevice = runCatching {
+                musicRepository.getLocalSongs().distinctBy { song -> song.id }
+            }.getOrDefault(emptyList())
+
+            _uiState.update { state ->
+                state.copy(
+                    rails = listOfNotNull(
+                        downloads.takeIf { it.isNotEmpty() }?.let { songs ->
+                            HomeRail(
+                                id = OFFLINE_DOWNLOADS_ID,
+                                title = "Your downloads",
+                                songs = songs,
+                                isLoading = false
+                            )
+                        },
+                        onDevice.takeIf { it.isNotEmpty() }?.let { songs ->
+                            HomeRail(
+                                id = OFFLINE_DEVICE_ID,
+                                title = "On this device",
+                                songs = songs,
+                                isLoading = false
+                            )
+                        }
+                    ),
+                    selectedMood = null,
+                    moodRail = null
+                )
+            }
+        }
     }
 
     private fun determineGreeting() {
@@ -139,8 +219,16 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    /** Reloads every rail. Each resolves on its own, so the feed fills in progressively. */
+    /**
+     * Reloads every rail. Each resolves on its own, so the feed fills in progressively.
+     *
+     * While offline the network rails are pointless, so the local feed is rebuilt instead.
+     */
     fun refresh() {
+        if (_uiState.value.isOffline) {
+            loadOfflineRails()
+            return
+        }
         _uiState.update { state ->
             state.copy(rails = HOME_RAILS.map { HomeRail(id = it.id, title = it.title) })
         }
@@ -168,6 +256,8 @@ class HomeViewModel @Inject constructor(
 
     /** Loads the songs of one mood. Switching moods mid-load cannot apply a stale answer. */
     fun selectMood(mood: String) {
+        // Moods are catalogue searches and the chips are hidden offline; ignore stray taps.
+        if (_uiState.value.isOffline) return
         val title = "$mood picks"
         _uiState.update { state ->
             state.copy(
@@ -255,6 +345,10 @@ fun HomeScreen(
     ) {
         item { BrandHeader(onNavigateToSettings = onNavigateToSettings) }
 
+        if (uiState.isOffline) {
+            item { OfflineBanner() }
+        }
+
         item {
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Text(
@@ -308,8 +402,10 @@ fun HomeScreen(
             }
         }
 
-        if (uiState.isFeedEmpty) {
-            item { EmptyFeedCard(onRetry = viewModel::refresh) }
+        if (uiState.isOfflineAndEmpty) {
+            item { EmptyFeedCard(offline = true, onRetry = viewModel::refresh) }
+        } else if (uiState.isFeedEmpty) {
+            item { EmptyFeedCard(offline = false, onRetry = viewModel::refresh) }
         }
 
         items(uiState.rails, key = { rail -> rail.id }) { rail ->
@@ -325,25 +421,28 @@ fun HomeScreen(
             }
         }
 
-        item {
-            MoodChips(
-                moods = uiState.moods,
-                selected = uiState.selectedMood,
-                onSelect = viewModel::selectMood
-            )
-        }
-
-        uiState.moodRail?.let { moodRail ->
+        // Moods are YouTube Music searches, so they belong to the online feed only.
+        if (!uiState.isOffline) {
             item {
-                RailSection(
-                    title = moodRail.title,
-                    songs = moodRail.songs,
-                    isLoading = moodRail.isLoading,
-                    playingId = playingId,
-                    onPlayAll = { viewModel.playRail(moodRail) },
-                    onSongClick = { song -> viewModel.playRail(moodRail, song) },
-                    onSongActionClick = onSongActionClick
+                MoodChips(
+                    moods = uiState.moods,
+                    selected = uiState.selectedMood,
+                    onSelect = viewModel::selectMood
                 )
+            }
+
+            uiState.moodRail?.let { moodRail ->
+                item {
+                    RailSection(
+                        title = moodRail.title,
+                        songs = moodRail.songs,
+                        isLoading = moodRail.isLoading,
+                        playingId = playingId,
+                        onPlayAll = { viewModel.playRail(moodRail) },
+                        onSongClick = { song -> viewModel.playRail(moodRail, song) },
+                        onSongActionClick = onSongActionClick
+                    )
+                }
             }
         }
     }
@@ -633,7 +732,14 @@ private fun MoodChips(
  * itself instead of showing a blank feed.
  */
 @Composable
-private fun EmptyFeedCard(onRetry: () -> Unit) {
+/**
+ * Shown when the feed cannot be filled.
+ *
+ * Offline is not an error: it is the moment the saved music matters, so the card says that warmly
+ * and points at the one thing that helps - downloading. A retry button would only ever fail.
+ */
+@Composable
+private fun EmptyFeedCard(offline: Boolean, onRetry: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -646,26 +752,77 @@ private fun EmptyFeedCard(onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Nothing loaded",
+                text = if (offline) "Nothing saved yet" else "Nothing loaded",
                 style = MaterialTheme.typography.titleMedium,
                 color = LunaraTextPrimary
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Lunara could not reach YouTube Music. Check your connection and try again.",
+                text = if (offline) {
+                    "You're offline, and no music lives on this device yet. " +
+                        "Download a few tracks while you have signal and they'll be waiting here."
+                } else {
+                    "Lunara could not reach YouTube Music. Check your connection and try again."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = LunaraTextSecondary,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(14.dp))
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = LunaraAccent,
-                    contentColor = LunaraBackground
+            if (!offline) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = onRetry,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LunaraAccent,
+                        contentColor = LunaraBackground
+                    )
+                ) {
+                    Text("Retry")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The offline hello.
+ *
+ * Losing signal is common and a little annoying; this card makes it feel handled rather than
+ * broken, and it names the music that still plays so the user knows where to tap next.
+ */
+@Composable
+private fun OfflineBanner() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = LunaraSurfaceElevated,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.CloudOff,
+                contentDescription = null,
+                tint = LunaraAccent,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "You're offline",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = LunaraTextPrimary
                 )
-            ) {
-                Text("Retry")
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "No signal, no problem - here is the music you saved.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LunaraTextSecondary
+                )
             }
         }
     }
