@@ -14,13 +14,18 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.lunara.app.core.result.Resource
+import com.lunara.app.core.utils.NetworkMonitor
 import com.lunara.app.data.remote.innertube.InnerTubeClients
+import com.lunara.app.domain.model.DownloadStatus
 import com.lunara.app.domain.model.Song
+import com.lunara.app.domain.repository.DownloadRepository
 import com.lunara.app.domain.repository.MusicRepository
+import com.lunara.app.domain.repository.SettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -40,8 +45,22 @@ interface LunaraPlayer {
 class PlayerManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val queueManager: QueueManager,
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val downloadRepository: DownloadRepository,
+    private val settingsRepository: SettingsRepository,
+    private val networkMonitor: NetworkMonitor
 ) : LunaraPlayer {
+
+    /**
+     * Mirrors [NetworkMonitor]. Playback must never wait on a network round trip it cannot make,
+     * and an offline tap has to be answered with a plain explanation instead of a failed request.
+     */
+    @Volatile
+    private var isOnline = true
+
+    /** Mirrors the "Offline mode only" setting: play saved files even while a network is up. */
+    @Volatile
+    private var offlineOnly = false
 
     /**
      * Nothing here may reach the uncaught-exception handler: an unhandled throwable inside a
@@ -91,6 +110,20 @@ class PlayerManager @Inject constructor(
     init {
         initializePlayer()
         observeQueue()
+        observeNetworkAndSettings()
+    }
+
+    /**
+     * Connectivity and the offline-mode preference both decide whether streaming is allowed, so
+     * they are watched once here instead of being queried per playback attempt.
+     */
+    private fun observeNetworkAndSettings() {
+        scope.launch {
+            networkMonitor.isOnline.collect { online -> isOnline = online }
+        }
+        scope.launch {
+            settingsRepository.settingsFlow.collect { settings -> offlineOnly = settings.offlineModeOnly }
+        }
     }
 
     private fun initializePlayer() {
@@ -389,6 +422,25 @@ class PlayerManager @Inject constructor(
         // `onPlayerError` is only there to stop one failure cascade from spinning.
         reResolvedSongIds.remove(song.id)
         resolveJob = scope.launch {
+            // A queue row built from search results carries no local URI even when the file is
+            // already on disk, so the downloads table is consulted before spending a network
+            // round trip on a track that can be played from storage.
+            val savedUri = savedFileUri(song)
+            if (savedUri != null) {
+                if (resolvingSongId != song.id) return@launch
+                startPlayback(player, song.copy(localUri = savedUri, isDownloaded = true), savedUri)
+                return@launch
+            }
+
+            // Nothing saved and no usable connection (or offline mode switched on): say so instead
+            // of firing a request that can only fail. Tapping the track again, once the user is
+            // back online, simply retries.
+            if (!isOnline || offlineOnly) {
+                if (resolvingSongId != song.id) return@launch
+                reportError(offlineMessage(song))
+                return@launch
+            }
+
             val result = try {
                 // A wedged resolve has to surface as an error the user can retry, never as a
                 // spinner that never stops: every client identity costs a blocking round trip.
@@ -441,6 +493,32 @@ class PlayerManager @Inject constructor(
         if (!uri.startsWith("file:")) return uri
         val path = runCatching { Uri.parse(uri).path }.getOrNull() ?: return null
         return if (File(path).let { it.exists() && it.length() > 0L }) uri else null
+    }
+
+    /**
+     * The saved file for [song], if there is one.
+     *
+     * [Song.localUri] is only set on objects that came from the database, so a track tapped in
+     * search results, a rail or a queue built from them would otherwise look streamable-only and
+     * fail offline even though the download is sitting in `filesDir/lunara_media`.
+     */
+    private suspend fun savedFileUri(song: Song): String? {
+        usableLocalUri(song.localUri)?.let { return it }
+        val savedPath = runCatching {
+            downloadRepository.getDownloads().first()
+                .firstOrNull { item ->
+                    item.song.id == song.id && item.status == DownloadStatus.COMPLETED
+                }
+                ?.localFilePath
+        }.getOrNull()
+        return usableLocalUri(savedPath)
+    }
+
+    /** Explains why nothing can play right now, in terms the user can act on. */
+    private fun offlineMessage(song: Song): String = if (offlineOnly) {
+        "\"${song.title}\" is not downloaded. Offline mode is on in Settings."
+    } else {
+        "\"${song.title}\" is not downloaded. Connect to the internet to stream it."
     }
 
     /**
@@ -505,6 +583,10 @@ class PlayerManager @Inject constructor(
      * gap every time the user presses next.
      */
     private fun prefetchUpcoming() {
+        // Prefetching is a network operation: skip it while offline, and skip it entirely when
+        // the user has asked Lunara to keep to downloaded music.
+        if (!isOnline || offlineOnly) return
+
         // Two tracks ahead, so "next" is instant even when the queue is being skipped quickly.
         val upcoming = queueManager.upcomingSongs()
             .filter { it.localUri.isNullOrBlank() && it.streamUrl.isNullOrBlank() }

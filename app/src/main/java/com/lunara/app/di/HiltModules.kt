@@ -34,6 +34,17 @@ object NetworkModule {
         .build()
 
     /**
+     * One connectivity observer for the whole app. Playback uses it to decide whether a stream
+     * can be resolved at all, and prefetching uses it to stay quiet while offline.
+     */
+    @Provides
+    @Singleton
+    fun provideNetworkMonitor(
+        @ApplicationContext context: Context
+    ): com.lunara.app.core.utils.NetworkMonitor =
+        com.lunara.app.core.utils.NetworkMonitor(context)
+
+    /**
      * Scope for fire-and-forget work that must outlive a screen: saving a track for offline
      * playback keeps running while the user navigates away.
      */

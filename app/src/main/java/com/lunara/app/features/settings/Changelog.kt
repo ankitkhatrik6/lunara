@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.5.0",
+        headline = "Offline playback that works",
+        highlights = listOf(
+            "Downloaded tracks play from storage even when they are opened from Home, Search or a queue.",
+            "Without a connection (or with Offline mode on) Lunara names the track that is not downloaded instead of spinning.",
+            "Offline mode in Settings is now enforced: streaming is skipped and only saved files play.",
+            "Prefetching stays quiet while offline instead of spending battery on requests that cannot succeed."
+        )
+    ),
+    LunaraRelease(
         version = "2.4.0",
         headline = "A home screen that is actually alive",
         highlights = listOf(
