@@ -56,7 +56,10 @@ class MainActivity : ComponentActivity() {
             // Only the appearance is read here; the player and downloads consume the rest of the
             // settings where they are needed.
             val settings by settingsRepository.settingsFlow.collectAsState(initial = UserSettings())
-            LunaraTheme(themeMode = settings.themeMode) {
+            LunaraTheme(
+                themeMode = settings.themeMode,
+                dynamicColor = settings.dynamicColorsEnabled
+            ) {
                 // Branded start-up screen; the app composes underneath it so startup work overlaps
                 // with the animation (see SplashGate).
                 SplashGate {

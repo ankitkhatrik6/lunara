@@ -78,4 +78,10 @@ interface SettingsRepository {
     suspend fun updateOfflineMode(enabled: Boolean)
     suspend fun updateLyricsFontSize(size: Float)
     suspend fun updateThemeMode(mode: com.lunara.app.domain.model.ThemeMode)
+
+    /**
+     * Material You. When on (and the device runs Android 12+) the palette is derived from the
+     * wallpaper instead of the Lunara brand shades; older devices keep the brand palette.
+     */
+    suspend fun updateDynamicColor(enabled: Boolean)
 }

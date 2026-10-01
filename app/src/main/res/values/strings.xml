@@ -16,6 +16,9 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Wallpaper colours</string>
+    <string name="settings_dynamic_color_summary">Take the accents and surfaces from your wallpaper with Material You</string>
+    <string name="settings_dynamic_color_unsupported">Needs Android 12 or newer</string>
 
     <string name="settings_playback">Playback</string>
     <string name="settings_high_quality">High quality audio</string>

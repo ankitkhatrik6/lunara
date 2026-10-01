@@ -56,4 +56,9 @@ class PreferencesDataStore @Inject constructor(
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
+
+    /** Material You: wallpaper-derived colours, honoured on Android 12+ devices only. */
+    suspend fun setDynamicColors(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DYNAMIC_COLORS] = enabled }
+    }
 }

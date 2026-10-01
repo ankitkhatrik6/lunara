@@ -3,6 +3,7 @@ package com.lunara.app.features.settings
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -82,6 +83,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.updateThemeMode(mode) }
     }
 
+    fun toggleDynamicColors(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.updateDynamicColor(enabled) }
+    }
+
     fun checkForUpdates() {
         if (_updates.value == UpdatesUiState.Checking) return
         _updates.value = UpdatesUiState.Checking
@@ -113,6 +118,8 @@ fun SettingsScreen(
     val updates by viewModel.updates.collectAsState()
     val context = LocalContext.current
     var showChangelog by remember { mutableStateOf(false) }
+    // Material You exists from Android 12; below that the row is shown but cannot be switched on.
+    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     Scaffold(
         containerColor = LunaraBackground,
@@ -163,6 +170,17 @@ fun SettingsScreen(
                     ThemeSelector(
                         selected = settings.themeMode,
                         onSelect = viewModel::setThemeMode
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = stringResource(R.string.settings_dynamic_color),
+                        summary = stringResource(
+                            if (dynamicColorSupported) R.string.settings_dynamic_color_summary
+                            else R.string.settings_dynamic_color_unsupported
+                        ),
+                        checked = settings.dynamicColorsEnabled && dynamicColorSupported,
+                        enabled = dynamicColorSupported,
+                        onCheckedChange = viewModel::toggleDynamicColors
                     )
                 }
             }
@@ -291,7 +309,9 @@ private fun SwitchRow(
     title: String,
     summary: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    /** False greys the row out, for a setting this device cannot support. */
+    enabled: Boolean = true
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -302,18 +322,19 @@ private fun SwitchRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = LunaraTextPrimary
+                color = if (enabled) LunaraTextPrimary else LunaraTextMuted
             )
             Text(
                 text = summary,
                 style = MaterialTheme.typography.bodyMedium,
-                color = LunaraTextSecondary
+                color = if (enabled) LunaraTextSecondary else LunaraTextMuted
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = LunaraBackground,
                 checkedTrackColor = LunaraAccent,

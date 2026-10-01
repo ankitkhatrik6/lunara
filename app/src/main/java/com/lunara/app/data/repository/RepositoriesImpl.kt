@@ -568,4 +568,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun updateThemeMode(mode: ThemeMode) {
         dataStore.setThemeMode(mode)
     }
+
+    override suspend fun updateDynamicColor(enabled: Boolean) {
+        dataStore.setDynamicColors(enabled)
+    }
 }

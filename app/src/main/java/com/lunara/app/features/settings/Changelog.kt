@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.8.0",
+        headline = "Lunara wears your wallpaper",
+        highlights = listOf(
+            "New Appearance setting: Material You. Switch it on and Lunara's accents and surfaces are taken from your wallpaper on Android 12 and newer.",
+            "The palette reaches everywhere - feed, library, player and lyrics - and the System / Light / Dark selector still decides the brightness.",
+            "On devices older than Android 12 the switch is visible but greyed out, so it is clear the phone cannot do this yet, instead of a tap that does nothing.",
+            "Also in this release: the launch screen no longer crops the logo in half on a cold start."
+        )
+    ),
+    LunaraRelease(
         version = "2.7.0",
         headline = "Downloads that really play",
         highlights = listOf(

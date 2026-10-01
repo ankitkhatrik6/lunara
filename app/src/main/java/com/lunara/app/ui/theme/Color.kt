@@ -1,9 +1,11 @@
 package com.lunara.app.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 /*
  * Raw brand shades.
@@ -26,6 +28,7 @@ private val Lavender = Color(0xFF8B7CFF)      // Supporting Lavender / Purple
 
 private val Rose = Color(0xFFFF5252)
 private val Leaf = Color(0xFF4CAF50)
+private val LeafLight = Color(0xFF2E7D32)
 private val InkBorder = Color(0xFF262C34)
 
 /**
@@ -86,7 +89,7 @@ val LunaraLightPalette = LunaraPalette(
     accentVariant = Color(0xFF0B8B7C),
     accentSecondary = Color(0xFF6A5AE0),
     error = Color(0xFFD93025),
-    success = Color(0xFF2E7D32),
+    success = LeafLight,
     border = Color(0xFFDDE2E7),
     isDark = false
 )
@@ -143,3 +146,33 @@ val LunaraSuccess: Color
 
 val LunaraBorder: Color
     @Composable @ReadOnlyComposable get() = LocalLunaraPalette.current.border
+
+/**
+ * Material You: the Lunara palette rebuilt from a wallpaper-derived [ColorScheme].
+ *
+ * Material already pairs every surface with a legible `on*` colour, so the tokens map straight
+ * across instead of being re-invented: `primary`, `tertiary` and `error` become the accents, and
+ * `onSurfaceVariant` becomes the secondary text tone. The two steps Material does not expose - a
+ * slightly raised surface and a hairline border - are interpolated from `surface` towards
+ * `onSurface`, which is the same tonal relationship the hand-written palettes use.
+ *
+ * Building the scheme itself ([dynamicDarkColorScheme] / [dynamicLightColorScheme]) is the caller's
+ * job: this function only speaks Lunara's token names.
+ */
+fun lunaraPaletteFrom(scheme: ColorScheme, dark: Boolean): LunaraPalette = LunaraPalette(
+    background = scheme.background,
+    surface = scheme.surface,
+    surfaceElevated = lerp(scheme.surface, scheme.onSurface, if (dark) 0.06f else 0.04f),
+    surfaceHigh = lerp(scheme.surface, scheme.onSurface, if (dark) 0.13f else 0.09f),
+    textPrimary = scheme.onBackground,
+    textSecondary = scheme.onSurfaceVariant,
+    textMuted = lerp(scheme.onSurfaceVariant, scheme.surface, if (dark) 0.35f else 0.30f),
+    accent = scheme.primary,
+    accentVariant = lerp(scheme.primary, scheme.background, 0.18f),
+    accentSecondary = scheme.tertiary,
+    error = scheme.error,
+    // Material has no success role, so the brand green keeps that job.
+    success = if (dark) Leaf else LeafLight,
+    border = lerp(scheme.onSurface, scheme.surface, if (dark) 0.84f else 0.86f),
+    isDark = dark
+)
