@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,6 +42,41 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/**
+ * Discovery for the moment *before* anything is typed, when the hard part is not searching but
+ * knowing what to search for.
+ *
+ * Every prompt and tile is a query, not a feed: one tap puts it in the field and returns results.
+ * Nothing is fetched to draw this screen, so it is there instantly and offline too - only the tap
+ * itself needs a connection.
+ */
+private val DISCOVER_PROMPTS = listOf(
+    "Songs for a rainy evening",
+    "Instrumental piano",
+    "Acoustic covers",
+    "Late night drives",
+    "Feel-good classics",
+    "Something new to me"
+)
+
+/** One browse tile: what the user reads, and the query the tap actually runs. */
+private data class BrowseCategory(val label: String, val query: String)
+
+/**
+ * Genres rather than moods, deliberately: Home already offers moods and genres as a chooser, and a
+ * second screen repeating the same eight words would be a row that only says "see Home".
+ */
+private val BROWSE_CATEGORIES = listOf(
+    BrowseCategory("Throwbacks", "throwback hits"),
+    BrowseCategory("Hip hop", "hip hop"),
+    BrowseCategory("Indie & alt", "indie music"),
+    BrowseCategory("Lo-fi", "lofi beats"),
+    BrowseCategory("Rock", "rock classics"),
+    BrowseCategory("Jazz & soul", "jazz and soul"),
+    BrowseCategory("Electronic", "electronic dance"),
+    BrowseCategory("Classical", "classical music")
+)
 
 data class SearchUiState(
     val query: String = "",
@@ -97,6 +134,23 @@ class SearchViewModel @Inject constructor(
 
     fun clearQuery() {
         onQueryChange("")
+    }
+
+    /**
+     * Runs a discovery tap: fills the field and searches immediately.
+     *
+     * The debounce below exists for *typing* - it is there to avoid a request per keystroke. A tap
+     * is already a finished query, and making the user watch a spinner for
+     * [AppConstants.SEARCH_DEBOUNCE_MILLIS] on a search they have just asked for is the difference
+     * between instant and broken.
+     *
+     * `queryFlow` is deliberately left alone: pushing the tap through it would fire the same
+     * request a second time once the debounce elapsed.
+     */
+    fun searchNow(query: String) {
+        if (query.isBlank()) return
+        _uiState.update { it.copy(query = query) }
+        performSearch(query)
     }
 
     fun performSearch(query: String) {
@@ -206,61 +260,15 @@ fun SearchScreen(
             )
         }
 
-        // Search Content or Recents
+        // Idle state: discovery. Someone who has not typed anything is looking for an idea, not a
+        // text box, so this is where the prompts and the browse tiles live - with recent searches
+        // underneath as the shortcut they are.
         if (uiState.query.isBlank()) {
-            // Recent searches view
-            if (uiState.recentSearches.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Recent searches",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = LunaraTextPrimary
-                    )
-                    TextButton(onClick = viewModel::clearRecentSearches) {
-                        Text("Clear", color = LunaraAccent)
-                    }
-                }
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 120.dp)
-                ) {
-                    items(uiState.recentSearches) { recent ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.onQueryChange(recent) }
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                tint = LunaraTextMuted,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = recent,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = LunaraTextPrimary
-                            )
-                        }
-                    }
-                }
-            } else {
-                EmptyStateView(
-                    icon = Icons.Default.Search,
-                    title = "Explore music",
-                    subtitle = "Search for tracks, creators, and albums."
-                )
-            }
+            DiscoverContent(
+                recentSearches = uiState.recentSearches,
+                onSearch = viewModel::searchNow,
+                onClearRecentSearches = viewModel::clearRecentSearches
+            )
         } else {
             // Results list
             if (uiState.isLoading) {
@@ -357,3 +365,193 @@ private fun ArtistCard(artist: Artist) {
         )
     }
 }
+
+/**
+ * The idle half of Search: ideas to tap, in place of a text box waiting to be filled.
+ *
+ * Everything here takes the user *into* a search rather than showing results in place, which is
+ * what keeps this screen from being a second Home feed.
+ */
+@Composable
+private fun DiscoverContent(
+    recentSearches: List<String>,
+    onSearch: (String) -> Unit,
+    onClearRecentSearches: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 120.dp)
+    ) {
+        item(key = "discover_header") {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Discover something new",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = LunaraTextPrimary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = LunaraAccentSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tap an idea and Lunara will search it for you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LunaraTextSecondary
+                )
+            }
+        }
+
+        item(key = "discover_prompts") {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(DISCOVER_PROMPTS, key = { prompt -> "prompt_$prompt" }) { prompt ->
+                    SuggestionChip(
+                        onClick = { onSearch(prompt) },
+                        label = { Text(prompt) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = LunaraSurfaceElevated,
+                            labelColor = LunaraTextSecondary
+                        )
+                    )
+                }
+            }
+        }
+
+        item(key = "browse_heading") {
+            Text(
+                text = "Browse",
+                style = MaterialTheme.typography.titleLarge,
+                color = LunaraTextPrimary,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
+            )
+        }
+
+        // Two tiles per row: `items` over the chunked list keeps a whole row as one lazily laid-out
+        // item instead of nesting a grid inside a list.
+        items(
+            items = BROWSE_CATEGORIES.chunked(2),
+            key = { row -> "browse_${row.first().label}" }
+        ) { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                row.forEach { category ->
+                    BrowseTile(
+                        category = category,
+                        onClick = { onSearch(category.query) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // An odd last tile keeps the width of its partner instead of stretching.
+                if (row.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        if (recentSearches.isNotEmpty()) {
+            item(key = "recent_header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Recent searches",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = LunaraTextPrimary
+                    )
+                    TextButton(onClick = onClearRecentSearches) {
+                        Text("Clear", color = LunaraAccent)
+                    }
+                }
+            }
+
+            items(recentSearches, key = { recent -> "recent_$recent" }) { recent ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSearch(recent) }
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        tint = LunaraTextMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = recent,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = LunaraTextPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * One browse tile: a genre, wearing the same soft accent wash as the Home greeting card, so the
+ * two screens read as one app rather than two designs.
+ */
+@Composable
+private fun BrowseTile(
+    category: BrowseCategory,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accent = LunaraAccent
+
+    Surface(
+        modifier = modifier.height(88.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = LunaraSurfaceElevated
+    ) {
+        Box(
+            modifier = Modifier
+                // Wash first, touch feedback second, and the label last: the gradient sits under
+                // the ripple instead of swallowing it.
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(accent.copy(alpha = 0.20f), Color.Transparent)
+                    )
+                )
+                .clickable(onClick = onClick)
+                .padding(14.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = accent.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(18.dp)
+            )
+            Text(
+                text = category.label,
+                style = MaterialTheme.typography.titleMedium,
+                color = LunaraTextPrimary,
+                maxLines = 2,
+                modifier = Modifier.align(Alignment.BottomStart)
+            )
+        }
+    }
+}
+

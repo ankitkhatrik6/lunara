@@ -17,6 +17,17 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.12.0",
+        headline = "Discover something new",
+        highlights = listOf(
+            "Search no longer opens on an empty page: it opens with ideas - six prompts to try and eight genres to browse.",
+            "One tap puts the idea in the search field and runs it immediately, so the results are there without waiting out the typing delay.",
+            "The ideas are part of the app, so this surface appears instantly and works with no connection; only the search it starts needs one.",
+            "Genres, not moods, on purpose - Home already offers the mood chooser, and repeating the same eight words here would say nothing new.",
+            "Recent searches move underneath the ideas and now search the moment you tap them instead of idling through the typing delay first."
+        )
+    ),
+    LunaraRelease(
         version = "2.11.0",
         headline = "Your own music, in Lunara",
         highlights = listOf(
