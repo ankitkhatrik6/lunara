@@ -10,21 +10,20 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +83,8 @@ private val DEFAULT_MOODS = listOf(
 
 data class HomeUiState(
     val greeting: String = "Welcome",
+    /** The line under the greeting; it follows the time of day exactly like the greeting does. */
+    val greetingMessage: String = "Let's find something good to play.",
     val recentlyPlayed: List<Song> = emptyList(),
     val rails: List<HomeRail> = HOME_RAILS.map { HomeRail(id = it.id, title = it.title) },
     val moods: List<String> = DEFAULT_MOODS,
@@ -195,12 +196,12 @@ class HomeViewModel @Inject constructor(
 
     private fun determineGreeting() {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        val greeting = when (hour) {
-            in 5..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            else -> "Good evening"
+        val (greeting, message) = when (hour) {
+            in 5..11 -> "Good morning" to "Ease into the day with something good."
+            in 12..16 -> "Good afternoon" to "A little music for the afternoon?"
+            else -> "Good evening" to "Winding down? Put something on."
         }
-        _uiState.update { it.copy(greeting = greeting) }
+        _uiState.update { it.copy(greeting = greeting, greetingMessage = message) }
     }
 
     /**
@@ -326,9 +327,6 @@ class HomeViewModel @Inject constructor(
 
 @Composable
 fun HomeScreen(
-    onNavigateToFavorites: () -> Unit,
-    onNavigateToDownloads: () -> Unit,
-    onNavigateToSearch: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onSongActionClick: (Song) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
@@ -350,44 +348,10 @@ fun HomeScreen(
         }
 
         item {
-            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                Text(
-                    text = uiState.greeting,
-                    style = MaterialTheme.typography.displaySmall,
-                    color = LunaraTextPrimary
-                )
-                Text(
-                    text = "Welcome to ${stringResource(R.string.app_name)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = LunaraTextSecondary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                SearchPill(onClick = onNavigateToSearch)
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                LibraryShortcutCard(
-                    title = "Favorites",
-                    icon = Icons.Default.Favorite,
-                    iconTint = LunaraAccent,
-                    modifier = Modifier.weight(1f),
-                    onClick = onNavigateToFavorites
-                )
-                LibraryShortcutCard(
-                    title = "Downloads",
-                    icon = Icons.Default.DownloadDone,
-                    iconTint = LunaraAccentSecondary,
-                    modifier = Modifier.weight(1f),
-                    onClick = onNavigateToDownloads
-                )
-            }
+            GreetingCard(
+                greeting = uiState.greeting,
+                message = uiState.greetingMessage
+            )
         }
 
         if (uiState.recentlyPlayed.isNotEmpty()) {
@@ -501,33 +465,80 @@ private fun BrandHeader(onNavigateToSettings: () -> Unit) {
     }
 }
 
-/** Search entry point. Tapping it opens the search screen, keyboard ready. */
+/**
+ * The hello at the top of the feed.
+ *
+ * Opening straight into a wall of rails reads like a database, so Home starts with a note to the
+ * listener instead: the time of day, a line to match it, and the Lunara note drawn in the accent
+ * colour. The soft wash behind the card and the rounded badge are what make it feel like a card
+ * rather than another header - and every colour is read from the theme, so the whole thing follows
+ * the wallpaper when Material You is on.
+ */
 @Composable
-private fun SearchPill(onClick: () -> Unit) {
+private fun GreetingCard(greeting: String, message: String) {
+    val accent = LunaraAccent
+    val sparkle = LunaraAccentSecondary
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .clickable(onClick = onClick),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(24.dp),
         color = LunaraSurfaceElevated,
-        shape = RoundedCornerShape(28.dp)
+        tonalElevation = 3.dp
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier.background(
+                Brush.linearGradient(
+                    colors = listOf(accent.copy(alpha = 0.22f), Color.Transparent)
+                )
+            )
         ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = LunaraTextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "Search songs, artists and albums",
-                style = MaterialTheme.typography.bodyLarge,
-                color = LunaraTextMuted
-            )
+            Row(
+                modifier = Modifier.padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(accent.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = greeting,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = LunaraTextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = sparkle,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = LunaraTextSecondary
+                    )
+                }
+            }
         }
     }
 }
@@ -822,43 +833,3 @@ private fun OfflineBanner() {
         }
     }
 }
-
-@Composable
-private fun LibraryShortcutCard(
-    title: String,
-    icon: ImageVector,
-    iconTint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        color = LunaraSurfaceElevated,
-        tonalElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = LunaraTextPrimary
-            )
-        }
-    }
-}
-
-
-
-
-

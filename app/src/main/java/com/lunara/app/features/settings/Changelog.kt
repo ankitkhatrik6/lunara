@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.10.0",
+        headline = "A home screen that says hello",
+        highlights = listOf(
+            "Home opens with a greeting card: the time of day, a line to suit it and the Lunara note, drawn in your accent colour.",
+            "The Favorites and Downloads tiles and the search box left the feed - three rows that only repeated what the rest of the app already offers.",
+            "Nothing is out of reach: Favorites is the Library's first tab, Downloads sits in its top bar, and Search is one tap away on the bottom bar.",
+            "The card takes its colours from the theme, so it follows your wallpaper when Material You is on."
+        )
+    ),
+    LunaraRelease(
         version = "2.9.0",
         headline = "Lunara in your status bar",
         highlights = listOf(
