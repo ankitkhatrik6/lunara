@@ -13,6 +13,8 @@ committed). The script writes:
   kept inside the 66dp safe zone so no launcher mask clips it)
 * `drawable-<density>/splash_logo.png` for the launch screen at an exact dp size, which is what
   keeps the platform splash from cropping the artwork
+* `drawable-<density>/ic_notification.png` for the media notification / status bar small icon
+  (a one-colour cut-out: the system tints that icon and reads only its alpha channel)
 * `drawable-nodpi/lunara_logo.png` used by the in-app branding
 
 Everything is a **density-correct** bitmap on purpose: a density-less (`drawable-nodpi`) image has
@@ -30,6 +32,12 @@ ADAPTIVE_SIZES = {"mdpi": 108, "hdpi": 162, "xhdpi": 216, "xxhdpi": 324, "xxxhdp
 # Splash artwork keeps the same visual size as the Compose splash logo (132dp).
 SPLASH_DP = 132
 DENSITY_SCALE = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
+# Small icons are drawn at 24dp by the system (status bar and notification shade).
+NOTIFICATION_DP = 24
+# Alpha that separates the artwork from the soft glow around it in the master PNG.
+SILHOUETTE_ALPHA = 128
+# Breathing room so the cut-out does not touch the edges of its 24dp box.
+SILHOUETTE_INSET = 0.08
 RES_DIR = os.path.join("app", "src", "main", "res")
 
 
@@ -51,6 +59,26 @@ def circle(source: Image.Image, size: int) -> Image.Image:
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     out.paste(base, (0, 0), mask)
     return out
+
+
+def silhouette(source: Image.Image, size: int) -> Image.Image:
+    """Flat one-colour cut-out of the artwork, for the notification small icon.
+
+    The system tints a small icon and reads only its alpha channel, so the shading of the master
+    PNG is dropped and the shape alone has to carry the brand.
+    """
+    art = source.convert("RGBA")
+    bounds = art.getchannel("A").getbbox()
+    if bounds is None:
+        raise ValueError("artwork is fully transparent")
+    art = art.crop(bounds)
+    mask = art.getchannel("A").point(lambda value: 255 if value >= SILHOUETTE_ALPHA else 0)
+    side = max(art.width, art.height)
+    square = Image.new("L", (side, side), 0)
+    square.paste(mask, ((side - art.width) // 2, (side - art.height) // 2))
+    flat = Image.new("RGBA", (side, side), (255, 255, 255, 0))
+    flat.putalpha(square)
+    return fit(flat, size, inset=SILHOUETTE_INSET)
 
 
 def main() -> int:
@@ -84,6 +112,13 @@ def main() -> int:
         os.makedirs(directory, exist_ok=True)
         pixels = int(round(SPLASH_DP * scale))
         fit(splash_source, pixels).save(os.path.join(directory, "splash_logo.png"))
+
+    # The notification small icon is the same artwork reduced to a single flat colour.
+    for density, scale in DENSITY_SCALE.items():
+        directory = os.path.join(RES_DIR, f"drawable-{density}")
+        os.makedirs(directory, exist_ok=True)
+        pixels = int(round(NOTIFICATION_DP * scale))
+        silhouette(splash_source, pixels).save(os.path.join(directory, "ic_notification.png"))
 
     print("brand assets written")
     return 0

@@ -33,9 +33,15 @@ class MediaSessionService : MediaSessionService() {
         // skip, seek bar, artwork). The channel name shows up in Android's notification
         // settings; title/artist/artwork come from the MediaMetadata PlayerManager sets on
         // every media item.
+        //
+        // The small icon is the one piece the library cannot take from the metadata: its
+        // default is Media3's own glyph, so without this the status bar shows a generic
+        // player instead of Lunara. `ic_notification` is the Lunara mark flattened to a
+        // single colour, because the system tints this icon and uses only its alpha.
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this)
                 .setChannelName(R.string.notification_channel_playback)
+                .setSmallIcon(R.drawable.ic_notification)
                 .build()
         )
 

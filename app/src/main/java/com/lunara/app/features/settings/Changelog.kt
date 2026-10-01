@@ -17,6 +17,15 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.9.0",
+        headline = "Lunara in your status bar",
+        highlights = listOf(
+            "The playback notification now shows the Lunara note instead of the generic player glyph Media3 ships, so a glance at the status bar tells you it is your music.",
+            "The icon is drawn as a single-colour mark, which is what Android asks of a small icon: the system tints it to suit your theme and lays it over the album art colour.",
+            "It follows the notification everywhere it appears - status bar, lock screen, quick settings and Bluetooth or headset controls - on every screen density."
+        )
+    ),
+    LunaraRelease(
         version = "2.8.0",
         headline = "Lunara wears your wallpaper",
         highlights = listOf(
