@@ -20,6 +20,7 @@ class PreferencesDataStore @Inject constructor(
     companion object {
         val KEY_HIGH_QUALITY = booleanPreferencesKey("pref_high_quality")
         val KEY_AUTO_PLAY = booleanPreferencesKey("pref_auto_play")
+        val KEY_RESUME_PLAYBACK = booleanPreferencesKey("pref_resume_playback")
         val KEY_OFFLINE_MODE = booleanPreferencesKey("pref_offline_mode")
         val KEY_LYRICS_FONT_SIZE = floatPreferencesKey("pref_lyrics_font_size")
         val KEY_DYNAMIC_COLORS = booleanPreferencesKey("pref_dynamic_colors")
@@ -30,6 +31,7 @@ class PreferencesDataStore @Inject constructor(
         UserSettings(
             highQualityAudio = prefs[KEY_HIGH_QUALITY] ?: true,
             autoPlay = prefs[KEY_AUTO_PLAY] ?: true,
+            resumePlayback = prefs[KEY_RESUME_PLAYBACK] ?: true,
             offlineModeOnly = prefs[KEY_OFFLINE_MODE] ?: false,
             lyricsFontSize = prefs[KEY_LYRICS_FONT_SIZE] ?: 18f,
             dynamicColorsEnabled = prefs[KEY_DYNAMIC_COLORS] ?: false,
@@ -43,6 +45,10 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setAutoPlay(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUTO_PLAY] = enabled }
+    }
+
+    suspend fun setResumePlayback(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_RESUME_PLAYBACK] = enabled }
     }
 
     suspend fun setOfflineMode(enabled: Boolean) {

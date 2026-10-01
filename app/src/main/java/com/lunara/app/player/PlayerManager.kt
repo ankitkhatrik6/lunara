@@ -49,7 +49,8 @@ class PlayerManager @Inject constructor(
     private val musicRepository: MusicRepository,
     private val downloadRepository: DownloadRepository,
     private val settingsRepository: SettingsRepository,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val snapshotStore: PlaybackSnapshotStore
 ) : LunaraPlayer {
 
     /**
@@ -105,6 +106,42 @@ class PlayerManager @Inject constructor(
     /** Id of the track [currentStreamUri] belongs to, so a re-tap resumes instead of reloading. */
     private var currentStreamSongId: String? = null
 
+    /**
+     * The session restore that is still waiting to be heard: [startPlayback] seeks here once the
+     * restored track's stream is actually loaded. The seek cannot be issued while restoring -
+     * ExoPlayer discards a position set against a media item that is replaced right after - so the
+     * playhead travels with the track until its item is in place.
+     */
+    private var pendingResumeSongId: String? = null
+    private var pendingResumePositionMs = 0L
+
+    /** Writes the playhead to disk while music plays, so a relaunch can resume mid-track. */
+    private var snapshotJob: Job? = null
+
+    /** Debounces the two snapshot writers; scrubbing is not one write per pixel. */
+    private var playheadSaveJob: Job? = null
+    private var queueSnapshotJob: Job? = null
+
+    /**
+     * `true` once this process has held a queue of its own.
+     *
+     * It separates "the queue is empty because Lunara just started" - where whatever is on disk is
+     * the session that is *about to be restored* and must be left alone - from "the queue is empty
+     * because the user emptied it", where the stored session is stale and has to go.
+     */
+    private var hadQueueThisSession = false
+
+    /**
+     * `true` while the empty queue in front of Lunara is the one [stopPlayback] deliberately left
+     * behind.
+     *
+     * A swipe out of recents saves the session and only then clears the player, and the queue
+     * observer wakes up afterwards to see an empty queue - which on its own reads as "the user
+     * emptied it" and would wipe the session the swipe just wrote. This flag says which empty
+     * queue it is, and is cleared as soon as a real queue exists again.
+     */
+    private var sessionPreservedOnStop = false
+
     private val _playbackState = MutableStateFlow(PlaybackState())
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
@@ -112,6 +149,7 @@ class PlayerManager @Inject constructor(
         initializePlayer()
         observeQueue()
         observeNetworkAndSettings()
+        restoreLastSession()
     }
 
     /**
@@ -124,6 +162,53 @@ class PlayerManager @Inject constructor(
         }
         scope.launch {
             settingsRepository.settingsFlow.collect { settings -> offlineOnly = settings.offlineModeOnly }
+        }
+    }
+
+    /**
+     * Rebuilds the session the previous run left behind, standing on the second it stopped.
+     *
+     * Nothing auto-plays: opening Lunara and being sung at is a surprise, and every other music app
+     * restores quietly with the mini player showing where the music is, one tap from continuing.
+     *
+     * The restore also stands down whenever a queue already exists - a tap, a deep link or an
+     * autoplay that happened while the stored session was still being read is by definition newer
+     * than the process that wrote it, and the newer intent wins.
+     */
+    private fun restoreLastSession() {
+        scope.launch {
+            val enabled = runCatching {
+                settingsRepository.settingsFlow.first().resumePlayback
+            }.getOrDefault(true)
+            if (!enabled) return@launch
+
+            val snapshot = runCatching { snapshotStore.load() }.getOrNull() ?: return@launch
+            val song = snapshot.currentSong ?: return@launch
+            if (queueManager.queue.value.isNotEmpty() || currentStreamSongId != null) return@launch
+
+            queueManager.restore(
+                songs = snapshot.songs,
+                currentIndex = snapshot.currentIndex,
+                shuffle = snapshot.shuffle,
+                repeatMode = snapshot.repeatMode
+            )
+            hadQueueThisSession = true
+
+            // The playhead is held back rather than seeked: the media item that has to carry it
+            // does not exist yet, and ExoPlayer drops a position set before its item is in place.
+            // `startPlayback` picks it up when the restored track is actually loaded.
+            pendingResumeSongId = song.id
+            pendingResumePositionMs = snapshot.positionMs
+
+            _playbackState.value = _playbackState.value.copy(
+                currentSong = song,
+                currentPositionMs = snapshot.positionMs,
+                totalDurationMs = if (song.durationMs > 0) song.durationMs else 0L,
+                isLoading = false,
+                isPlaying = false
+            )
+
+            Log.i(TAG, "Restored session: ${song.title} at ${snapshot.positionMs} ms")
         }
     }
 
@@ -219,8 +304,14 @@ class PlayerManager @Inject constructor(
                 _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
                     startProgressTracker()
+                    startSnapshotTracker()
                 } else {
                     stopProgressTracker()
+                    stopSnapshotTracker()
+                    // A pause is the moment most likely to be followed by the app going away
+                    // (screen off, swipe out of recents), so the playhead is committed now instead
+                    // of waiting for the next tick of the interval timer.
+                    savePlayhead()
                 }
             }
 
@@ -375,6 +466,16 @@ class PlayerManager @Inject constructor(
         scope.launch {
             queueManager.queue.collect { q ->
                 _playbackState.value = _playbackState.value.copy(queue = q)
+                if (q.isNotEmpty()) {
+                    hadQueueThisSession = true
+                    // Something is queued again, so the session saved by the last stop is no longer
+                    // the only copy of it: the empty-queue guard can go.
+                    sessionPreservedOnStop = false
+                }
+                // Queue edits - add, remove, reorder, clear - are the part of the session that has
+                // to survive a restart, so every one of them schedules a write. The write itself is
+                // debounced: `setQueue` changes the queue, the index, shuffle and repeat in one go.
+                scheduleQueueSnapshot()
             }
         }
         scope.launch {
@@ -383,16 +484,21 @@ class PlayerManager @Inject constructor(
                     queueIndex = idx,
                     currentSong = queueManager.currentSong
                 )
+                // The stored queue carries the current index, so moving through the queue is a
+                // change worth persisting too.
+                scheduleQueueSnapshot()
             }
         }
         scope.launch {
             queueManager.isShuffle.collect { shuffle ->
                 _playbackState.value = _playbackState.value.copy(shuffleEnabled = shuffle)
+                scheduleQueueSnapshot()
             }
         }
         scope.launch {
             queueManager.repeatMode.collect { mode ->
                 _playbackState.value = _playbackState.value.copy(repeatMode = mode)
+                scheduleQueueSnapshot()
             }
         }
     }
@@ -590,13 +696,24 @@ class PlayerManager @Inject constructor(
         currentStreamUri = uri
         currentStreamSongId = song.id
         player.setMediaItem(mediaItem)
+
+        // A restored session starts where it stopped: the seek is issued *after* the item is set (a
+        // position applied to the item that is being replaced is discarded) and *before* `play()`,
+        // so the first audible second is the one the user pressed pause on. Every other track -
+        // including one the restore was not waiting for - starts at zero.
+        val resumePositionMs = if (song.id == pendingResumeSongId) pendingResumePositionMs else 0L
+        pendingResumeSongId = null
+        pendingResumePositionMs = 0L
+
         player.prepare()
+        if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
         player.play()
 
         _playbackState.value = _playbackState.value.copy(
             currentSong = song,
             isLoading = true,
             errorMessage = null,
+            currentPositionMs = resumePositionMs,
             totalDurationMs = song.durationMs
         )
 
@@ -660,6 +777,17 @@ class PlayerManager @Inject constructor(
 
     override fun play() {
         val player = exoPlayer ?: return
+        // A restored session is a queue and a current track with nothing loaded into ExoPlayer
+        // yet. The first press of play therefore has to *load* that track - and `startPlayback`
+        // seeks it to the stored playhead on the way. Without this the player would sit there
+        // looking ready and doing nothing.
+        if (player.mediaItemCount == 0) {
+            val song = _playbackState.value.currentSong
+            if (song != null) {
+                playSong(song)
+                return
+            }
+        }
         // A bare `play()` does nothing in these two states, which is what made resume look
         // broken: after an error or an explicit stop the player is IDLE with an item still
         // loaded, and at the end of the last track it is ENDED.
@@ -672,6 +800,9 @@ class PlayerManager @Inject constructor(
 
     override fun pause() {
         exoPlayer?.pause()
+        // Pausing is usually followed by the screen going off or the app being swiped away, so the
+        // playhead is written out here rather than at the next tick of the interval timer.
+        savePlayhead()
     }
 
     /**
@@ -684,6 +815,14 @@ class PlayerManager @Inject constructor(
         resolveJob = null
         resolvingSongId = null
         stopProgressTracker()
+        stopSnapshotTracker()
+        // The session is deliberately *kept* here: swiping Lunara out of recents is how apps are
+        // closed, not a request to forget the music. This is the last moment the queue and the
+        // playhead are still readable - `player.stop()` resets the position and `clearQueue()`
+        // empties the queue - so both are read out and committed first.
+        saveQueueSnapshot()
+        savePlayhead()
+        sessionPreservedOnStop = true
         exoPlayer?.let { player ->
             player.stop()
             player.clearMediaItems()
@@ -719,6 +858,9 @@ class PlayerManager @Inject constructor(
     override fun seekTo(positionMs: Long) {
         exoPlayer?.seekTo(positionMs)
         _playbackState.value = _playbackState.value.copy(currentPositionMs = positionMs)
+        // A drag on the seek bar emits one call per pixel of movement; only where it stopped is
+        // worth writing to disk.
+        schedulePlayheadSave()
     }
 
     private fun startProgressTracker() {
@@ -740,6 +882,100 @@ class PlayerManager @Inject constructor(
     private fun stopProgressTracker() {
         progressJob?.cancel()
         progressJob = null
+    }
+
+    /**
+     * Writes the playhead to disk every few seconds while music plays.
+     *
+     * The interval *is* the error a restore can make: coming back up to five seconds early is more
+     * precise than anyone notices, whereas writing the position more often would mean a disk
+     * transaction per second for a number that only matters at the next cold start.
+     */
+    private fun startSnapshotTracker() {
+        stopSnapshotTracker()
+        snapshotJob = scope.launch {
+            while (isActive) {
+                delay(SNAPSHOT_INTERVAL_MS)
+                val songId = currentStreamSongId ?: continue
+                val positionMs = exoPlayer?.currentPosition ?: continue
+                runCatching { snapshotStore.savePosition(songId, positionMs.coerceAtLeast(0L)) }
+            }
+        }
+    }
+
+    private fun stopSnapshotTracker() {
+        snapshotJob?.cancel()
+        snapshotJob = null
+    }
+
+    /**
+     * Commits the playhead as it is now.
+     *
+     * Both values are read *before* the coroutine is launched. This scope dispatches on the main
+     * loop, so a save triggered by [stopPlayback] would otherwise wake up after the player had
+     * already been stopped and read a position of zero.
+     */
+    private fun savePlayhead() {
+        val songId = currentStreamSongId ?: _playbackState.value.currentSong?.id ?: return
+        val positionMs = (exoPlayer?.currentPosition ?: _playbackState.value.currentPositionMs)
+            .coerceAtLeast(0L)
+        scope.launch {
+            runCatching { snapshotStore.savePosition(songId, positionMs) }
+        }
+    }
+
+    /** A drag on the seek bar is one write, not one per pixel. */
+    private fun schedulePlayheadSave() {
+        playheadSaveJob?.cancel()
+        playheadSaveJob = scope.launch {
+            delay(PLAYHEAD_SAVE_DEBOUNCE_MS)
+            val songId = currentStreamSongId ?: return@launch
+            val positionMs = (exoPlayer?.currentPosition ?: 0L).coerceAtLeast(0L)
+            runCatching { snapshotStore.savePosition(songId, positionMs) }
+        }
+    }
+
+    /**
+     * Persists the queue a beat after it changes.
+     *
+     * [QueueManager.setQueue] fires the queue, the index, the shuffle flag and the repeat mode in
+     * one go, so debouncing turns four writes of the same JSON payload into one.
+     */
+    private fun scheduleQueueSnapshot() {
+        queueSnapshotJob?.cancel()
+        queueSnapshotJob = scope.launch {
+            delay(QUEUE_SAVE_DEBOUNCE_MS)
+            writeQueueSnapshot()
+        }
+    }
+
+    /** Writes the queue immediately, e.g. while the last copy of it is still in memory. */
+    private fun saveQueueSnapshot() {
+        val songs = queueManager.queue.value
+        val currentIndex = queueManager.currentIndex.value
+        val shuffle = queueManager.isShuffle.value
+        val repeatMode = queueManager.repeatMode.value
+        scope.launch {
+            runCatching { snapshotStore.saveQueue(songs, currentIndex, shuffle, repeatMode) }
+        }
+    }
+
+    private suspend fun writeQueueSnapshot() {
+        val songs = queueManager.queue.value
+        // An empty queue means one of two things. On the first emissions of a new process it is
+        // simply Lunara starting up, and the session on disk is the very one `restoreLastSession`
+        // is about to read - clearing it here would delete the music the user came back for. Only
+        // once this process has held a queue of its own does an empty one mean the user emptied it,
+        // and then the stored session is stale and goes with it.
+        if (songs.isEmpty() && (!hadQueueThisSession || sessionPreservedOnStop)) return
+        runCatching {
+            snapshotStore.saveQueue(
+                songs = songs,
+                currentIndex = queueManager.currentIndex.value,
+                shuffle = queueManager.isShuffle.value,
+                repeatMode = queueManager.repeatMode.value
+            )
+        }
     }
 
     override fun release() {
@@ -838,6 +1074,19 @@ class PlayerManager @Inject constructor(
 
         /** How many upcoming tracks get their stream resolved ahead of time. */
         const val PREFETCH_AHEAD = 2
+
+        /**
+         * How often the playhead is written to disk while music plays. This interval is the worst
+         * case error of a restore, and it is deliberately larger than the 300 ms UI tick: the
+         * position only has to be right when the app is next opened, not while it is running.
+         */
+        const val SNAPSHOT_INTERVAL_MS = 5_000L
+
+        /** Long enough that the writes a drag on the seek bar starts collapse into one. */
+        const val PLAYHEAD_SAVE_DEBOUNCE_MS = 600L
+
+        /** Long enough that `setQueue`'s four state changes collapse into one queue write. */
+        const val QUEUE_SAVE_DEBOUNCE_MS = 800L
 
         /**
          * Hard ceiling on one stream resolve. Without it a request that never answers left the

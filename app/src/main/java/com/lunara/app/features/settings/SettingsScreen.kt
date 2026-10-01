@@ -75,6 +75,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.updateAutoPlay(enabled) }
     }
 
+    fun toggleResumePlayback(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.updateResumePlayback(enabled) }
+    }
+
     fun toggleOfflineMode(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.updateOfflineMode(enabled) }
     }
@@ -200,6 +204,13 @@ fun SettingsScreen(
                         summary = stringResource(R.string.settings_autoplay_summary),
                         checked = settings.autoPlay,
                         onCheckedChange = viewModel::toggleAutoPlay
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = stringResource(R.string.settings_resume_playback),
+                        summary = stringResource(R.string.settings_resume_playback_summary),
+                        checked = settings.resumePlayback,
+                        onCheckedChange = viewModel::toggleResumePlayback
                     )
                 }
             }

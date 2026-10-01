@@ -67,4 +67,62 @@ class QueueManagerTest {
         assertEquals(2, queueManager.queue.value.size)
         assertEquals("Song Three", queueManager.queue.value[1].title)
     }
+
+    @Test
+    fun restore_rebuildsQueueIndexShuffleAndRepeat() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 2,
+            shuffle = true,
+            repeatMode = RepeatMode.ALL
+        )
+
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+        assertTrue(queueManager.isShuffle.value)
+        assertEquals(RepeatMode.ALL, queueManager.repeatMode.value)
+    }
+
+    @Test
+    fun restore_letsPlaybackContinueFromTheRestoredTrack() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 1,
+            shuffle = false,
+            repeatMode = RepeatMode.OFF
+        )
+
+        assertEquals("Song Three", queueManager.next()?.title)
+    }
+
+    @Test
+    fun restore_clampsAnIndexThatIsPastTheEndOfTheQueue() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 7,
+            shuffle = false,
+            repeatMode = RepeatMode.OFF
+        )
+
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+    }
+
+    @Test
+    fun restore_ignoresAnEmptyStoredQueue() {
+        queueManager.setQueue(sampleSongs, startIndex = 1)
+
+        queueManager.restore(
+            songs = emptyList(),
+            currentIndex = 0,
+            shuffle = false,
+            repeatMode = RepeatMode.ALL
+        )
+
+        // An empty snapshot must leave the session that is already running untouched.
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(1, queueManager.currentIndex.value)
+        assertEquals(RepeatMode.OFF, queueManager.repeatMode.value)
+    }
 }

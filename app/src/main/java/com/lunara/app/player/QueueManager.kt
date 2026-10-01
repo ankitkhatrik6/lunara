@@ -38,6 +38,28 @@ class QueueManager @Inject constructor() {
         }
     }
 
+    /**
+     * Rebuilds the queue a previous run of Lunara left behind.
+     *
+     * [songs] arrives in *played* order, which for a shuffled queue is the shuffled order, so it
+     * becomes [originalQueue] as well. The order that was really heard is the only one that can be
+     * restored truthfully; un-shuffling afterwards simply keeps the queue as it is, which is what
+     * the user was listening to anyway.
+     */
+    fun restore(
+        songs: List<Song>,
+        currentIndex: Int,
+        shuffle: Boolean,
+        repeatMode: RepeatMode
+    ) {
+        if (songs.isEmpty()) return
+        originalQueue = songs
+        _isShuffle.value = shuffle
+        _repeatMode.value = repeatMode
+        _queue.value = songs
+        _currentIndex.value = currentIndex.coerceIn(0, songs.size - 1)
+    }
+
     val currentSong: Song?
         get() = _queue.value.getOrNull(_currentIndex.value)
 

@@ -17,6 +17,18 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.13.0",
+        headline = "Pick up where you left off",
+        highlights = listOf(
+            "Close Lunara whenever you like: open it again and your queue, your track and the second you stopped on are all back.",
+            "It comes back paused, on purpose. Opening an app should never put sound into a room you may have walked into quietly - the first tap is yours.",
+            "The playhead is written as you listen - every few seconds, and immediately when you pause or swipe Lunara away - so even a crash or a dead battery costs seconds instead of the whole session.",
+            "The queue returns exactly as you heard it, shuffle and repeat included, and a queue edit is written once rather than once per second.",
+            "What is stored is the session, never the audio: a stream URL is left out on purpose because YouTube signs it for minutes, and the next tap mints a fresh one.",
+            "A new switch under Playback - \"Resume where you left off\" - turns all of it off for anyone who would rather start on an empty player."
+        )
+    ),
+    LunaraRelease(
         version = "2.12.0",
         headline = "Discover something new",
         highlights = listOf(

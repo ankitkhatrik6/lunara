@@ -571,6 +571,10 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.setAutoPlay(enabled)
     }
 
+    override suspend fun updateResumePlayback(enabled: Boolean) {
+        dataStore.setResumePlayback(enabled)
+    }
+
     override suspend fun updateOfflineMode(enabled: Boolean) {
         dataStore.setOfflineMode(enabled)
     }

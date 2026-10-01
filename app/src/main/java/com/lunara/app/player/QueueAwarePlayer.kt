@@ -53,4 +53,13 @@ internal class QueueAwarePlayer(
     override fun seekToPrevious() = playerManager.playPrevious()
 
     override fun seekToPreviousMediaItem() = playerManager.playPrevious()
+
+    /**
+     * The system's play action - the notification button, a Bluetooth headset, the lock screen.
+     *
+     * Forwarding this to ExoPlayer would be wrong for a restored session, where Lunara has a queue
+     * and a current track but ExoPlayer holds no media item yet: the press has to load that track
+     * (and with it the stored playhead) instead of starting an empty player.
+     */
+    override fun play() = playerManager.play()
 }

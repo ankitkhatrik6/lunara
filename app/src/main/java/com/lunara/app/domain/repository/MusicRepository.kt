@@ -103,6 +103,13 @@ interface SettingsRepository {
     val settingsFlow: Flow<com.lunara.app.domain.model.UserSettings>
     suspend fun updateHighQuality(enabled: Boolean)
     suspend fun updateAutoPlay(enabled: Boolean)
+
+    /**
+     * Whether launching Lunara brings back the queue and the playhead of the previous run. Turning
+     * it off leaves the player empty on every cold start, and clears nothing that is already
+     * stored - the stored session is simply never restored.
+     */
+    suspend fun updateResumePlayback(enabled: Boolean)
     suspend fun updateOfflineMode(enabled: Boolean)
     suspend fun updateLyricsFontSize(size: Float)
     suspend fun updateThemeMode(mode: com.lunara.app.domain.model.ThemeMode)

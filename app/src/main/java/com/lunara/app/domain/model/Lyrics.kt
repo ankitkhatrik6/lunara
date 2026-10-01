@@ -70,6 +70,12 @@ enum class RepeatMode {
 data class UserSettings(
     val highQualityAudio: Boolean = true,
     val autoPlay: Boolean = true,
+    /**
+     * Bring back the queue and the playhead a previous run of Lunara left behind, paused where the
+     * music stopped. On by default: an app that opens to an empty player has forgotten what the
+     * user was doing.
+     */
+    val resumePlayback: Boolean = true,
     val offlineModeOnly: Boolean = false,
     val lyricsFontSize: Float = 18f,
     val dynamicColorsEnabled: Boolean = false,
