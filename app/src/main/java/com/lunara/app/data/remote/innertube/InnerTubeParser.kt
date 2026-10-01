@@ -105,7 +105,10 @@ object InnerTubeParser {
      * this stays a faithful parse of the response.
      */
     fun parseRadio(root: JsonElement): RadioPage {
-        val panel = findObject(root, "musicQueueRenderer")?.obj("content")
+        // A continuation of a mix arrives without the `musicQueueRenderer` wrapper, and the
+        // response itself is the last place the rows can be, so the whole thing is searched as a
+        // fallback and the type stays `JsonElement`.
+        val panel: JsonElement = findObject(root, "musicQueueRenderer")?.obj("content")
             ?.obj("playlistPanelRenderer")
             ?: findObject(root, "playlistPanelRenderer")
             ?: findObject(root, "playlistPanelContinuation")
@@ -117,7 +120,7 @@ object InnerTubeParser {
 
         return RadioPage(
             songs = songs,
-            continuation = radioContinuation(panel),
+            continuation = radioContinuation(panel.asObj()),
             title = findObject(root, "musicQueueHeaderRenderer")?.obj("subtitle")?.runsText()
         )
     }
@@ -150,7 +153,7 @@ object InnerTubeParser {
     }
 
     /** The token that asks for the next batch of a radio, whatever YouTube named it. */
-    private fun radioContinuation(panel: JsonObject): String? =
+    private fun radioContinuation(panel: JsonObject?): String? =
         panel.arr("continuations").objects().firstNotNullOfOrNull { entry ->
             entry.obj("nextRadioContinuationData")?.text("continuation")
                 ?: entry.obj("nextContinuationData")?.text("continuation")
