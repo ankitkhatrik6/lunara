@@ -81,6 +81,32 @@ class InnerTubeApi @Inject constructor(
         continuation = continuation
     )
 
+    /**
+     * The `next` endpoint: the queue YouTube Music itself would play after [videoId].
+     *
+     * Called with a seed (`videoId` + `playlistId = RDAMVM<videoId>`) it answers with the song
+     * radio - the same "Mix" the official app lists under "Up next" - and with the
+     * `continuation` a previous response carried it answers with the next batch of it. The
+     * response is *not* played here: only its queue is read (see `InnerTubeParser.parseRadio`)
+     * and appended to Lunara's own queue.
+     */
+    suspend fun next(
+        client: InnerTubeClient,
+        videoId: String? = null,
+        playlistId: String? = null,
+        continuation: String? = null
+    ): JsonObject? = post(
+        client = client,
+        endpoint = "next",
+        body = buildJsonObject {
+            put("context", context(client))
+            videoId?.let { put("videoId", it) }
+            playlistId?.let { put("playlistId", it) }
+            continuation?.let { put("continuation", it) }
+        },
+        continuation = continuation
+    )
+
     suspend fun player(
         client: InnerTubeClient,
         videoId: String,

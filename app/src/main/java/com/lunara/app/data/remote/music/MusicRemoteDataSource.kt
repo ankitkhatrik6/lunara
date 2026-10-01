@@ -3,6 +3,7 @@ package com.lunara.app.data.remote.music
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
 import com.lunara.app.domain.model.PlayableMedia
+import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +30,13 @@ class MusicRemoteDataSource @Inject constructor(
 
     suspend fun getAlbumTracks(albumId: String): List<Song> =
         youTubeMusic.getAlbumTracks(albumId)
+
+    /**
+     * YouTube Music's own "up next" for [song]: the mix of similar tracks the service builds
+     * around it, with the token that pages through the rest of it.
+     */
+    suspend fun upNext(song: Song, continuation: String? = null): RadioPage =
+        youTubeMusic.upNext(song, continuation)
 
     suspend fun getSong(id: String): Song? =
         youTubeMusic.getSong(id)

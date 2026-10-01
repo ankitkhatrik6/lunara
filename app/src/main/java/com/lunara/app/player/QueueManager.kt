@@ -158,6 +158,21 @@ class QueueManager @Inject constructor() {
         _queue.value = list
     }
 
+    /**
+     * Appends [songs] to the *end* of the queue - how the song radio extends playback once the
+     * tracks the user asked for have run out.
+     *
+     * The entries in front of the append (including the one playing) are left exactly as they
+     * are, so nothing the user queued is reordered or replaced. Under shuffle
+     * [originalQueue] grows with it: switching shuffle off rebuilds the queue from that list,
+     * and without this the appended recommendations would silently vanish.
+     */
+    fun appendSongs(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        _queue.value = _queue.value + songs
+        originalQueue = originalQueue + songs
+    }
+
     fun removeAt(index: Int) {
         val list = _queue.value.toMutableList()
         if (index in list.indices) {

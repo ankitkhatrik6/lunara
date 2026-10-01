@@ -142,6 +142,38 @@ class PlayerManager @Inject constructor(
      */
     private var sessionPreservedOnStop = false
 
+    /**
+     * The "Autoplay similar tracks" preference. On (the default) Lunara keeps the music going
+     * with YouTube Music's own recommendations for the track that is playing once the queue the
+     * user built has run out; off ends playback at the end of the queue, as before.
+     */
+    @Volatile
+    private var autoplayEnabled = true
+
+    /**
+     * The track the current mix was seeded from, plus the token that pages through the rest of
+     * it. Both belong to *that* seed: another track is another mix, and only a token YouTube
+     * minted for this mix may be replayed.
+     */
+    private var radioSeedSongId: String? = null
+    private var radioContinuation: String? = null
+
+    /** The in-flight radio fetch. Only one runs at a time, so "next" cannot double-append. */
+    private var radioFetchJob: Job? = null
+
+    /**
+     * Set when the queue had run out and "next" was pressed while a fetch for the mix was
+     * already on its way: the batch that lands is appended *and* started, instead of that press
+     * being dropped on the floor.
+     */
+    private var pendingRadioAdvance = false
+
+    /**
+     * A seed whose mix came back with nothing more to give. Asked once and remembered, so a
+     * queue that really is over does not retry the radio track after track.
+     */
+    private var radioExhaustedSeedId: String? = null
+
     private val _playbackState = MutableStateFlow(PlaybackState())
     override val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
@@ -161,7 +193,12 @@ class PlayerManager @Inject constructor(
             networkMonitor.isOnline.collect { online -> isOnline = online }
         }
         scope.launch {
-            settingsRepository.settingsFlow.collect { settings -> offlineOnly = settings.offlineModeOnly }
+            settingsRepository.settingsFlow.collect { settings ->
+                offlineOnly = settings.offlineModeOnly
+                // The "Autoplay similar tracks" switch is what decides whether the queue is
+                // allowed to grow with YouTube Music's mix once the user's own picks run out.
+                autoplayEnabled = settings.autoPlay
+            }
         }
     }
 
@@ -732,13 +769,22 @@ class PlayerManager @Inject constructor(
         // the user has asked Lunara to keep to downloaded music.
         if (!isOnline || offlineOnly) return
 
+        val ahead = queueManager.upcomingSongs()
+        if (ahead.isEmpty()) {
+            // Nothing left after the current track. The mix is fetched *here*, one track early,
+            // so that the end of a playlist carries on as music instead of hitting a wall that
+            // only the next press would reveal.
+            topUpQueueWithRadio()
+            return
+        }
+
         // Two tracks ahead, so "next" is instant even when the queue is being skipped quickly.
-        val upcoming = queueManager.upcomingSongs()
+        val unresolved = ahead
             .filter { it.localUri.isNullOrBlank() && it.streamUrl.isNullOrBlank() }
             .take(PREFETCH_AHEAD)
-        if (upcoming.isEmpty()) return
+        if (unresolved.isEmpty()) return
         scope.launch {
-            upcoming.forEach { song ->
+            unresolved.forEach { song ->
                 runCatching { musicRepository.resolvePlayableMedia(song) }
             }
         }
@@ -751,14 +797,166 @@ class PlayerManager @Inject constructor(
         playSong(selected)
     }
 
+    /**
+     * `true` while a "next" press at the end of the queue would keep the music going, i.e. while
+     * a mix can still be fetched for the track that is playing.
+     *
+     * The media notification asks this before greying out its skip button. The button has to stay
+     * usable one track *before* the mix arrives, otherwise the radio is unreachable from the lock
+     * screen - and greying it out is exactly the "the queue is over" signal this feature removes.
+     */
+    val canContinueWithRadio: Boolean
+        get() = autoplayEnabled && isOnline && !offlineOnly
+
+    /**
+     * Starts YouTube Music's mix of similar tracks *for* [song] - the "Start radio" / "Start mix"
+     * action of the official app.
+     *
+     * [song] becomes the whole queue and the mix is pulled in straight away, so similar songs show
+     * up in the queue immediately instead of only once the track ends. This is an explicit
+     * request, so the "Autoplay similar tracks" preference does not apply to it.
+     */
+    fun startRadio(song: Song) {
+        resetRadioState()
+        queueManager.setQueue(listOf(song), startIndex = 0)
+        playSong(song)
+        requestRadio(song, advanceWhenReady = false, respectAutoplayPreference = false)
+    }
+
+    /**
+     * Asks for one batch of the mix seeded by [seed] and appends it to the queue.
+     *
+     * [advanceWhenReady] is what a "next" press at the end of the queue asks for: the batch is
+     * appended *and* its first track starts. The prefetch path passes `false` and only grows the
+     * queue, which is what makes the end of a playlist seamless instead of a wall.
+     *
+     * Only one fetch runs at a time, so a burst of skip presses cannot append the same batch
+     * twice; the batch already on its way answers any press that lands while it is in flight.
+     */
+    private fun requestRadio(
+        seed: Song,
+        advanceWhenReady: Boolean,
+        respectAutoplayPreference: Boolean = true
+    ) {
+        if (radioFetchJob?.isActive == true) {
+            if (advanceWhenReady) pendingRadioAdvance = true
+            return
+        }
+        radioFetchJob = scope.launch {
+            val added = extendQueueWithRadio(seed, respectAutoplayPreference)
+            val advance = advanceWhenReady || pendingRadioAdvance
+            pendingRadioAdvance = false
+            if (!advance) return@launch
+            val next = if (added > 0) queueManager.next() else null
+            if (next != null) {
+                playSong(next)
+            } else {
+                // No mix for this track (or nothing left in it): stop at the end of the queue
+                // rather than replaying the track that just finished.
+                pause()
+                seekTo(0L)
+            }
+        }
+    }
+
+    /**
+     * Fetches one batch of YouTube Music's own "up next" for [seed] and appends it, returning how
+     * many tracks were added.
+     *
+     * A batch is filled from up to [RADIO_PAGES_PER_BATCH] of YouTube's pages, because a radio
+     * repeats itself as it goes on and a single page far into a mix can be almost all songs the
+     * queue already holds.
+     *
+     * `0` means nothing could be added - offline, autoplay switched off, no mix for this track, or
+     * every suggestion is already in the queue - and leaves playback untouched.
+     */
+    private suspend fun extendQueueWithRadio(
+        seed: Song,
+        respectAutoplayPreference: Boolean
+    ): Int {
+        if (respectAutoplayPreference && !autoplayEnabled) return 0
+        if (!isOnline || offlineOnly) return 0
+
+        // Another track is another mix: the previous seed's paging token does not belong to it,
+        // and a mix that gave all it had deserves to be asked again for this new seed.
+        if (radioSeedSongId != seed.id) {
+            radioSeedSongId = seed.id
+            radioContinuation = null
+            radioExhaustedSeedId = null
+        } else if (radioExhaustedSeedId == seed.id) {
+            return 0
+        }
+
+        val alreadyQueued = queueManager.queue.value.mapTo(mutableSetOf()) { it.id }
+        val fresh = ArrayList<Song>(RADIO_BATCH_SIZE)
+        val picked = HashSet<String>(RADIO_BATCH_SIZE)
+
+        var pages = 0
+        while (pages < RADIO_PAGES_PER_BATCH) {
+            pages++
+            val page = when (val result = musicRepository.getUpNext(seed, radioContinuation)) {
+                is Resource.Success -> result.data
+                // Offline, rate limited or a track YouTube has no mix for: neither the queue nor
+                // the UI says anything about it. The music simply has nothing more to follow it.
+                else -> break
+            }
+
+            radioContinuation = page.continuation
+            // No token at all means YouTube considers the mix played out: it has no next page.
+            if (page.continuation.isNullOrBlank()) radioExhaustedSeedId = seed.id
+
+            val batch = RadioQueue.pick(
+                candidates = page.songs,
+                seedSongId = seed.id,
+                alreadyQueued = alreadyQueued + picked,
+                limit = RADIO_BATCH_SIZE - fresh.size
+            )
+            fresh += batch
+            picked += batch.map { it.id }
+
+            // Full enough to start playing, or nothing left to walk.
+            if (radioContinuation.isNullOrBlank() || fresh.size >= RADIO_BATCH_SIZE) break
+        }
+
+        if (fresh.isEmpty()) return 0
+        queueManager.appendSongs(fresh)
+        return fresh.size
+    }
+
+    /** Grows the queue with the mix for whatever is playing, when nothing is left after it. */
+    private fun topUpQueueWithRadio() {
+        if (!canContinueWithRadio) return
+        val seed = _playbackState.value.currentSong ?: queueManager.currentSong ?: return
+        requestRadio(seed, advanceWhenReady = false)
+    }
+
+    /** Forgets the running mix, so the next one starts from its own seed. */
+    private fun resetRadioState() {
+        radioFetchJob?.cancel()
+        radioFetchJob = null
+        radioSeedSongId = null
+        radioContinuation = null
+        radioExhaustedSeedId = null
+        pendingRadioAdvance = false
+    }
+
     fun playNext() {
         val nextSong = queueManager.next()
         if (nextSong != null) {
             playSong(nextSong)
-        } else {
-            pause()
-            seekTo(0L)
+            return
         }
+
+        // End of the queue. YouTube Music never stops there - it keeps playing the mix it built
+        // around the track - and neither does Lunara any more: pausing and rewinding is what made
+        // "next" at the end of a queue look like the very same song starting over.
+        val seed = _playbackState.value.currentSong ?: queueManager.currentSong
+        if (seed != null && canContinueWithRadio) {
+            requestRadio(seed, advanceWhenReady = true)
+            return
+        }
+        pause()
+        seekTo(0L)
     }
 
     fun playPrevious() {
@@ -828,6 +1026,9 @@ class PlayerManager @Inject constructor(
             player.clearMediaItems()
         }
         queueManager.clearQueue()
+        // Nothing is playing any more, so the mix goes with it: a restored session must not
+        // continue somebody else's radio, and a stale paging token is worth nothing.
+        resetRadioState()
         currentFallbackUris = emptyList()
         failedUris.clear()
         reResolvedSongIds.clear()
@@ -1074,6 +1275,25 @@ class PlayerManager @Inject constructor(
 
         /** How many upcoming tracks get their stream resolved ahead of time. */
         const val PREFETCH_AHEAD = 2
+
+        /**
+         * How many of YouTube's recommendations are appended to the queue at a time.
+         *
+         * Large enough that a mix keeps going for a long stretch without another round trip,
+         * small enough that the queue sheet stays a queue and not a dump of a whole 50-track
+         * radio.
+         */
+        const val RADIO_BATCH_SIZE = 25
+
+        /**
+         * How many of YouTube's pages one batch may be filled from.
+         *
+         * The first page of a mix is almost all new songs, but further into a radio the same
+         * tracks come round again and a page can be nearly all repeats. Walking one page further
+         * is what keeps a batch worth appending; the ceiling keeps a single press from reading
+         * the whole mix in one go.
+         */
+        const val RADIO_PAGES_PER_BATCH = 2
 
         /**
          * How often the playhead is written to disk while music plays. This interval is the worst

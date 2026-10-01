@@ -32,7 +32,7 @@ internal class QueueAwarePlayer(
 
     override fun isCommandAvailable(command: Int): Boolean = when (command) {
         Player.COMMAND_SEEK_TO_NEXT,
-        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> queueManager.hasUpcoming
+        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> hasNext()
 
         Player.COMMAND_SEEK_TO_PREVIOUS,
         Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> queueManager.hasPrevious
@@ -40,9 +40,9 @@ internal class QueueAwarePlayer(
         else -> super.isCommandAvailable(command)
     }
 
-    override fun hasNext(): Boolean = queueManager.hasUpcoming
+    override fun hasNext(): Boolean = queueManager.hasUpcoming || playerManager.canContinueWithRadio
 
-    override fun hasNextMediaItem(): Boolean = queueManager.hasUpcoming
+    override fun hasNextMediaItem(): Boolean = hasNext()
 
     override fun hasPreviousMediaItem(): Boolean = queueManager.hasPrevious
 

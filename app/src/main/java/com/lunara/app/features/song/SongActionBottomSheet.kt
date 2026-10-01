@@ -30,6 +30,7 @@ fun SongActionBottomSheet(
     onPlay: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    onStartRadio: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onShare: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -97,6 +98,14 @@ fun SongActionBottomSheet(
             SheetActionRow(text = "Add to queue", onClick = { onAddToQueue(); onDismiss() }) {
                 Icon(
                     imageVector = Icons.Default.QueueMusic,
+                    contentDescription = null,
+                    tint = LunaraTextPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            SheetActionRow(text = "Start radio", onClick = { onStartRadio(); onDismiss() }) {
+                Icon(
+                    imageVector = Icons.Default.Radio,
                     contentDescription = null,
                     tint = LunaraTextPrimary,
                     modifier = Modifier.size(24.dp)

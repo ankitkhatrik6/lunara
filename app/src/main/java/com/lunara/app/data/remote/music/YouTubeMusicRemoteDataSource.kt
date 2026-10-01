@@ -13,6 +13,7 @@ import com.lunara.app.data.remote.innertube.VideoInfo
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
 import com.lunara.app.domain.model.PlayableMedia
+import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
 import com.lunara.app.player.StreamSizes
 import com.lunara.app.player.StreamUserAgents
@@ -117,6 +118,51 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             else -> api.browse(InnerTubeClients.WEB_REMIX, browseId = id)
         } ?: return@withContext emptyList()
         InnerTubeParser.parseSongs(root)
+    }
+
+    // ---------- song radio ("up next") ----------
+
+    /**
+     * The mix YouTube Music builds around [song]: the list the official app shows under
+     * "Up next" the moment that track starts, which is what Lunara keeps playing once the
+     * tracks the user actually asked for have run out.
+     *
+     * The seed is `RDAMVM<videoId>`, YouTube's own "radio for this track" playlist id, so the
+     * recommendations are the real ones the service serves - not a local "sounds similar"
+     * guess. [continuation] carries the token of a previous page and returns the next batch of
+     * the same mix.
+     */
+    suspend fun upNext(song: Song, continuation: String? = null): RadioPage =
+        withContext(Dispatchers.IO) {
+            val root = if (continuation.isNullOrBlank()) {
+                val videoId = radioVideoIdFor(song) ?: return@withContext RadioPage()
+                api.next(
+                    client = InnerTubeClients.WEB_REMIX,
+                    videoId = videoId,
+                    playlistId = InnerTubeParams.SONG_RADIO_PREFIX + videoId
+                )
+            } else {
+                api.next(client = InnerTubeClients.WEB_REMIX, continuation = continuation)
+            }
+            val response = root ?: return@withContext RadioPage()
+            InnerTubeParser.parseRadio(response)
+        }
+
+    /**
+     * The video id a radio can be seeded with: the track's own id when it *is* a YouTube Music
+     * track, otherwise the best search hit for its title and artist - so a track from the
+     * device's own library still gets a real mix.
+     */
+    private suspend fun radioVideoIdFor(song: Song): String? {
+        if (song.id.startsWith(YOUTUBE_ID_PREFIX)) {
+            return song.id.removePrefix(YOUTUBE_ID_PREFIX).takeIf { it.isNotBlank() }
+        }
+        val query = listOf(song.title, song.artistName)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+        if (query.isBlank()) return null
+        return searchSongs(query)
+            .firstNotNullOfOrNull { hit -> hit.id.removePrefix(YOUTUBE_ID_PREFIX).takeIf { it.isNotBlank() } }
     }
 
     // ---------- single song / stream resolution ----------

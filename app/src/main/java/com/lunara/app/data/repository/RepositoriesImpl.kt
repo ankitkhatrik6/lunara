@@ -163,6 +163,22 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * YouTube Music's own "up next" for a track.
+     *
+     * Deliberately *not* turned into an error the player would show: a radio that cannot be
+     * fetched (offline, a rate limit, a track YouTube has no mix for) must leave playback
+     * exactly as it is - Lunara simply has nothing more to append and says nothing about it.
+     */
+    override suspend fun getUpNext(song: Song, continuation: String?): Resource<RadioPage> {
+        return try {
+            Resource.Success(remoteSource.upNext(song, continuation))
+        } catch (e: Exception) {
+            e.rethrowIfCancellation()
+            Resource.Error(e.localizedMessage ?: "Could not load the radio", e)
+        }
+    }
+
     override suspend fun getRecentSearches(): List<String> {
         return recentSearchDao.getRecentSearches()
     }

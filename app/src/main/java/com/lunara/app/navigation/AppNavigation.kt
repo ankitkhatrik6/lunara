@@ -235,6 +235,9 @@ fun LunaraApp(
             onAddToQueue = {
                 playerManager.queueManager.addToQueueEnd(song)
             },
+            onStartRadio = {
+                playerManager.startRadio(song)
+            },
             onAddToPlaylist = {
                 playlistTargetSong = song
             },

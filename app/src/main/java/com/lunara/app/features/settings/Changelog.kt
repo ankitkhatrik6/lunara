@@ -17,6 +17,19 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.14.0",
+        headline = "The music keeps going",
+        highlights = listOf(
+            "When a queue ends, Lunara now plays YouTube Music's own mix for the track that is playing - the same similar songs the official app lists under \"Up next\" - instead of stopping or starting that track over.",
+            "It is the service's real radio, seeded from the track itself, so the recommendations are songs by other artists in the same vein - not a local guess at what sounds alike.",
+            "\"Next\" no longer rewinds: pressed at the end of a playlist it moves on into the mix, and the lock screen's skip button stays usable, so the radio is reachable with the screen off.",
+            "The queue grows one track early, while the last song is still playing, so there is no silence while the recommendations arrive - and what was added shows up in the queue sheet like any other track.",
+            "Nothing repeats: the seed track and everything already queued are filtered out, so the mix never loops back over what you just heard.",
+            "\"Start radio\" in the track menu drops you straight into the mix, and it works even with autoplay switched off - because you asked for it.",
+            "It stays honest about the network: offline, in offline mode, or with \"Autoplay similar tracks\" turned off, playback ends at the end of the queue exactly as it did before."
+        )
+    ),
+    LunaraRelease(
         version = "2.13.0",
         headline = "Pick up where you left off",
         highlights = listOf(

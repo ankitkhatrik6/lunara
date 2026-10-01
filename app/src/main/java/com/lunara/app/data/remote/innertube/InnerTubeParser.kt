@@ -1,5 +1,6 @@
 package com.lunara.app.data.remote.innertube
 
+import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -88,6 +89,73 @@ object InnerTubeParser {
         return findAllObjects(scope, "musicResponsiveListItemRenderer")
             .mapNotNull { parseResponsiveSong(it) }
     }
+
+    /**
+     * The queue behind a `next` response: YouTube Music's own recommendation list for the
+     * track that seeded it - the "song radio", i.e. exactly what the official app starts
+     * playing when the track you picked has finished.
+     *
+     * The rows live in `musicQueueRenderer.content.playlistPanelRenderer.contents`, one
+     * `playlistPanelVideoRenderer` each; the mobile builds name the same row
+     * `musicPlaylistPanelVideoRenderer`, so both are accepted. A *continuation* of the radio
+     * (the next batch) arrives without that wrapper, which is why the lookup falls back to the
+     * whole response.
+     *
+     * The seed track is part of the list YouTube returns; dropping it is the caller's job, so
+     * this stays a faithful parse of the response.
+     */
+    fun parseRadio(root: JsonElement): RadioPage {
+        val panel = findObject(root, "musicQueueRenderer")?.obj("content")
+            ?.obj("playlistPanelRenderer")
+            ?: findObject(root, "playlistPanelRenderer")
+            ?: findObject(root, "playlistPanelContinuation")
+            ?: root
+
+        val songs = findAllObjects(panel, "playlistPanelVideoRenderer")
+            .plus(findAllObjects(panel, "musicPlaylistPanelVideoRenderer"))
+            .mapNotNull { parseRadioSong(it) }
+
+        return RadioPage(
+            songs = songs,
+            continuation = radioContinuation(panel),
+            title = findObject(root, "musicQueueHeaderRenderer")?.obj("subtitle")?.runsText()
+        )
+    }
+
+    /**
+     * One row of the radio.
+     *
+     * Its byline is the artist followed by whatever YouTube advertises there - `1.8B views •
+     * 19M likes` for a music video, `Album • 4M plays` for an audio track - so the artist is
+     * read from `shortBylineText` (always just the artist) and the album only from a credit
+     * that really is one.
+     */
+    private fun parseRadioSong(renderer: JsonObject): Song? {
+        val videoId = renderer.text("videoId") ?: renderer.firstVideoId() ?: return null
+        val title = renderer.obj("title")?.runsText()?.takeIf { it.isNotBlank() } ?: return null
+        val credits = renderer.obj("longBylineText")?.arr("runs")?.objects()
+            ?.mapNotNull { it.text("text")?.trim()?.takeIf { text -> text.isNotBlank() } }
+            ?.filterNot { it == SEPARATOR || it.isCreditNoise() }
+            .orEmpty()
+        return Song(
+            id = "yt_$videoId",
+            title = title,
+            artistName = renderer.obj("shortBylineText")?.runsText()
+                ?: credits.firstOrNull()
+                ?: "Unknown Artist",
+            albumName = credits.getOrNull(1),
+            artworkUrl = renderer.artworkUrl(),
+            durationMs = renderer.obj("lengthText")?.runsText().toDurationMs()
+        )
+    }
+
+    /** The token that asks for the next batch of a radio, whatever YouTube named it. */
+    private fun radioContinuation(panel: JsonObject): String? =
+        panel.arr("continuations").objects().firstNotNullOfOrNull { entry ->
+            entry.obj("nextRadioContinuationData")?.text("continuation")
+                ?: entry.obj("nextContinuationData")?.text("continuation")
+                ?: entry.obj("reloadContinuationData")?.text("continuation")
+        }?.takeIf { it.isNotBlank() }
 
     /**
      * Every audio format of a `player` response that can be used as-is.
@@ -236,6 +304,17 @@ object InnerTubeParser {
     private val yearPattern = Regex("^\\d{4}$")
     private val durationPattern = Regex("^\\d{1,2}:\\d{2}(:\\d{2})?$")
 
+    /**
+     * A play/like/view counter sitting where a credit would be (`1.8B views`, `19M likes`).
+     * A music video's radio row puts one in the middle of its byline, and mistaking it for the
+     * album name would file every recommendation under a nonsense album.
+     */
+    private val counterPattern =
+        Regex("(?i)^[\\d.,]+\\s*[KMB]?\\s*(views?|likes?|plays?|subscribers?|videos?|songs?)$")
+
+    private fun String.isCreditNoise(): Boolean =
+        isDuration() || yearPattern.matches(this) || counterPattern.matches(this)
+
     private fun String.isDuration(): Boolean = durationPattern.matches(this)
 
     private fun String?.toDurationMs(): Long {
@@ -290,7 +369,9 @@ object InnerTubeParser {
     private fun JsonObject.artworkUrl(): String? {
         val renderer = findAllObjects(this, "musicThumbnailRenderer").firstOrNull()
             ?: findAllObjects(this, "thumbnailRenderer").firstOrNull()
-        val thumbnails = renderer?.obj("thumbnail")?.arr("thumbnails")?.objects().orEmpty()
+        // A queue row of the song radio carries its thumbnail directly instead of wrapping it
+        // in a renderer, so the row itself is the last place to look.
+        val thumbnails = (renderer ?: this).obj("thumbnail")?.arr("thumbnails")?.objects().orEmpty()
         val sized = thumbnails.filter { it.int("width") != null }
         val best = if (sized.isNotEmpty()) {
             sized.maxByOrNull { (it.int("width") ?: 0) * (it.int("height") ?: 0) }

@@ -245,4 +245,12 @@ object InnerTubeParams {
     /** Browse ids of the built-in YouTube Music pages. */
     const val NEW_RELEASES = "FEmusic_new_releases_albums"
     const val CHARTS = "FEmusic_charts"
+
+    /**
+     * Playlist id of the mix YouTube Music builds *for a single track*, i.e. the song radio:
+     * `RDAMVM` + the seed's video id. Handing this to the `next` endpoint is what fills the
+     * "Up next" list of the official app with similar songs, and it is what Lunara appends
+     * to the queue once the tracks the user actually asked for have run out.
+     */
+    const val SONG_RADIO_PREFIX = "RDAMVM"
 }

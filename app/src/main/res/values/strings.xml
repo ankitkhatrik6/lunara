@@ -24,7 +24,7 @@
     <string name="settings_high_quality">High quality audio</string>
     <string name="settings_high_quality_summary">Stream the best bitrate the source offers</string>
     <string name="settings_autoplay">Autoplay similar tracks</string>
-    <string name="settings_autoplay_summary">Keep music playing when the queue ends</string>
+    <string name="settings_autoplay_summary">Keep playing songs like the one you are on when the queue ends</string>
     <string name="settings_resume_playback">Resume where you left off</string>
     <string name="settings_resume_playback_summary">Reopen Lunara with your last queue and track, paused where you stopped</string>
 

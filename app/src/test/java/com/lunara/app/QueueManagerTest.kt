@@ -125,4 +125,59 @@ class QueueManagerTest {
         assertEquals(1, queueManager.currentIndex.value)
         assertEquals(RepeatMode.OFF, queueManager.repeatMode.value)
     }
+
+    @Test
+    fun appendSongs_growsTheQueueAfterTheTracksTheUserAskedFor() {
+        queueManager.setQueue(sampleSongs, startIndex = 2)
+
+        queueManager.appendSongs(
+            listOf(
+                Song("yt_a", "Take On Me", "a-ha"),
+                Song("yt_b", "Africa", "TOTO")
+            )
+        )
+
+        assertEquals(5, queueManager.queue.value.size)
+        assertEquals(listOf("1", "2", "3", "yt_a", "yt_b"), queueManager.queue.value.map { it.id })
+        // Nothing in front of the append moved, including the track that is playing.
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+    }
+
+    @Test
+    fun appendSongs_letsNextCarryOnIntoTheRadioInsteadOfStopping() {
+        // The bug this covers: the last track of a queue had nothing after it, so the end of a
+        // queue stopped playback instead of handing over to a song like the one playing.
+        queueManager.setQueue(sampleSongs, startIndex = 2)
+        assertNull(queueManager.next())
+
+        queueManager.appendSongs(listOf(Song("yt_a", "Take On Me", "a-ha")))
+
+        assertEquals("Take On Me", queueManager.next()?.title)
+        assertEquals(3, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun appendSongs_ignoresAnEmptyBatch() {
+        queueManager.setQueue(sampleSongs, startIndex = 1)
+
+        queueManager.appendSongs(emptyList())
+
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(1, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun appendSongs_keepsTheRecommendationsWhenShuffleIsSwitchedOff() {
+        // Under shuffle the queue is rebuilt from the un-shuffled copy on every toggle, so an
+        // append that missed that copy would vanish the moment shuffle is turned off.
+        queueManager.setQueue(sampleSongs, startIndex = 0)
+        queueManager.toggleShuffle()
+        queueManager.appendSongs(listOf(Song("yt_a", "Take On Me", "a-ha")))
+
+        queueManager.toggleShuffle()
+
+        assertEquals(4, queueManager.queue.value.size)
+        assertTrue(queueManager.queue.value.any { it.id == "yt_a" })
+    }
 }

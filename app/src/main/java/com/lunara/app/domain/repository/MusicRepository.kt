@@ -4,6 +4,7 @@ import com.lunara.app.core.result.Resource
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
 import com.lunara.app.domain.model.PlayableMedia
+import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
 import kotlinx.coroutines.flow.Flow
 
@@ -14,6 +15,17 @@ interface MusicRepository {
     suspend fun getSong(id: String): Resource<Song>
     suspend fun getAlbumTracks(albumId: String): Resource<List<Song>>
     suspend fun resolvePlayableMedia(song: Song, forceRefresh: Boolean = false): Resource<PlayableMedia>
+
+    /**
+     * YouTube Music's own "up next" for [song]: the mix of similar tracks the service itself
+     * would keep playing from that track, which is what the player appends to the queue once
+     * the user's own picks have run out.
+     *
+     * [continuation] is the token a previous page returned; passing `null` starts the mix for
+     * [song]. A page with no [RadioPage.continuation] means YouTube has no more suggestions
+     * for that seed.
+     */
+    suspend fun getUpNext(song: Song, continuation: String? = null): Resource<RadioPage>
 
     /**
      * Re-reads the device's own audio library (MediaStore) and mirrors it into the local
