@@ -38,11 +38,14 @@ class MediaSessionService : MediaSessionService() {
         // default is Media3's own glyph, so without this the status bar shows a generic
         // player instead of Lunara. `ic_notification` is the Lunara mark flattened to a
         // single colour, because the system tints this icon and uses only its alpha.
+        //
+        // `setSmallIcon` lives on the provider, not on its builder (the builder only carries
+        // the channel and id), so it is applied right after build().
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this)
                 .setChannelName(R.string.notification_channel_playback)
-                .setSmallIcon(R.drawable.ic_notification)
                 .build()
+                .apply { setSmallIcon(R.drawable.ic_notification) }
         )
 
         super.onCreate()
