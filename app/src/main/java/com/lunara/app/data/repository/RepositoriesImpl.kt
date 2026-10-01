@@ -21,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -76,6 +77,19 @@ class MusicRepositoryImpl @Inject constructor(
         songDao.insertSongs(local.map { it.toEntity() })
         return local.map { it.copy(isFavorite = favoriteDao.isFavorite(it.id)) }
     }
+
+    override fun observeLocalSongs(): Flow<List<Song>> =
+        combine(songDao.observeLocalSongs(), favoriteDao.getFavoriteSongs()) { local, favorites ->
+            // Favorites are resolved from a set instead of calling `favoriteDao.isFavorite` per
+            // row: that call suspends, and one round trip per track inside a flow collector is
+            // what stalls a long on-device library.
+            val favoriteIds = favorites.mapTo(mutableSetOf()) { it.id }
+            local.map { entity -> entity.toDomain(isFavorite = entity.id in favoriteIds) }
+        }
+
+    override fun canReadDeviceAudio(): Boolean = localAudioSource.hasAudioPermission()
+
+    override fun deviceAudioPermission(): String = localAudioSource.requiredPermissions.first()
 
     override suspend fun searchArtists(query: String): Resource<List<Artist>> {
         return try {

@@ -1,11 +1,15 @@
 package com.lunara.app.features.library
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -23,6 +28,7 @@ import androidx.lifecycle.viewModelScope
 import com.lunara.app.domain.model.Playlist
 import com.lunara.app.domain.model.Song
 import com.lunara.app.domain.repository.LibraryRepository
+import com.lunara.app.domain.repository.MusicRepository
 import com.lunara.app.domain.usecase.ManagePlaylistUseCase
 import com.lunara.app.player.PlayerManager
 import com.lunara.app.ui.components.LunaraArtwork
@@ -30,6 +36,7 @@ import com.lunara.app.ui.components.EmptyStateView
 import com.lunara.app.ui.components.SongListItem
 import com.lunara.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -37,20 +44,31 @@ import javax.inject.Inject
 enum class LibraryTab {
     FAVORITES,
     PLAYLISTS,
-    HISTORY
+    HISTORY,
+    ON_DEVICE
 }
 
 data class LibraryUiState(
     val selectedTab: LibraryTab = LibraryTab.FAVORITES,
     val favorites: List<Song> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
-    val history: List<Song> = emptyList()
+    val history: List<Song> = emptyList(),
+    /** The device's own audio files, as stored by the last MediaStore sync. */
+    val localSongs: List<Song> = emptyList(),
+    /** False until the user grants the audio read permission, which is what gates a scan. */
+    val canReadDeviceAudio: Boolean = false,
+    /** The permission to request on this OS version; empty only before the first state update. */
+    val deviceAudioPermission: String = "",
+    val isScanningDevice: Boolean = false,
+    /** One line about the last scan, shown as a banner and cleared after a few seconds. */
+    val deviceScanMessage: String? = null
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val libraryRepository: LibraryRepository,
     private val managePlaylistUseCase: ManagePlaylistUseCase,
+    private val musicRepository: MusicRepository,
     private val playerManager: PlayerManager
 ) : ViewModel() {
 
@@ -61,6 +79,7 @@ class LibraryViewModel @Inject constructor(
 
     init {
         observeLibraryData()
+        refreshDeviceAudioPermission()
     }
 
     private fun observeLibraryData() {
@@ -79,6 +98,76 @@ class LibraryViewModel @Inject constructor(
                 _uiState.update { it.copy(history = hist) }
             }
         }
+        viewModelScope.launch {
+            musicRepository.observeLocalSongs().collect { songs ->
+                _uiState.update { it.copy(localSongs = songs) }
+            }
+        }
+    }
+
+    /**
+     * Re-reads the permission state.
+     *
+     * Called on every Library open: the user can revoke a permission in system settings while
+     * Lunara is merely paused, and a screen that still believes it may scan would then just
+     * report "no music found".
+     */
+    fun refreshDeviceAudioPermission() {
+        _uiState.update {
+            it.copy(
+                canReadDeviceAudio = musicRepository.canReadDeviceAudio(),
+                deviceAudioPermission = musicRepository.deviceAudioPermission()
+            )
+        }
+    }
+
+    /** Mirrors the device's audio library into the local database and reports what it found. */
+    fun loadLocalMusic() {
+        if (_uiState.value.isScanningDevice) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isScanningDevice = true, deviceScanMessage = null) }
+
+            val scan = runCatching { musicRepository.getLocalSongs() }
+            val found = scan.getOrDefault(emptyList()).size
+
+            _uiState.update {
+                it.copy(
+                    isScanningDevice = false,
+                    canReadDeviceAudio = musicRepository.canReadDeviceAudio(),
+                    deviceScanMessage = if (scan.isSuccess) {
+                        when (found) {
+                            0 -> "No music files found on this device."
+                            1 -> "1 track loaded from this device."
+                            else -> "$found tracks loaded from this device."
+                        }
+                    } else {
+                        scan.exceptionOrNull()?.localizedMessage
+                            ?: "Could not read this device's music."
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * The answer to the system permission dialog.
+     *
+     * A granted permission is followed straight by a scan, because asking and then making the
+     * user tap "Load" a second time is one tap of pure ceremony.
+     */
+    fun onDeviceAudioPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(canReadDeviceAudio = musicRepository.canReadDeviceAudio()) }
+        if (granted) {
+            loadLocalMusic()
+        } else {
+            _uiState.update {
+                it.copy(deviceScanMessage = "Lunara needs access to your audio files to load them.")
+            }
+        }
+    }
+
+    fun dismissDeviceScanMessage() {
+        _uiState.update { it.copy(deviceScanMessage = null) }
     }
 
     fun selectTab(tab: LibraryTab) {
@@ -102,6 +191,9 @@ class LibraryViewModel @Inject constructor(
         val currentList = when (_uiState.value.selectedTab) {
             LibraryTab.FAVORITES -> _uiState.value.favorites
             LibraryTab.HISTORY -> _uiState.value.history
+            // Playing a device track queues the rest of the device's music, so the next track is
+            // whatever comes after it instead of a queue of one.
+            LibraryTab.ON_DEVICE -> _uiState.value.localSongs
             else -> listOf(song)
         }
         // `indexOfFirst` is -1 when the tapped song is no longer in the visible list;
@@ -126,6 +218,23 @@ fun LibraryScreen(
     val playbackState by viewModel.playbackState.collectAsState()
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
+
+    // Re-read the permission whenever the Library is opened: it can have been revoked in system
+    // settings while Lunara was merely in the background.
+    LaunchedEffect(Unit) { viewModel.refreshDeviceAudioPermission() }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.onDeviceAudioPermissionResult(granted) }
+
+    // The result line about a scan is transient: it says what just happened, then gets out of
+    // the way rather than sitting above the list for the rest of the session.
+    LaunchedEffect(uiState.deviceScanMessage) {
+        if (uiState.deviceScanMessage != null) {
+            delay(5000)
+            viewModel.dismissDeviceScanMessage()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -163,10 +272,11 @@ fun LibraryScreen(
             }
         }
 
-        // Tab Selector Row
+        // Tab Selector Row - scrolls, because four chips no longer fit a narrow phone in one line
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -184,6 +294,18 @@ fun LibraryScreen(
                 label = "History",
                 selected = uiState.selectedTab == LibraryTab.HISTORY,
                 onClick = { viewModel.selectTab(LibraryTab.HISTORY) }
+            )
+            LibraryTabChip(
+                label = "On device (${uiState.localSongs.size})",
+                selected = uiState.selectedTab == LibraryTab.ON_DEVICE,
+                onClick = { viewModel.selectTab(LibraryTab.ON_DEVICE) }
+            )
+        }
+
+        uiState.deviceScanMessage?.let { message ->
+            DeviceScanBanner(
+                message = message,
+                onDismiss = { viewModel.dismissDeviceScanMessage() }
             )
         }
 
@@ -289,6 +411,76 @@ fun LibraryScreen(
                     }
                 }
             }
+
+            LibraryTab.ON_DEVICE -> {
+                when {
+                    // No permission yet: nothing to scan, so the tab explains itself and offers
+                    // the one tap that changes it instead of showing an empty list.
+                    !uiState.canReadDeviceAudio -> DeviceAudioPermissionCard(
+                        onAllowClick = {
+                            // Guarded because `launch` throws on a blank permission, and the state
+                            // is only ever blank for the instant before the ViewModel's first
+                            // update.
+                            val permission = uiState.deviceAudioPermission
+                            if (permission.isNotEmpty()) {
+                                audioPermissionLauncher.launch(permission)
+                            }
+                        }
+                    )
+
+                    uiState.isScanningDevice -> DeviceScanProgress()
+
+                    uiState.localSongs.isEmpty() -> Column(modifier = Modifier.fillMaxSize()) {
+                        EmptyStateView(
+                            icon = Icons.Outlined.LibraryMusic,
+                            title = "Nothing here yet",
+                            subtitle = "Lunara will look through your Music folder, Downloads and SD card. Nothing leaves this phone.",
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = { viewModel.loadLocalMusic() },
+                            colors = ButtonDefaults.buttonColors(containerColor = LunaraAccent),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp, vertical = 24.dp)
+                        ) {
+                            Text("Load local music", color = LunaraBackground)
+                        }
+                    }
+
+                    else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 120.dp)
+                    ) {
+                        item(key = "device_header") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${uiState.localSongs.size} on this device",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = LunaraTextSecondary
+                                )
+                                TextButton(onClick = { viewModel.loadLocalMusic() }) {
+                                    Text("Rescan", color = LunaraAccent)
+                                }
+                            }
+                        }
+                        items(uiState.localSongs, key = { "device_${it.id}" }) { song ->
+                            SongListItem(
+                                song = song,
+                                isPlaying = playbackState.currentSong?.id == song.id && playbackState.isPlaying,
+                                onSongClick = { viewModel.playSong(song) },
+                                onMoreClick = { onSongActionClick(song) }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -353,5 +545,100 @@ private fun LibraryTabChip(
             color = if (selected) LunaraBackground else LunaraTextPrimary,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         )
+    }
+}
+
+/**
+ * Shown on the "On device" tab until Android lets Lunara read the phone's audio library.
+ *
+ * It spells out what the permission is for and what is *not* done with it, because "allow access
+ * to your files" is exactly the kind of dialog people are right to refuse.
+ */
+@Composable
+private fun DeviceAudioPermissionCard(onAllowClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.MusicNote,
+            contentDescription = null,
+            tint = LunaraAccent,
+            modifier = Modifier.size(56.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Play your own music",
+            style = MaterialTheme.typography.titleLarge,
+            color = LunaraTextPrimary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Lunara can play the audio files already on this phone - your Music folder, " +
+                "Downloads and SD card. Android asks for permission first. They are only read " +
+                "here: nothing is uploaded and nothing is copied.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = LunaraTextSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onAllowClick,
+            colors = ButtonDefaults.buttonColors(containerColor = LunaraAccent)
+        ) {
+            Text("Allow access", color = LunaraBackground)
+        }
+    }
+}
+
+/** The MediaStore scan in progress. A long library takes a moment, and silence looks like a bug. */
+@Composable
+private fun DeviceScanProgress() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(color = LunaraAccent)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Looking through this device\u2026",
+            style = MaterialTheme.typography.bodyMedium,
+            color = LunaraTextSecondary
+        )
+    }
+}
+
+/** The one-line result of the last scan ("24 tracks loaded from this device."). */
+@Composable
+private fun DeviceScanBanner(message: String, onDismiss: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = LunaraSurfaceElevated,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = LunaraTextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = LunaraTextSecondary
+                )
+            }
+        }
     }
 }

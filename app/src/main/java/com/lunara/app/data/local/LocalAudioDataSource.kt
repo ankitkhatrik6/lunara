@@ -1,10 +1,13 @@
 package com.lunara.app.data.local
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import com.lunara.app.domain.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -17,10 +20,42 @@ class LocalAudioDataSource @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     /**
+     * The runtime permissions that guard a MediaStore audio read on *this* OS version.
+     *
+     * Android 13 split storage access by media type, so `READ_EXTERNAL_STORAGE` is dead weight
+     * there (which is why the manifest declares it with `maxSdkVersion="32"`), and
+     * `READ_MEDIA_AUDIO` does not exist before Android 13. Asking for the wrong one is not an
+     * error the system reports - it is a dialog that never appears and a scan that comes back
+     * empty, which is exactly the bug this list prevents.
+     */
+    val requiredPermissions: List<String>
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            listOf(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+    /**
+     * True when every entry of [requiredPermissions] has already been granted.
+     *
+     * A read permission can be revoked while Lunara is running (the user can take it back in
+     * system settings), so this is asked again before every scan rather than remembered.
+     */
+    fun hasAudioPermission(): Boolean = requiredPermissions.all { permission ->
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
      * Scans the Android MediaStore content provider for all local audio files
      * stored on the device (internal storage, SD card, Music folder, Downloads).
      */
     suspend fun queryDeviceAudioFiles(): List<Song> = withContext(Dispatchers.IO) {
+        // Without the runtime permission the query below throws SecurityException, and the
+        // `catch` at the bottom of this function would swallow it - so the caller would be told
+        // "this phone has no music" instead of "Lunara was not allowed to look". Bail out
+        // explicitly so the two cases stay distinguishable.
+        if (!hasAudioPermission()) return@withContext emptyList()
+
         val songList = mutableListOf<Song>()
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)

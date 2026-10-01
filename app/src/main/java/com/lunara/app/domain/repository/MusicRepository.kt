@@ -14,7 +14,35 @@ interface MusicRepository {
     suspend fun getSong(id: String): Resource<Song>
     suspend fun getAlbumTracks(albumId: String): Resource<List<Song>>
     suspend fun resolvePlayableMedia(song: Song, forceRefresh: Boolean = false): Resource<PlayableMedia>
+
+    /**
+     * Re-reads the device's own audio library (MediaStore) and mirrors it into the local
+     * database, so the tracks stay available offline and across restarts.
+     *
+     * Returns an empty list when the runtime permission has not been granted (see
+     * [canReadDeviceAudio]) as well as when the device genuinely holds no music.
+     */
     suspend fun getLocalSongs(): List<Song>
+
+    /**
+     * The device's own tracks as stored by the last [getLocalSongs] sync, observed straight from
+     * the local database.
+     *
+     * Read from the database rather than kept in memory on purpose: the Library can show the
+     * device's music the instant the screen opens, without permission, without touching
+     * MediaStore, and without a scan that the user never asked for.
+     */
+    fun observeLocalSongs(): Flow<List<Song>>
+
+    /** True when Lunara already holds the runtime permission needed to read device audio. */
+    fun canReadDeviceAudio(): Boolean
+
+    /**
+     * The one runtime permission Android asks for to read device audio on this OS version:
+     * `READ_MEDIA_AUDIO` from Android 13 on, `READ_EXTERNAL_STORAGE` below it.
+     */
+    fun deviceAudioPermission(): String
+
     suspend fun getRecentSearches(): List<String>
     suspend fun saveRecentSearch(query: String)
     suspend fun clearRecentSearches()

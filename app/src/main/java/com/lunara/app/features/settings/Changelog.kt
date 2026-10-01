@@ -17,6 +17,18 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.11.0",
+        headline = "Your own music, in Lunara",
+        highlights = listOf(
+            "The Library has an \"On device\" tab: the audio already on your phone - Music folder, Downloads and SD card - listed beside everything else you listen to.",
+            "Lunara asks for the audio permission only when you ask for your own music, and says what the permission is for before Android's dialog appears.",
+            "Granting it starts the scan straight away, so there is no second tap between \"Allow\" and seeing your tracks.",
+            "What it finds is mirrored into Lunara's local database: the tab is populated the next time you open it without scanning again, and \"Rescan\" is one tap away when you add files.",
+            "Playing a track from the device now queues the rest of it - the next song is the next file, not a queue of one.",
+            "Nothing is uploaded and nothing is copied: the scan only reads the files that are already on the phone."
+        )
+    ),
+    LunaraRelease(
         version = "2.10.0",
         headline = "A home screen that says hello",
         highlights = listOf(

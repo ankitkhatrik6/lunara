@@ -27,6 +27,20 @@ interface SongDao {
 
     @Query("UPDATE songs SET isDownloaded = :isDownloaded, localUri = :localUri WHERE id = :songId")
     suspend fun updateDownloadStatus(songId: String, isDownloaded: Boolean, localUri: String?)
+
+    /**
+     * The tracks of the device's own audio library, as mirrored by the last MediaStore sync.
+     *
+     * They are told apart by the `local_<MediaStore id>` primary key that
+     * `LocalAudioDataSource` assigns, which is how a scan survives a restart: the rows stay in
+     * `songs` long after the cursor has been closed.
+     *
+     * `GLOB`, deliberately not `LIKE`: `_` is a single-character wildcard in `LIKE`, so
+     * `'local_%'` would also match an id such as `localX…`. GLOB only treats `*` and `?` as
+     * wildcards, so `'local_*'` is an exact prefix test.
+     */
+    @Query("SELECT * FROM songs WHERE id GLOB 'local_*' ORDER BY title COLLATE NOCASE ASC")
+    fun observeLocalSongs(): Flow<List<SongEntity>>
 }
 
 @Dao
