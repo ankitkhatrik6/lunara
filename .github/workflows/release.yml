@@ -42,6 +42,18 @@ jobs:
         # run here, which makes every push to master verify the behaviour and not just the syntax.
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      - name: Upload unit test reports
+        # Only when the tests failed, and only for the record: Gradle's console summary names the
+        # test and a file, never the message, so the XML report is what makes a red build readable.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: ignore
+
       - name: Prepare release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}

@@ -1,7 +1,7 @@
 package com.lunara.app.data.repository
 
-import android.net.Uri
 import com.lunara.app.core.result.Resource
+import com.lunara.app.core.utils.fileUrlOf
 import com.lunara.app.core.utils.isPlayableAudioFile
 import com.lunara.app.data.local.PreferencesDataStore
 import com.lunara.app.data.local.dao.*
@@ -373,7 +373,7 @@ class DownloadRepositoryImpl @Inject constructor(
         val downloadJob = downloadScope.launch(start = CoroutineStart.UNDISPATCHED) {
             // Already on disk: just record it. No network round trip at all.
             realDownloadManager.getSongFile(song.id)?.let { file ->
-                markAlreadyLocal(song, Uri.fromFile(file).toString())
+                markAlreadyLocal(song, fileUrlOf(file))
                 return@launch
             }
 
@@ -448,7 +448,7 @@ class DownloadRepositoryImpl @Inject constructor(
                 if (!isPlayableAudioFile(file)) {
                     error("The server did not return playable audio")
                 }
-                val fileUri = Uri.fromFile(file).toString()
+                val fileUri = fileUrlOf(file)
                 downloadDao.insertOrUpdateDownload(
                     DownloadEntity(
                         songId = song.id,

@@ -91,6 +91,17 @@ android {
     }
 }
 
+// A failing unit test is only actionable if the build says *why*. The default output prints the
+// exception type and a location - and for a test whose body is a coroutine that location is the
+// test's own first line, not the assertion that failed - so the message and the stack are asked for
+// here. Every failing test then reads straight from the CI log.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

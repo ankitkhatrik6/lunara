@@ -41,6 +41,16 @@ fun isPlayableAudioFile(file: File): Boolean {
 }
 
 /**
+ * The `file://` URL a saved track is stored under.
+ *
+ * Byte for byte what `Uri.fromFile(file).toString()` returns for a path that needs no escaping,
+ * which every stored track is: the name is a YouTube id under the app's private directory. It is
+ * written without `android.net.Uri` on purpose - a stubbed framework method hands a JVM unit test
+ * `null`, so a save could never get past building this URL, let alone be asserted.
+ */
+fun fileUrlOf(file: File): String = "file://" + file.absolutePath
+
+/**
  * The container [path] really holds, read from its own magic bytes.
  *
  * The stored extension is only a guess made from the download URL, and it is wrong often enough -
