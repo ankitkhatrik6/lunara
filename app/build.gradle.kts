@@ -70,6 +70,16 @@ android {
         )
     }
 
+    testOptions {
+        unitTests {
+            // The JVM tests cover the logic that has no UI: the queue rule behind the song radio,
+            // the parser for YouTube's `next` response, download bookkeeping. Some of that code
+            // is handed an `android.net.Uri`, and without this a stubbed framework method throws
+            // "not mocked" and fails a test for a reason that has nothing to do with the code.
+            isReturnDefaultValues = true
+        }
+    }
+
     buildFeatures {
         compose = true
     }

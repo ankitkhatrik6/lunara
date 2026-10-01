@@ -36,6 +36,12 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
+      - name: Run unit tests
+        # The release build compiles `src/main` only, so the JVM tests - the queue rule behind the
+        # song radio, the parser that reads YouTube's `next` response - are not part of it. They
+        # run here, which makes every push to master verify the behaviour and not just the syntax.
+        run: ./gradlew testDebugUnitTest --stacktrace
+
       - name: Prepare release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
