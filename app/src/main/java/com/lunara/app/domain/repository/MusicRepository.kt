@@ -3,6 +3,7 @@ package com.lunara.app.domain.repository
 import com.lunara.app.core.result.Resource
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
+import com.lunara.app.domain.model.BrowseShelf
 import com.lunara.app.domain.model.PlayableMedia
 import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
