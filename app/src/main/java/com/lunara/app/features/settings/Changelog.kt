@@ -17,6 +17,14 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.17.1",
+        headline = "Release verification fix",
+        highlights = listOf(
+            "Updated the browse parser tests to match the music-only Home feed.",
+            "The release pipeline now verifies that removed video shelves stay out of the catalogue."
+        )
+    ),
+    LunaraRelease(
         version = "2.17.0",
         headline = "Cleaner music discovery",
         highlights = listOf(

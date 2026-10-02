@@ -4,7 +4,6 @@ import com.lunara.app.data.remote.innertube.InnerTubeParser
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,8 +36,6 @@ class InnerTubeBrowseTest {
             listOf(
                 "New albums & singles",
                 "Moods & genres",
-                "New music videos",
-                "Video charts",
                 "Top artists"
             ),
             shelves.map { it.title }
@@ -52,22 +49,14 @@ class InnerTubeBrowseTest {
         val shelves = InnerTubeParser.parseBrowseShelves(fixture("browse_shelves.json"))
 
         assertTrue(shelves.none { it.isEmpty })
-        assertEquals(5, shelves.size)
+        assertEquals(3, shelves.size)
     }
 
     @Test
-    fun parseBrowseShelves_readsMusicVideoTilesAsPlayableSongs() {
-        val shelf = InnerTubeParser.parseBrowseShelves(fixture("browse_shelves.json"))
-            .first { it.title == "New music videos" }
+    fun parseBrowseShelves_dropsMusicVideoAndVideoChartShelves() {
+        val shelves = InnerTubeParser.parseBrowseShelves(fixture("browse_shelves.json"))
 
-        assertEquals(listOf("yt_4AeQ-0AbLIo", "yt_wjWud5YXNT4"), shelf.songs.map { it.id })
-        // A music video's own title, artist included - YouTube lists them exactly like this.
-        assertEquals("Bajo un Cielo Nuevo | FireVolk", shelf.songs[0].title)
-        assertEquals("FireVolk", shelf.songs[0].artistName)
-        // "FireVolk • 18K views" - the view count is not an album.
-        assertNull(shelf.songs[0].albumName)
-        assertTrue(shelf.songs[0].artworkUrl?.startsWith("https://") == true)
-        assertTrue(shelf.cards.isEmpty())
+        assertTrue(shelves.none { it.title.contains("video", ignoreCase = true) })
     }
 
     @Test
@@ -82,13 +71,11 @@ class InnerTubeBrowseTest {
     }
 
     @Test
-    fun parseBrowseShelves_keepsThePlaylistIdOfAChartTile() {
+    fun parseBrowseShelves_doesNotExposeVideoChartTiles() {
         val shelf = InnerTubeParser.parseBrowseShelves(fixture("browse_shelves.json"))
-            .first { it.title == "Video charts" }
 
-        // A `VL` browse id is the playlist itself plus YouTube's prefix, and it is what the
-        // existing album/playlist listing already knows how to open.
-        assertEquals("VLPL4fGSI1pDJn6t3TXLGiiJdD-sZbrG3tG0", shelf.cards[0].browseId)
+        assertTrue(shelf.none { it.title == "Video charts" })
+        assertTrue(shelf.flatMap { it.cards }.none { it.title.contains("Music Videos") })
     }
 
     @Test
