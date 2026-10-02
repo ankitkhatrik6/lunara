@@ -1,5 +1,8 @@
 package com.lunara.app.data.remote.innertube
 
+import com.lunara.app.domain.model.BrowseCard
+import com.lunara.app.domain.model.BrowseCategory
+import com.lunara.app.domain.model.BrowseShelf
 import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
 import kotlinx.serialization.json.JsonArray
@@ -88,6 +91,112 @@ object InnerTubeParser {
         ).firstNotNullOfOrNull { findObject(root, it) } ?: root
         return findAllObjects(scope, "musicResponsiveListItemRenderer")
             .mapNotNull { parseResponsiveSong(it) }
+    }
+
+    /**
+     * The shelves of a browse page, in the order YouTube Music draws them.
+     *
+     * Both shelf shapes are read: the horizontal carousels of a home or moods page
+     * (`musicCarouselShelfRenderer`, whose heading sits in its header) and the vertical shelves
+     * of a charts or artist page (`musicShelfRenderer`, which carries its own title). Rows are
+     * filed by what they are rather than by which shelf they came from, because YouTube uses the
+     * same row for a song, a playlist tile and an artist:
+     *
+     *  - a row that can be played immediately (a song, or a music video listed as a tile) becomes
+     *    a [BrowseShelf.songs] entry,
+     *  - a row that leads to a playlist, album or artist becomes a [BrowseShelf.cards] entry,
+     *  - a row of the moods and genres chooser becomes a [BrowseShelf.categories] entry.
+     *
+     * Empty shelves are dropped here: the charts page answers with a country filter shelf that
+     * holds no rows at all, and a heading over nothing is worse than no heading.
+     */
+    fun parseBrowseShelves(root: JsonElement): List<BrowseShelf> {
+        val shelves = mutableListOf<BrowseShelf?>()
+        findAllObjects(root, "musicCarouselShelfRenderer").forEach { shelf ->
+            shelves += shelfOf(
+                title = shelf.obj("header")
+                    ?.obj("musicCarouselShelfBasicHeaderRenderer")
+                    ?.obj("title")
+                    ?.runsText(),
+                rows = shelf.arr("contents").objects()
+            )
+        }
+        findAllObjects(root, "musicShelfRenderer").forEach { shelf ->
+            shelves += shelfOf(
+                title = shelf.obj("title")?.runsText(),
+                rows = shelf.arr("contents").objects()
+            )
+        }
+        return shelves.filterNotNull()
+    }
+
+    /** One shelf, filed by row kind; `null` when YouTube sent a heading with nothing under it. */
+    private fun shelfOf(title: String?, rows: List<JsonObject>): BrowseShelf? {
+        val songs = mutableListOf<Song>()
+        val cards = mutableListOf<BrowseCard>()
+        val categories = mutableListOf<BrowseCategory>()
+        rows.forEach { row ->
+            row.shelfSong()?.let { songs.add(it) }
+                ?: row.shelfCard()?.let { cards.add(it) }
+                ?: row.shelfCategory()?.let { categories.add(it) }
+        }
+        if (songs.isEmpty() && cards.isEmpty() && categories.isEmpty()) return null
+        return BrowseShelf(
+            title = title.orEmpty(),
+            songs = songs,
+            cards = cards,
+            categories = categories
+        )
+    }
+
+    /**
+     * A row that plays straight away: a song row, or a tile YouTube points at a video.
+     *
+     * The "New music videos" and "Video charts" shelves are tiles like the album ones, but their
+     * endpoint is a `watchEndpoint` with a video id, so they are as playable as a search result
+     * and belong in the same list.
+     */
+    private fun JsonObject.shelfSong(): Song? {
+        obj("musicResponsiveListItemRenderer")?.let { return parseResponsiveSong(it) }
+        val tile = obj("musicTwoRowItemRenderer") ?: return null
+        val item = parseTwoRowItem(tile) ?: return null
+        val videoId = item.videoId ?: return null
+        return Song(
+            id = "yt_$videoId",
+            title = item.title,
+            // A video tile's byline reads "Artist • 18K views", so the artist is the first credit
+            // and the view count must not be mistaken for an album.
+            artistName = item.subtitle.subtitleParts().firstOrNull() ?: "Unknown Artist",
+            artworkUrl = item.artworkUrl
+        )
+    }
+
+    /** A row that leads somewhere: a playlist, an album or an artist. */
+    private fun JsonObject.shelfCard(): BrowseCard? {
+        val renderer = obj("musicResponsiveListItemRenderer")
+            ?: obj("musicTwoRowItemRenderer")
+            ?: return null
+        val item = parseResponsiveItem(renderer) ?: parseTwoRowItem(renderer) ?: return null
+        val browseId = item.browseId ?: item.playlistId ?: return null
+        return BrowseCard(
+            title = item.title,
+            subtitle = item.subtitle,
+            browseId = browseId,
+            artworkUrl = item.artworkUrl
+        )
+    }
+
+    /** A row of the moods and genres chooser, which is a button rather than a shelf entry. */
+    private fun JsonObject.shelfCategory(): BrowseCategory? {
+        val button = obj("musicNavigationButtonRenderer") ?: return null
+        val label = button.obj("buttonText")?.runsText()?.takeIf { it.isNotBlank() } ?: return null
+        val endpoint = button.obj("clickCommand")?.obj("browseEndpoint") ?: return null
+        val browseId = endpoint.text("browseId") ?: return null
+        return BrowseCategory(
+            title = label,
+            browseId = browseId,
+            params = endpoint.text("params")
+        )
     }
 
     /**
