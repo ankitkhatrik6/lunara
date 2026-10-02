@@ -17,6 +17,17 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.15.0",
+        headline = "The real YouTube Music home",
+        highlights = listOf(
+            "Home is no longer a set of sections Lunara made up: it is the page YouTube Music draws itself - \"New albums & singles\", \"Moods & genres\", \"New music videos\", \"Video charts\" and \"Top artists\" - in the service's own order and with its own headings.",
+            "The rows of tiles are real now. An album, a playlist or an artist in the feed opens when tapped, and what it holds plays: an album or a playlist lists its tracks, an artist starts on the most played.",
+            "The mood chips are YouTube Music's own chooser rather than eight words the app invented, and picking one browses the service's selection for that mood instead of searching for the name on the chip.",
+            "A signed-out home page is a thin one - YouTube keeps most of it for accounts - so the discovery page is read behind it and its shelves are added, skipping any heading the home page already sent. That is what brings in the mood chooser and the new music videos.",
+            "Nothing about offline changed: without a connection Home still swaps the network rails for your downloads and the music already on your device."
+        )
+    ),
+    LunaraRelease(
         version = "2.14.0",
         headline = "The music keeps going",
         highlights = listOf(

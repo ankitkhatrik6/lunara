@@ -15,8 +15,8 @@ android {
         applicationId = "com.lunara.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 25
-        versionName = "2.14.0"
+        versionCode = 26
+        versionName = "2.15.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
