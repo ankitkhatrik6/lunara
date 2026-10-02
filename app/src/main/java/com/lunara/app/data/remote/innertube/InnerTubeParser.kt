@@ -171,12 +171,17 @@ object InnerTubeParser {
         )
     }
 
-    /** A row that leads somewhere: a playlist, an album or an artist. */
+    /**
+     * A row that leads somewhere: a playlist, an album or an artist.
+     *
+     * Each renderer is read by the parser that knows its shape. A tile keeps its byline ("Single •
+     * John Rai") in `subtitle.runs`, while a list row keeps it in its second flex column - reading a
+     * tile as a list row finds the title and loses the byline with it.
+     */
     private fun JsonObject.shelfCard(): BrowseCard? {
-        val renderer = obj("musicResponsiveListItemRenderer")
-            ?: obj("musicTwoRowItemRenderer")
+        val item = obj("musicTwoRowItemRenderer")?.let { parseTwoRowItem(it) }
+            ?: obj("musicResponsiveListItemRenderer")?.let { parseResponsiveItem(it) }
             ?: return null
-        val item = parseResponsiveItem(renderer) ?: parseTwoRowItem(renderer) ?: return null
         val browseId = item.browseId ?: item.playlistId ?: return null
         return BrowseCard(
             title = item.title,

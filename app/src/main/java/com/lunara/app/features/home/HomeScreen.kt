@@ -35,6 +35,9 @@ import androidx.lifecycle.viewModelScope
 import com.lunara.app.R
 import com.lunara.app.core.result.Resource
 import com.lunara.app.core.utils.NetworkMonitor
+import com.lunara.app.domain.model.BrowseCard
+import com.lunara.app.domain.model.BrowseCategory
+import com.lunara.app.domain.model.BrowseShelf
 import com.lunara.app.domain.model.Song
 import com.lunara.app.domain.repository.DownloadRepository
 import com.lunara.app.domain.repository.LibraryRepository
@@ -48,28 +51,23 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
 
-/** One live section of the home feed. */
+/**
+ * One live section of the home feed, exactly as YouTube Music named and filled it.
+ *
+ * A section is either a row of [songs] that plays as it stands, or a row of [cards] that opens a
+ * playlist, an album or an artist. Both come from the service, heading included.
+ */
 data class HomeRail(
     val id: String,
     val title: String,
     val songs: List<Song> = emptyList(),
+    val cards: List<BrowseCard> = emptyList(),
     val isLoading: Boolean = true
-)
-
-/**
- * Query behind a home rail.
- *
- * The feed is fetched from YouTube Music on every launch, so it reflects what is actually
- * popular now. Nothing in it is bundled with the app.
- */
-private data class RailSpec(val id: String, val title: String, val query: String)
-
-private val HOME_RAILS = listOf(
-    RailSpec("trending", "Trending now", "trending songs"),
-    RailSpec("quick_picks", "Quick picks", "top hits playlist"),
-    RailSpec("new_releases", "New releases", "new music releases"),
-    RailSpec("popular", "Popular right now", "popular music hits")
-)
+) {
+    /** `true` when there is nothing to draw yet - an empty rail would be a heading over a gap. */
+    val isBlank: Boolean
+        get() = songs.isEmpty() && cards.isEmpty()
+}
 
 private const val MOOD_RAIL_ID = "mood"
 
@@ -77,32 +75,54 @@ private const val MOOD_RAIL_ID = "mood"
 private const val OFFLINE_DOWNLOADS_ID = "offline_downloads"
 private const val OFFLINE_DEVICE_ID = "offline_device"
 
-private val DEFAULT_MOODS = listOf(
-    "Chill", "Focus", "Party", "Workout", "Sleep", "Romantic", "Study", "Drive"
-)
+/** Feed sections are keyed by their position on the page, which is what YouTube's order gives them. */
+private fun shelfRailId(index: Int): String = "shelf_$index"
+
+/**
+ * A feed section as a rail.
+ *
+ * A shelf the service sent empty is dropped, and so is one that only holds the moods and genres
+ * chooser - those rows become the chips above the mood rail rather than a rail of their own.
+ * Either way, a heading over nothing would draw a gap in the feed.
+ */
+private fun BrowseShelf.toRail(index: Int): HomeRail? = when {
+    songs.isEmpty() && cards.isEmpty() -> null
+    songs.isNotEmpty() -> HomeRail(
+        id = shelfRailId(index),
+        title = title,
+        songs = songs,
+        isLoading = false
+    )
+    else -> HomeRail(
+        id = shelfRailId(index),
+        title = title,
+        cards = cards,
+        isLoading = false
+    )
+}
 
 data class HomeUiState(
     val greeting: String = "Welcome",
     /** The line under the greeting; it follows the time of day exactly like the greeting does. */
     val greetingMessage: String = "Let's find something good to play.",
     val recentlyPlayed: List<Song> = emptyList(),
-    val rails: List<HomeRail> = HOME_RAILS.map { HomeRail(id = it.id, title = it.title) },
-    val moods: List<String> = DEFAULT_MOODS,
+    /** YouTube Music's own sections, in the order the service draws them. */
+    val rails: List<HomeRail> = emptyList(),
+    /** The service's moods and genres chooser, kept with the params that pick each one. */
+    val moods: List<BrowseCategory> = emptyList(),
     val selectedMood: String? = null,
     val moodRail: HomeRail? = null,
+    /** `true` while the feed is still on its way from YouTube Music. */
+    val isLoading: Boolean = true,
     /** True when the device has no usable connection; the feed then shows local music only. */
     val isOffline: Boolean = false
 ) {
-    /** True while every rail is still empty and none has finished loading. */
-    val isInitialLoad: Boolean
-        get() = rails.isNotEmpty() && rails.all { it.isLoading && it.songs.isEmpty() }
-
     /**
      * True when the catalogue answered nothing and nothing is pending: offline, rate limited or
      * otherwise unreachable. The screen offers a retry instead of silently showing empty space.
      */
     val isFeedEmpty: Boolean
-        get() = rails.isNotEmpty() && rails.none { it.isLoading } && rails.all { it.songs.isEmpty() }
+        get() = !isLoading && rails.none { it.isLoading } && rails.all { it.isBlank }
 
     /**
      * Offline with nothing saved either: no downloads, no music on the device, no history. That is
@@ -188,7 +208,8 @@ class HomeViewModel @Inject constructor(
                         }
                     ),
                     selectedMood = null,
-                    moodRail = null
+                    moodRail = null,
+                    isLoading = false
                 )
             }
         }
@@ -230,46 +251,48 @@ class HomeViewModel @Inject constructor(
             loadOfflineRails()
             return
         }
-        _uiState.update { state ->
-            state.copy(rails = HOME_RAILS.map { HomeRail(id = it.id, title = it.title) })
-        }
+        _uiState.update { state -> state.copy(isLoading = true) }
 
-        HOME_RAILS.forEach { spec ->
-            viewModelScope.launch {
-                val songs = fetchSongs(spec.query)
-                _uiState.update { state ->
-                    state.copy(
-                        rails = state.rails.map { rail ->
-                            if (rail.id == spec.id) {
-                                rail.copy(songs = songs, isLoading = false)
-                            } else {
-                                rail
-                            }
-                        }
-                    )
-                }
+        viewModelScope.launch {
+            val shelves = (musicRepository.getHomeShelves() as? Resource.Success)?.data.orEmpty()
+            _uiState.update { state ->
+                state.copy(
+                    rails = shelves.mapIndexedNotNull { index, shelf -> shelf.toRail(index) },
+                    // The chooser is not a rail to scroll: it is the row of chips, and its rows
+                    // carry the params that pick each mood out of the page they all share.
+                    moods = shelves.flatMap { shelf -> shelf.categories }
+                        .distinctBy { category -> category.title },
+                    isLoading = false
+                )
             }
         }
-
-        // Moods default to the first chip so that section is never empty on a fresh launch.
-        selectMood(_uiState.value.selectedMood ?: DEFAULT_MOODS.first())
     }
 
-    /** Loads the songs of one mood. Switching moods mid-load cannot apply a stale answer. */
-    fun selectMood(mood: String) {
-        // Moods are catalogue searches and the chips are hidden offline; ignore stray taps.
+    /**
+     * Loads the shelves behind one mood or genre.
+     *
+     * The chip carries the params that pick it out of the shared page, so what comes back is the
+     * service's own selection for it - not a search for the word on the chip.
+     *
+     * Switching moods mid-load cannot apply a stale answer.
+     */
+    fun selectMood(category: BrowseCategory) {
+        // The chooser is part of the online feed; ignore stray taps while offline.
         if (_uiState.value.isOffline) return
-        val title = "$mood picks"
+        val title = category.title
         _uiState.update { state ->
             state.copy(
-                selectedMood = mood,
+                selectedMood = title,
                 moodRail = HomeRail(id = MOOD_RAIL_ID, title = title)
             )
         }
         viewModelScope.launch {
-            val songs = fetchSongs("$mood music")
+            val shelves = (
+                musicRepository.getBrowseShelves(category.browseId, category.params)
+                    as? Resource.Success
+                )?.data.orEmpty()
             _uiState.update { state ->
-                if (state.selectedMood != mood) {
+                if (state.selectedMood != title) {
                     // The user picked another mood while this one was loading.
                     state
                 } else {
@@ -277,7 +300,8 @@ class HomeViewModel @Inject constructor(
                         moodRail = HomeRail(
                             id = MOOD_RAIL_ID,
                             title = title,
-                            songs = songs,
+                            songs = shelves.flatMap { it.songs }.distinctBy { it.id },
+                            cards = shelves.flatMap { it.cards }.distinctBy { it.browseId },
                             isLoading = false
                         )
                     )
@@ -286,11 +310,26 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchSongs(query: String): List<Song> =
-        when (val result = musicRepository.searchSongs(query)) {
-            is Resource.Success -> result.data.distinctBy { song -> song.id }
-            else -> emptyList()
+    /**
+     * Opens a tile of the feed: a playlist, an album or an artist.
+     *
+     * Its browse id is the whole address of the page, so the page is simply read and its songs
+     * become the queue. An album or playlist lists them straight away; an artist page answers with
+     * shelves instead, and its most-played songs are what starts.
+     */
+    fun openCard(card: BrowseCard) {
+        viewModelScope.launch {
+            val songs = songsOfPage(card.browseId)
+            if (songs.isNotEmpty()) playerManager.playQueue(songs, 0)
         }
+    }
+
+    private suspend fun songsOfPage(browseId: String): List<Song> {
+        val fromShelves = (musicRepository.getBrowseShelves(browseId) as? Resource.Success)
+            ?.data?.flatMap { shelf -> shelf.songs }?.distinctBy { song -> song.id }.orEmpty()
+        if (fromShelves.isNotEmpty()) return fromShelves
+        return (musicRepository.getAlbumTracks(browseId) as? Resource.Success)?.data.orEmpty()
+    }
 
     /**
      * Starts [song] inside the list it was tapped from.
@@ -372,21 +411,32 @@ fun HomeScreen(
             item { EmptyFeedCard(offline = false, onRetry = viewModel::refresh) }
         }
 
+        // The feed arrives in one response, so the first moment is a single row of placeholders
+        // rather than a page of empty headings.
+        if (uiState.isLoading && uiState.rails.isEmpty()) {
+            item { FeedSkeleton() }
+        }
+
         items(uiState.rails, key = { rail -> rail.id }) { rail ->
-            if (rail.isLoading || rail.songs.isNotEmpty()) {
-                RailSection(
+            when {
+                rail.songs.isNotEmpty() -> RailSection(
                     title = rail.title,
                     songs = rail.songs,
-                    isLoading = rail.isLoading,
                     playingId = playingId,
                     onSongClick = { song -> viewModel.playRail(rail, song) },
                     onSongActionClick = onSongActionClick
                 )
+                // A shelf of tiles: a playlist, an album, an artist. Tapping one opens that page.
+                rail.cards.isNotEmpty() -> CardRailSection(
+                    title = rail.title,
+                    cards = rail.cards,
+                    onCardClick = viewModel::openCard
+                )
             }
         }
 
-        // Moods are YouTube Music searches, so they belong to the online feed only.
-        if (!uiState.isOffline) {
+        // The chooser itself comes from YouTube Music, so it belongs to the online feed only.
+        if (!uiState.isOffline && uiState.moods.isNotEmpty()) {
             item {
                 MoodChips(
                     moods = uiState.moods,
@@ -394,18 +444,34 @@ fun HomeScreen(
                     onSelect = viewModel::selectMood
                 )
             }
+        }
 
+        if (!uiState.isOffline) {
             uiState.moodRail?.let { moodRail ->
                 item {
-                    RailSection(
-                        title = moodRail.title,
-                        songs = moodRail.songs,
-                        isLoading = moodRail.isLoading,
-                        playingId = playingId,
-                        onPlayAll = { viewModel.playRail(moodRail) },
-                        onSongClick = { song -> viewModel.playRail(moodRail, song) },
-                        onSongActionClick = onSongActionClick
-                    )
+                    when {
+                        moodRail.cards.isNotEmpty() -> CardRailSection(
+                            title = moodRail.title,
+                            cards = moodRail.cards,
+                            onCardClick = viewModel::openCard
+                        )
+                        moodRail.songs.isNotEmpty() -> RailSection(
+                            title = moodRail.title,
+                            songs = moodRail.songs,
+                            playingId = playingId,
+                            onPlayAll = { viewModel.playRail(moodRail) },
+                            onSongClick = { song -> viewModel.playRail(moodRail, song) },
+                            onSongActionClick = onSongActionClick
+                        )
+                        moodRail.isLoading -> RailSection(
+                            title = moodRail.title,
+                            songs = emptyList(),
+                            isLoading = true,
+                            playingId = playingId,
+                            onSongClick = {},
+                            onSongActionClick = onSongActionClick
+                        )
+                    }
                 }
             }
         }
@@ -702,12 +768,95 @@ private fun RailSkeletonCard() {
     }
 }
 
-/** Mood / genre chooser; the rail below it follows the selection. */
+/** The feed's first moment: one row of placeholders while the shelves are on their way. */
+@Composable
+private fun FeedSkeleton() {
+    LazyRow(
+        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        items(4) { RailSkeletonCard() }
+    }
+}
+
+/**
+ * A shelf of tiles - a playlist, an album or an artist - each of which opens its own page.
+ *
+ * The byline under a tile is the service's own ("Single • John Rai", "2.27M subscribers"), so it
+ * says what the tile is without the app having to guess at a label.
+ */
+@Composable
+private fun CardRailSection(
+    title: String,
+    cards: List<BrowseCard>,
+    onCardClick: (BrowseCard) -> Unit
+) {
+    Column(modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = LunaraTextPrimary,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(cards, key = { card -> "${title}_${card.browseId}" }) { card ->
+                BrowseCardTile(card = card, onClick = { onCardClick(card) })
+            }
+        }
+    }
+}
+
+/** One tile of a [CardRailSection]: its artwork, its title and the byline YouTube gave it. */
+@Composable
+private fun BrowseCardTile(card: BrowseCard, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(130.dp)
+            .clickable(onClick = onClick)
+    ) {
+        LunaraArtwork(
+            url = card.artworkUrl,
+            contentDescription = card.title,
+            modifier = Modifier
+                .size(130.dp)
+                .clip(RoundedCornerShape(14.dp))
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = card.title,
+            style = MaterialTheme.typography.titleSmall,
+            color = LunaraTextPrimary,
+            maxLines = 1
+        )
+        card.subtitle?.let { subtitle ->
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = LunaraTextSecondary,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * The moods and genres chooser, read from the feed.
+ *
+ * Every chip is a row of YouTube Music's own chooser, and tapping one browses the page behind it
+ * with the params that pick that mood out.
+ */
 @Composable
 private fun MoodChips(
-    moods: List<String>,
+    moods: List<BrowseCategory>,
     selected: String?,
-    onSelect: (String) -> Unit
+    onSelect: (BrowseCategory) -> Unit
 ) {
     Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
         Text(
@@ -721,11 +870,11 @@ private fun MoodChips(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(moods, key = { mood -> mood }) { mood ->
+            items(moods, key = { category -> category.title }) { category ->
                 FilterChip(
-                    selected = mood == selected,
-                    onClick = { onSelect(mood) },
-                    label = { Text(mood) },
+                    selected = category.title == selected,
+                    onClick = { onSelect(category) },
+                    label = { Text(category.title) },
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = LunaraSurfaceElevated,
                         labelColor = LunaraTextSecondary,
