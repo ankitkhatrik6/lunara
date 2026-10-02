@@ -113,17 +113,21 @@ object InnerTubeParser {
     fun parseBrowseShelves(root: JsonElement): List<BrowseShelf> {
         val shelves = mutableListOf<BrowseShelf?>()
         findAllObjects(root, "musicCarouselShelfRenderer").forEach { shelf ->
+            val title = shelf.obj("header")
+                ?.obj("musicCarouselShelfBasicHeaderRenderer")
+                ?.obj("title")
+                ?.runsText()
+            if (title.isVideoShelf()) return@forEach
             shelves += shelfOf(
-                title = shelf.obj("header")
-                    ?.obj("musicCarouselShelfBasicHeaderRenderer")
-                    ?.obj("title")
-                    ?.runsText(),
+                title = title,
                 rows = shelf.arr("contents").objects()
             )
         }
         findAllObjects(root, "musicShelfRenderer").forEach { shelf ->
+            val title = shelf.obj("title")?.runsText()
+            if (title.isVideoShelf()) return@forEach
             shelves += shelfOf(
-                title = shelf.obj("title")?.runsText(),
+                title = title,
                 rows = shelf.arr("contents").objects()
             )
         }
@@ -150,25 +154,13 @@ object InnerTubeParser {
     }
 
     /**
-     * A row that plays straight away: a song row, or a tile YouTube points at a video.
-     *
-     * The "New music videos" and "Video charts" shelves are tiles like the album ones, but their
-     * endpoint is a `watchEndpoint` with a video id, so they are as playable as a search result
-     * and belong in the same list.
+     * A row that plays straight away: a music song row. Two-row tiles are deliberately not songs:
+     * they are albums, singles, playlists or artists, and a video tile must never enter the music
+     * queue just because it has a YouTube watch id.
      */
     private fun JsonObject.shelfSong(): Song? {
         obj("musicResponsiveListItemRenderer")?.let { return parseResponsiveSong(it) }
-        val tile = obj("musicTwoRowItemRenderer") ?: return null
-        val item = parseTwoRowItem(tile) ?: return null
-        val videoId = item.videoId ?: return null
-        return Song(
-            id = "yt_$videoId",
-            title = item.title,
-            // A video tile's byline reads "Artist • 18K views", so the artist is the first credit
-            // and the view count must not be mistaken for an album.
-            artistName = item.subtitle.subtitleParts().firstOrNull() ?: "Unknown Artist",
-            artworkUrl = item.artworkUrl
-        )
+        return null
     }
 
     /**
@@ -185,7 +177,7 @@ object InnerTubeParser {
         val browseId = item.browseId ?: item.playlistId ?: return null
         return BrowseCard(
             title = item.title,
-            subtitle = item.subtitle,
+            subtitle = item.subtitle.cleanByline(),
             browseId = browseId,
             artworkUrl = item.artworkUrl
         )
@@ -429,6 +421,17 @@ object InnerTubeParser {
     private val counterPattern =
         Regex("(?i)^[\\d.,]+\\s*[KMB]?\\s*(views?|likes?|plays?|subscribers?|videos?|songs?)$")
 
+    private val videoShelfPattern =
+        Regex("(?i)\\b(video|videos|music video|music videos|video charts)\\b")
+
+    private fun String?.isVideoShelf(): Boolean = this?.let(videoShelfPattern::containsMatchIn) == true
+
+    private fun String?.cleanByline(): String? = this?.split(SEPARATOR)
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() && !it.isCreditNoise() && it.lowercase() !in kindLabels }
+        ?.joinToString(SEPARATOR)
+        ?.takeIf { it.isNotBlank() }
+
     private fun String.isCreditNoise(): Boolean =
         isDuration() || yearPattern.matches(this) || counterPattern.matches(this)
 
@@ -445,21 +448,10 @@ object InnerTubeParser {
 
     /** "Artist • Album • 3:25" -> [Artist, Album] ("Artist • 3:25" -> [Artist]). */
     private fun String?.subtitleParts(): List<String> {
-        // Narrow the nullable receiver once: every branch below works on a real String,
-        // so no branch can dereference null and the compiler stays happy.
-        val text = this?.trim().orEmpty()
-        if (text.isEmpty()) return emptyList()
-        val separator = text.indexOf(SEPARATOR)
-        if (separator < 0) return listOf(text)
-        val head = text.substring(0, separator).trim()
-        val tail = text.substring(separator + 1).trim()
-        val out = mutableListOf<String>()
-        if (head.isNotEmpty()) out.add(head)
-        // The second credit is the album unless it is a duration ("3:25") or a year.
-        if (tail.isNotEmpty() && !tail.isDuration() && !yearPattern.matches(tail)) {
-            out.add(tail)
-        }
-        return out
+        return this?.split(SEPARATOR)
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() && !it.isCreditNoise() && it.lowercase() !in kindLabels }
+            .orEmpty()
     }
 
     /** Concatenates every text run of a `text`/`title`/`subtitle` object. */
@@ -507,6 +499,6 @@ object InnerTubeParser {
     /** YouTube returns thumbnails sized for the web client; ask for a phone sized one. */
     private fun String.upscaledArtwork(): String {
         val marker = indexOf("=w")
-        return if (marker > 0) substring(0, marker) + "=w544-h544-l90-rj" else this
+        return if (marker > 0) substring(0, marker) + "=w1000-h1000-l90-rj" else this
     }
 }

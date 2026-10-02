@@ -17,6 +17,15 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.17.0",
+        headline = "Cleaner music discovery",
+        highlights = listOf(
+            "New releases and albums now keep their real artist and album metadata instead of showing play counts as credits.",
+            "Music video and video chart shelves are removed from Home, so Home only queues music catalogue tracks.",
+            "Indian and other regional catalogue artwork now requests a higher-resolution source for sharper covers."
+        )
+    ),
+    LunaraRelease(
         version = "2.16.0",
         headline = "A home feed that learns",
         highlights = listOf(
