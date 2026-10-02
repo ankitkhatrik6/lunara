@@ -8,6 +8,7 @@ import com.lunara.app.data.local.dao.*
 import com.lunara.app.data.local.entity.*
 import com.lunara.app.data.mapper.toDomain
 import com.lunara.app.data.mapper.toEntity
+import com.lunara.app.data.remote.innertube.InnerTubeParams
 import com.lunara.app.data.remote.lyrics.LrclibLyricsApi
 import com.lunara.app.data.remote.music.MusicRemoteDataSource
 import com.lunara.app.domain.model.*
@@ -176,6 +177,45 @@ class MusicRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             e.rethrowIfCancellation()
             Resource.Error(e.localizedMessage ?: "Could not load the radio", e)
+        }
+    }
+
+    /**
+     * YouTube Music's own home feed.
+     *
+     * The signed-out home page is thin, so the discovery page is read as well and its shelves are
+     * appended: it is the same account of "what is out now" the official app opens on, and without
+     * it the feed would be a single row of new releases.
+     */
+    override suspend fun getHomeShelves(): Resource<List<BrowseShelf>> {
+        return try {
+            val shelves = remoteSource.browseShelves(InnerTubeParams.HOME).toMutableList()
+            val seen = shelves.mapTo(mutableSetOf()) { it.title }
+            remoteSource.browseShelves(InnerTubeParams.EXPLORE)
+                .filterNot { it.title in seen }
+                .forEach { shelves.add(it) }
+            Resource.Success(shelves)
+        } catch (e: Exception) {
+            e.rethrowIfCancellation()
+            Resource.Error(e.localizedMessage ?: "Could not load the feed", e)
+        }
+    }
+
+    /**
+     * YouTube Music's own shelves for one mood or genre.
+     *
+     * The moods page answers with something more useful than a list: the shelves are the mood's own
+     * playlists and albums, so playing from one plays what the mood is made of.
+     */
+    override suspend fun getBrowseShelves(
+        browseId: String,
+        params: String?
+    ): Resource<List<BrowseShelf>> {
+        return try {
+            Resource.Success(remoteSource.browseShelves(browseId, params))
+        } catch (e: Exception) {
+            e.rethrowIfCancellation()
+            Resource.Error(e.localizedMessage ?: "Could not load this page", e)
         }
     }
 

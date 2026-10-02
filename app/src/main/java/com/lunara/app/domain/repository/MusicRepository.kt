@@ -28,6 +28,20 @@ interface MusicRepository {
     suspend fun getUpNext(song: Song, continuation: String? = null): Resource<RadioPage>
 
     /**
+     * YouTube Music's own home feed, shelf by shelf.
+     *
+     * The whole page arrives in one response, so the feed is the service's real sections - new
+     * releases, the moods and genres chooser, new music videos - instead of rails Lunara guessed at.
+     */
+    suspend fun getHomeShelves(): Resource<List<BrowseShelf>>
+
+    /**
+     * The shelves of one browse page. [params] picks the mood or genre out of the page they share,
+     * and is passed on untouched.
+     */
+    suspend fun getBrowseShelves(browseId: String, params: String? = null): Resource<List<BrowseShelf>>
+
+    /**
      * Re-reads the device's own audio library (MediaStore) and mirrors it into the local
      * database, so the tracks stay available offline and across restarts.
      *
