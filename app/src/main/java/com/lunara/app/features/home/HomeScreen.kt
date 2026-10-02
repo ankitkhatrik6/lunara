@@ -106,6 +106,7 @@ data class HomeUiState(
     /** The line under the greeting; it follows the time of day exactly like the greeting does. */
     val greetingMessage: String = "Let's find something good to play.",
     val recentlyPlayed: List<Song> = emptyList(),
+    val favoriteSongs: List<Song> = emptyList(),
     /** YouTube Music's own sections, in the order the service draws them. */
     val rails: List<HomeRail> = emptyList(),
     /** The service's moods and genres chooser, kept with the params that pick each one. */
@@ -149,6 +150,7 @@ class HomeViewModel @Inject constructor(
     init {
         determineGreeting()
         observeHistory()
+        observeFavorites()
         observeConnectivity()
     }
 
@@ -241,6 +243,14 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private fun observeFavorites() {
+        viewModelScope.launch {
+            libraryRepository.getFavorites().collect { favorites ->
+                _uiState.update { it.copy(favoriteSongs = favorites.distinctBy { song -> song.id }) }
+            }
+        }
+    }
+
     /**
      * Reloads every rail. Each resolves on its own, so the feed fills in progressively.
      *
@@ -254,10 +264,14 @@ class HomeViewModel @Inject constructor(
         _uiState.update { state -> state.copy(isLoading = true) }
 
         viewModelScope.launch {
+            val history = libraryRepository.getHistory().first().distinctBy { it.id }.take(8)
+            val favorites = libraryRepository.getFavorites().first().distinctBy { it.id }
+            _uiState.update { it.copy(recentlyPlayed = history, favoriteSongs = favorites) }
             val shelves = (musicRepository.getHomeShelves() as? Resource.Success)?.data.orEmpty()
+            val personalizedRails = buildPersonalizedRails()
             _uiState.update { state ->
                 state.copy(
-                    rails = shelves.mapIndexedNotNull { index, shelf -> shelf.toRail(index) },
+                    rails = personalizedRails + shelves.mapIndexedNotNull { index, shelf -> shelf.toRail(index) },
                     // The chooser is not a rail to scroll: it is the row of chips, and its rows
                     // carry the params that pick each mood out of the page they all share.
                     moods = shelves.flatMap { shelf -> shelf.categories }
@@ -266,6 +280,61 @@ class HomeViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * Uses the listener's own signals before falling back to catalogue discovery. History drives
+     * recency, favourites reinforce taste, and YouTube Music's radio supplies the actual artist
+     * recommendation rather than a locally invented genre match.
+     */
+    private suspend fun buildPersonalizedRails(): List<HomeRail> {
+        val state = _uiState.value
+        val liked = (state.favoriteSongs + state.recentlyPlayed).distinctBy { it.id }
+        if (liked.isEmpty()) return emptyList()
+
+        val rails = mutableListOf<HomeRail>()
+        if (state.recentlyPlayed.isNotEmpty()) {
+            rails += HomeRail(
+                id = "personal_jump_back",
+                title = "Jump back in",
+                songs = state.recentlyPlayed.take(10),
+                isLoading = false
+            )
+        }
+
+        val albumSongs = liked
+            .filter { !it.albumName.isNullOrBlank() }
+            .groupBy { it.albumName }
+            .maxByOrNull { (_, songs) -> songs.size }
+            ?.value
+            .orEmpty()
+        if (albumSongs.isNotEmpty()) {
+            rails += HomeRail(
+                id = "personal_album",
+                title = "Album featuring songs you like",
+                songs = albumSongs.take(10),
+                isLoading = false
+            )
+        }
+
+        val topArtist = liked.groupingBy { it.artistName }.eachCount().maxByOrNull { it.value }?.key
+        val artistSeed = liked.firstOrNull { it.artistName == topArtist }
+        if (artistSeed != null && !topArtist.isNullOrBlank()) {
+            val radio = (musicRepository.getUpNext(artistSeed) as? Resource.Success)
+                ?.data?.songs
+                ?.filterNot { candidate -> liked.any { it.id == candidate.id } }
+                ?.distinctBy { it.id }
+                .orEmpty()
+            if (radio.isNotEmpty()) {
+                rails += HomeRail(
+                    id = "personal_artist_${topArtist.lowercase()}",
+                    title = "Because you like $topArtist",
+                    songs = radio.take(10),
+                    isLoading = false
+                )
+            }
+        }
+        return rails
     }
 
     /**
@@ -736,6 +805,14 @@ private fun RailSongCard(
             color = LunaraTextSecondary,
             maxLines = 1
         )
+        song.albumName?.takeIf { it.isNotBlank() }?.let { album ->
+            Text(
+                text = album,
+                style = MaterialTheme.typography.labelSmall,
+                color = LunaraTextMuted,
+                maxLines = 1
+            )
+        }
     }
 }
 

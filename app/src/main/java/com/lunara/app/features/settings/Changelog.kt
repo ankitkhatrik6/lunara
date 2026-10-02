@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.16.0",
+        headline = "A home feed that learns",
+        highlights = listOf(
+            "Jump back in now follows your real listening history instead of repeating a fixed catalogue row.",
+            "Album featuring songs you like is built from albums you have actually played or favourited.",
+            "Because you like an artist uses YouTube Music's own radio recommendations, filtered against tracks you already heard.",
+            "Home song cards now show album metadata alongside the artist and artwork when the catalogue provides it."
+        )
+    ),
+    LunaraRelease(
         version = "2.15.0",
         headline = "The real YouTube Music home",
         highlights = listOf(
