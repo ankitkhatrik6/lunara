@@ -247,6 +247,22 @@ object InnerTubeParams {
     const val CHARTS = "FEmusic_charts"
 
     /**
+     * The signed-out home page. Thin on purpose - YouTube fills it with the listener's own history
+     * once there is an account, and serves "New releases" and a regional shelf without one.
+     */
+    const val HOME = "FEmusic_home"
+
+    /** The discovery page: new albums and singles, the moods and genres chooser, new videos. */
+    const val EXPLORE = "FEmusic_explore"
+
+    /**
+     * The page every mood and genre opens in. It takes the `params` a moods and genres row
+     * carries - "Chill", "Commute" and the rest share this one browse id, and the params are the
+     * only thing that tells them apart.
+     */
+    const val MOODS_AND_GENRES = "FEmusic_moods_and_genres_category"
+
+    /**
      * Playlist id of the mix YouTube Music builds *for a single track*, i.e. the song radio:
      * `RDAMVM` + the seed's video id. Handing this to the `next` endpoint is what fills the
      * "Up next" list of the official app with similar songs, and it is what Lunara appends

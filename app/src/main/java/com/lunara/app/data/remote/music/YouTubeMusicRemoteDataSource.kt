@@ -12,6 +12,7 @@ import com.lunara.app.data.remote.innertube.InnerTubeParser
 import com.lunara.app.data.remote.innertube.VideoInfo
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
+import com.lunara.app.domain.model.BrowseShelf
 import com.lunara.app.domain.model.PlayableMedia
 import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
@@ -99,6 +100,24 @@ class YouTubeMusicRemoteDataSource @Inject constructor(
             )
         }
     }
+
+    // ---------- browse pages (home, explore, moods and genres) ----------
+
+    /**
+     * The shelves of a YouTube Music browse page, read as YouTube draws them.
+     *
+     * This is the same call the official app makes when it opens a page, so what comes back is the
+     * service's own sections and its own rows - not a search standing in for a feed.
+     *
+     * [params] selects a section inside a page: the moods and genres page takes the `params` of the
+     * mood that was tapped, which is how "Chill", "Commute" and the rest lead to their own shelves.
+     */
+    suspend fun browseShelves(browseId: String, params: String? = null): List<BrowseShelf> =
+        withContext(Dispatchers.IO) {
+            val root = api.browse(InnerTubeClients.WEB_REMIX, browseId = browseId, params = params)
+                ?: return@withContext emptyList()
+            InnerTubeParser.parseBrowseShelves(root)
+        }
 
     // ---------- album / playlist track listing ----------
 

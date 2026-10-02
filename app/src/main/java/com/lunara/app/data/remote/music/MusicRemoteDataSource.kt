@@ -2,6 +2,7 @@ package com.lunara.app.data.remote.music
 
 import com.lunara.app.domain.model.Album
 import com.lunara.app.domain.model.Artist
+import com.lunara.app.domain.model.BrowseShelf
 import com.lunara.app.domain.model.PlayableMedia
 import com.lunara.app.domain.model.RadioPage
 import com.lunara.app.domain.model.Song
@@ -27,6 +28,15 @@ class MusicRemoteDataSource @Inject constructor(
 
     suspend fun searchAlbums(query: String): List<Album> =
         youTubeMusic.searchAlbums(query)
+
+    /**
+     * YouTube Music's own shelves for a browse page.
+     *
+     * One call answers a whole page - the home feed, the discovery page, or any single mood, whose
+     * `params` is what picks it out of the shared moods and genres page.
+     */
+    suspend fun browseShelves(browseId: String, params: String? = null): List<BrowseShelf> =
+        youTubeMusic.browseShelves(browseId, params)
 
     suspend fun getAlbumTracks(albumId: String): List<Song> =
         youTubeMusic.getAlbumTracks(albumId)
