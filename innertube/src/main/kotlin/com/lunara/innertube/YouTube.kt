@@ -3508,7 +3508,8 @@ object YouTube {
 
     private val VISITOR_DATA_REGEX = Regex("^Cg[t|s]")
 
-    suspend fun uploadSong(
+    /**
+     * Upload a song to YouTube Music.
      * @param filename The name of the file
      * @param data The file data as ByteArray
      * @param onProgress Callback for upload progress (0.0 to 1.0)

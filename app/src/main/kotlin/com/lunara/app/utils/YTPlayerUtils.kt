@@ -636,7 +636,6 @@ object YTPlayerUtils {
             if (streamPlayerResponse?.playabilityStatus?.status == "OK") {
                 Timber.tag(logTag).d("Player response status OK for client: ${if (clientIndex == -1) MAIN_CLIENT.clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName}")
 
-                // Skip NewPipe for age-restricted content (NewPipe doesn't use our auth)
                 // The response is used exactly as the client returned it. It used
                 // to be handed to the bundled extractor first, to fill in an
                 // address for every format; that path was switched off and is
