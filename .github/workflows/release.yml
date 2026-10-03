@@ -88,7 +88,10 @@ jobs:
           STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
-        run: ./gradlew assembleRelease bundleRelease --stacktrace
+        # The app has a `variant` flavor dimension (foss/gms/izzy), so there is no
+        # un-flavored `app-release` output. Build the default FOSS flavor - it is the
+        # build people are handed directly - and publish only that.
+        run: ./gradlew assembleFossRelease bundleFossRelease --stacktrace
 
       - name: Rename outputs
         run: |
@@ -100,8 +103,8 @@ jobs:
             VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           fi
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/Lunara-${VERSION}-release.apk"
-          cp app/build/outputs/bundle/release/app-release.aab "dist/Lunara-${VERSION}-release.aab"
+          cp app/build/outputs/apk/foss/release/app-foss-release.apk "dist/Lunara-${VERSION}-release.apk"
+          cp app/build/outputs/bundle/fossRelease/app-foss-release.aab "dist/Lunara-${VERSION}-release.aab"
           echo "LUNARA_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Upload build artifacts
