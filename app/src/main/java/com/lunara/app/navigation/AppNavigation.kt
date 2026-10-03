@@ -28,6 +28,7 @@ import com.lunara.app.features.playlist.PlaylistPickerSheet
 import com.lunara.app.features.share.SharePosterEffect
 import com.lunara.app.features.share.ShareSongViewModel
 import com.lunara.app.features.downloads.DownloadsScreen
+import com.lunara.app.features.browse.BrowseDetailScreen
 import com.lunara.app.features.home.HomeScreen
 import com.lunara.app.features.library.LibraryScreen
 import com.lunara.app.features.lyrics.LyricsScreen
@@ -157,7 +158,12 @@ fun LunaraApp(
             composable(Screen.Home.route) {
                 HomeScreen(
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onSongActionClick = { selectedActionSong = it }
+                    onSongActionClick = { selectedActionSong = it },
+                    onBrowseCardClick = { card ->
+                        navController.navigate(
+                            Screen.BrowseDetail.createRoute(card.browseId, card.title, card.artworkUrl)
+                        )
+                    }
                 )
             }
 
@@ -200,6 +206,25 @@ fun LunaraApp(
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                route = Screen.BrowseDetail.route,
+                arguments = listOf(
+                    navArgument("browseId") { type = NavType.StringType },
+                    navArgument("title") { type = NavType.StringType },
+                    navArgument("artworkUrl") { type = NavType.StringType }
+                )
+            ) {
+                BrowseDetailScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onSongActionClick = { selectedActionSong = it },
+                    onBrowseCardClick = { card ->
+                        navController.navigate(
+                            Screen.BrowseDetail.createRoute(card.browseId, card.title, card.artworkUrl)
+                        )
+                    }
                 )
             }
 

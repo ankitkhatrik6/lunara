@@ -17,6 +17,17 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.19.0",
+        headline = "A real YouTube Music home",
+        highlights = listOf(
+            "Home now combines the live YouTube Music Home, Explore, and New Releases pages for service-authored shelves such as Quick picks, Chill, Indian Music, Ghazal and Sufi Essentials, and moods and genres when available.",
+            "Jump back in stays personalized from listening history, while the duplicate Recently played rail is gone.",
+            "Tapping an album, playlist, or artist opens its full catalogue page instead of immediately playing the first item.",
+            "Artist pages expose their songs plus nested albums and playlists with real artwork and open actions.",
+            "Lyrics now try Paxsenix, LRCLIB, and a duration-matched KuGou LRC fallback, while music playback remains audio-only."
+        )
+    ),
+    LunaraRelease(
         version = "2.18.0",
         headline = "Real music metadata",
         highlights = listOf(

@@ -194,6 +194,9 @@ class MusicRepositoryImpl @Inject constructor(
             remoteSource.browseShelves(InnerTubeParams.EXPLORE)
                 .filterNot { it.title in seen }
                 .forEach { shelves.add(it) }
+            remoteSource.browseShelves(InnerTubeParams.NEW_RELEASES)
+                .filterNot { it.title in seen }
+                .forEach { shelves.add(it) }
             Resource.Success(shelves)
         } catch (e: Exception) {
             e.rethrowIfCancellation()

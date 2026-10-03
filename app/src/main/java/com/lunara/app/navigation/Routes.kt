@@ -12,4 +12,8 @@ sealed class Screen(val route: String) {
     data object PlaylistDetail : Screen("playlist/{playlistId}") {
         fun createRoute(playlistId: Long) = "playlist/$playlistId"
     }
+    data object BrowseDetail : Screen("browse/{browseId}/{title}/{artworkUrl}") {
+        fun createRoute(browseId: String, title: String, artworkUrl: String?) =
+            "browse/${android.net.Uri.encode(browseId)}/${android.net.Uri.encode(title)}/${android.net.Uri.encode(artworkUrl.orEmpty())}"
+    }
 }

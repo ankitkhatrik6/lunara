@@ -8,6 +8,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.util.decodeBase64String
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -45,6 +46,9 @@ class BlazifyLyricsEngine @Inject constructor(
 
         // 2. Try LRCLIB (Lrclib.net)
         getLrcLibLyrics(cleanTitle, cleanArtist, durationSec)?.let { return@withContext it }
+
+        // 3. KuGou is especially useful for Indian and regional catalogues.
+        getKugouLyrics(cleanTitle, cleanArtist, durationSec)?.let { return@withContext it }
 
         // 3. Fallback placeholder
         Lyrics(
@@ -100,6 +104,39 @@ class BlazifyLyricsEngine @Inject constructor(
                 isSynced = false
             )
         } else null
+    }.getOrNull()
+
+    private suspend fun getKugouLyrics(
+        title: String,
+        artist: String,
+        durationSec: Int
+    ): Lyrics? = runCatching {
+        if (durationSec <= 0) return null
+        val songs = httpClient.get(AppConstants.KUGOU_SEARCH_BASE_URL) {
+            parameter("version", 9108)
+            parameter("keyword", "$artist - $title")
+            parameter("page", 1)
+            parameter("pagesize", 8)
+            parameter("showtype", 0)
+        }.body<KugouSongSearchResponse>().data?.info.orEmpty()
+        val song = songs.minByOrNull { kotlin.math.abs(it.duration - durationSec) }
+            ?: return null
+        if (kotlin.math.abs(song.duration - durationSec) > 8) return null
+        val candidate = httpClient.get("${AppConstants.KUGOU_LYRICS_BASE_URL}/search") {
+            parameter("ver", 1)
+            parameter("man", "yes")
+            parameter("client", "mobi")
+            parameter("hash", song.hash)
+        }.body<KugouLyricsSearchResponse>().candidates.firstOrNull() ?: return null
+        val encoded = httpClient.get("${AppConstants.KUGOU_LYRICS_BASE_URL}/download") {
+            parameter("ver", 1)
+            parameter("man", "yes")
+            parameter("client", "pc")
+            parameter("fmt", "lrc")
+            parameter("id", candidate.id)
+            parameter("accesskey", candidate.accessKey)
+        }.body<KugouLyricsDownloadResponse>().content
+        parseLrcLyrics("kugou", encoded.decodeBase64String())
     }.getOrNull()
 
     /**
@@ -164,3 +201,29 @@ data class LrcLibSearchItem(
     val syncedLyrics: String? = null,
     val duration: Double? = null
 )
+
+@Serializable
+private data class KugouSongSearchResponse(val data: KugouSongData? = null)
+
+@Serializable
+private data class KugouSongData(val info: List<KugouSongInfo> = emptyList())
+
+@Serializable
+private data class KugouSongInfo(
+    val hash: String = "",
+    val duration: Int = 0
+)
+
+@Serializable
+private data class KugouLyricsSearchResponse(
+    val candidates: List<KugouLyricsCandidate> = emptyList()
+)
+
+@Serializable
+private data class KugouLyricsCandidate(
+    val id: Long = 0,
+    @kotlinx.serialization.SerialName("accesskey") val accessKey: String = ""
+)
+
+@Serializable
+private data class KugouLyricsDownloadResponse(val content: String = "")

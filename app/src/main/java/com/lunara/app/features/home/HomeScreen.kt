@@ -432,6 +432,7 @@ class HomeViewModel @Inject constructor(
 fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onSongActionClick: (Song) -> Unit,
+    onBrowseCardClick: (BrowseCard) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -482,7 +483,7 @@ fun HomeScreen(
                 rail.cards.isNotEmpty() -> CardRailSection(
                     title = rail.title,
                     cards = rail.cards,
-                    onCardClick = viewModel::openCard
+                    onCardClick = onBrowseCardClick
                 )
             }
         }
@@ -505,7 +506,7 @@ fun HomeScreen(
                         moodRail.cards.isNotEmpty() -> CardRailSection(
                             title = moodRail.title,
                             cards = moodRail.cards,
-                            onCardClick = viewModel::openCard
+                            onCardClick = onBrowseCardClick
                         )
                         moodRail.songs.isNotEmpty() -> RailSection(
                             title = moodRail.title,
