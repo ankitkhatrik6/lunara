@@ -487,6 +487,7 @@ fun HomeScreen(
                     title = rail.title,
                     songs = rail.songs,
                     playingId = playingId,
+                    onPlayAll = { viewModel.playRail(rail) },
                     onSongClick = { song -> viewModel.playRail(rail, song) },
                     onSongActionClick = onSongActionClick
                 )

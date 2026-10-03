@@ -17,6 +17,15 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.21.0",
+        headline = "A player that stays with you",
+        highlights = listOf(
+            "The mini-player now expands into a full in-place player sheet, keeping Home, Search, Library, and browse pages underneath it.",
+            "Quick picks, Jump back in, recommendations, and live catalogue rails now expose Play all actions like a dedicated music home.",
+            "The full Player route remains available for direct navigation, while Lyrics still opens as its own focused screen."
+        )
+    ),
+    LunaraRelease(
         version = "2.20.0",
         headline = "The Lunara mix",
         highlights = listOf(

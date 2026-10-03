@@ -48,6 +48,7 @@ data class BottomNavItem(
     val unselectedIcon: ImageVector
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LunaraApp(
     playerManager: PlayerManager,
@@ -62,6 +63,7 @@ fun LunaraApp(
 
     var selectedActionSong by remember { mutableStateOf<Song?>(null) }
     var playlistTargetSong by remember { mutableStateOf<Song?>(null) }
+    var showPlayerSheet by remember { mutableStateOf(false) }
     var pendingSnackbar by remember { mutableStateOf<String?>(null) }
     val shareViewModel: ShareSongViewModel = hiltViewModel()
 
@@ -108,7 +110,7 @@ fun LunaraApp(
                     if (showMiniPlayer) {
                         MiniPlayerBar(
                             state = playbackState,
-                            onBarClick = { navController.navigate(Screen.Player.route) },
+                            onBarClick = { showPlayerSheet = true },
                             onPlayPauseClick = { playerManager.togglePlayPause() },
                             onNextClick = { playerManager.playNext() }
                         )
@@ -239,6 +241,29 @@ fun LunaraApp(
                 PlaylistDetailScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onSongActionClick = { selectedActionSong = it }
+                )
+            }
+        }
+    }
+
+    if (showPlayerSheet && playbackState.currentSong != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showPlayerSheet = false },
+            containerColor = LunaraBackground,
+            tonalElevation = 0.dp,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.96f)
+            ) {
+                PlayerScreen(
+                    onNavigateBack = { showPlayerSheet = false },
+                    onNavigateToLyrics = {
+                        showPlayerSheet = false
+                        navController.navigate(Screen.Lyrics.route)
+                    }
                 )
             }
         }
