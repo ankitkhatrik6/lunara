@@ -66,7 +66,7 @@ class InnerTubeBrowseTest {
 
         assertEquals(listOf("Maya Le", "Bahun Baje Kina Kaseko"), shelf.cards.map { it.title })
         assertEquals("MPREb_44T9rUkT28h", shelf.cards[0].browseId)
-        assertEquals("Single • John Rai", shelf.cards[0].subtitle)
+        assertEquals("John Rai", shelf.cards[0].subtitle)
         assertTrue(shelf.songs.isEmpty())
     }
 

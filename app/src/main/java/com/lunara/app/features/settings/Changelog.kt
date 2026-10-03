@@ -17,6 +17,14 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.17.3",
+        headline = "Browse test alignment",
+        highlights = listOf(
+            "Updated the catalogue parser test for cleaned single and album bylines.",
+            "Release verification now matches the metadata shown by the music-only Home feed."
+        )
+    ),
+    LunaraRelease(
         version = "2.17.2",
         headline = "Reliable catalogue credits",
         highlights = listOf(
