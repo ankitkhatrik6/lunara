@@ -166,7 +166,7 @@ fun WrappedIntro(onNext: () -> Unit) {
                 enter = fadeIn(animationSpec = tween(FADE_IN_DURATION, delayMillis = ICON_DELAY)) + slideInVertically(animationSpec = tween(SLIDE_IN_DURATION, delayMillis = ICON_DELAY))
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.app_logo),
+                    painter = painterResource(id = R.drawable.lunara_logo_white),
                     contentDescription = stringResource(id = R.string.wrapped_logo_content_description),
                     modifier = Modifier.size(100.dp)
                 )

@@ -29,9 +29,11 @@ import com.materialkolor.score.Score
 
 val DefaultThemeColor = Color(0xFFED5564)
 
-// Lunara brand colors (amber -> deep orange gradient)
-val LunaraThemeColor = Color(0xFFFFA726)
-val LunaraGradientEnd = Color(0xFFFF7043)
+// Lunara brand colors, sampled straight from the master artwork (logo.png):
+// the violet of the note head and the teal of the sphere behind it. The
+// wordmark and the accent gradient run from one to the other.
+val LunaraThemeColor = Color(0xFF8050F0)
+val LunaraGradientEnd = Color(0xFF30D0C0)
 
 /**
  * Cards and sheets in pure-black dark.
@@ -120,8 +122,8 @@ fun Bitmap.extractGradientColors(): List<Color> {
 /**
  * The pure-black dark scheme, matched to the iPhone build.
  *
- * Material generates every surface tone from the seed colour, so with an amber
- * seed a "black" theme still drew its cards in a warm brown-grey, and album-art
+ * Material generates every surface tone from the seed colour, so with a warm
+ * seed a "black" theme still drew its cards in a tinted grey, and album-art
  * theming moved them about as the artwork changed. Blacking out `surface` and
  * `background` alone left every container role behind, which is most of what a
  * settings page is made of.

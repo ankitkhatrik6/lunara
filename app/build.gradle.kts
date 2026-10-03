@@ -20,6 +20,23 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+/**
+ * Release signing credentials that live next to the keystore itself.
+ *
+ * `keystore/keystore.properties` is what a build from a checkout of this repo
+ * has available, so it has to be read here. Skipping it was the reason a
+ * `release` build silently fell back to the *debug* keystore: the release
+ * config pointed at a `keystore/release.keystore` that never existed and the
+ * passwords were looked for only in the environment. An APK signed with the
+ * Android debug key is what Play Protect reports as coming from an unknown
+ * developer, and it cannot be installed over a build signed with the real key.
+ */
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 val baseApplicationId = "com.lunara.app"
 val applicationIdOverride = System.getenv("LUNARA_APPLICATION_ID")?.takeIf { it.isNotBlank() }
 val appNameOverride = System.getenv("LUNARA_APP_NAME")?.takeIf { it.isNotBlank() }
@@ -27,15 +44,28 @@ val debugKeystorePathOverride = System.getenv("LUNARA_DEBUG_KEYSTORE_PATH")?.tak
 val debugKeystorePassword = System.getenv("LUNARA_DEBUG_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
 
 /**
- * Release signing credentials, from the environment or local.properties.
+ * Release signing credentials, from the environment, local.properties or the
+ * committed keystore/keystore.properties (in that order).
  *
  * Null when they are not set anywhere, which is the signal to sign with the
  * debug keystore instead of failing the build.
  */
 fun releaseSecret(name: String): String? =
-    (System.getenv(name) ?: localProperties.getProperty(name))?.takeIf { it.isNotBlank() }
+    (System.getenv(name) ?: localProperties.getProperty(name) ?: keystoreProperties.getProperty(name))
+        ?.takeIf { it.isNotBlank() }
 
 val releaseKeystorePathOverride = System.getenv("LUNARA_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+
+/**
+ * The file the release build is signed with. The env override wins, then the
+ * `storeFile` recorded in keystore.properties (relative to the repository
+ * root), then the conventional path. This is the same file the signing
+ * decision below checks for, so the two can never disagree.
+ */
+val releaseKeystoreFile: File =
+    releaseKeystorePathOverride?.let(::file)
+        ?: keystoreProperties.getProperty("storeFile")?.takeIf { it.isNotBlank() }?.let(rootProject::file)
+        ?: rootProject.file("keystore/lunara-release.jks")
 val releaseStorePassword =
     releaseSecret("STORE_PASSWORD")
         ?: System.getenv("LUNARA_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
@@ -115,8 +145,8 @@ android {
         applicationId = applicationIdOverride ?: baseApplicationId
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "3.0.0"
+        versionCode = 2
+        versionName = "3.1.0"
         resValue("string", "app_name", appNameOverride ?: "Lunara")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -182,10 +212,10 @@ android {
             keyPassword = debugKeyPassword
         }
         create("release") {
-            storeFile = releaseKeystorePathOverride?.let(::file) ?: file("keystore/release.keystore")
-            // From the environment, or from local.properties for a machine
-            // where exporting three variables before every build is a chore.
-            // Neither is committed.
+            storeFile = releaseKeystoreFile
+            // From the environment, local.properties, or keystore.properties
+            // for a machine where exporting variables before every build is a
+            // chore.
             storePassword = releaseStorePassword
             keyAlias = releaseKeyAlias
             keyPassword = releaseKeyPassword
@@ -224,7 +254,7 @@ android {
             // rather than fall back. A keystore you have no credentials for is
             // the same situation as not having one.
             signingConfig =
-                if ((releaseKeystorePathOverride?.let(::file)?.exists() == true || file("keystore/release.keystore").exists()) && releaseStorePassword != null) {
+                if (releaseKeystoreFile.exists() && releaseStorePassword != null) {
                     signingConfigs.getByName("release")
                 } else {
                     signingConfigs.getByName("debug")

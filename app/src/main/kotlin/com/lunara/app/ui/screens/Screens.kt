@@ -32,13 +32,6 @@ sealed class Screens(
         route = "search_input"
     )
 
-    object ListenTogether : Screens(
-        titleId = R.string.together,
-        iconIdInactive = R.drawable.group_outlined,
-        iconIdActive = R.drawable.group_filled,
-        route = "listen_together"
-    )
-
     object Yours : Screens(
         titleId = R.string.yours,
         iconIdInactive = R.drawable.grid_view,
@@ -54,6 +47,6 @@ sealed class Screens(
     )
 
     companion object {
-        val MainScreens = listOf(Home, Search, ListenTogether, Yours, Library)
+        val MainScreens = listOf(Home, Search, Yours, Library)
     }
 }

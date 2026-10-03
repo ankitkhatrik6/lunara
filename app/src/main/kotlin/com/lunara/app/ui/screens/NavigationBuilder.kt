@@ -93,7 +93,6 @@ import com.lunara.app.ui.screens.settings.UpdaterScreen
 import com.lunara.app.ui.screens.settings.integrations.DiscordSettings
 import com.lunara.app.ui.screens.settings.integrations.IntegrationScreen
 import com.lunara.app.ui.screens.settings.integrations.LastFMSettings
-import com.lunara.app.ui.screens.settings.integrations.ListenTogetherSettings
 
 import com.lunara.app.ui.screens.wrapped.WrappedScreen
 import com.lunara.app.utils.rememberEnumPreference
@@ -193,16 +192,6 @@ fun NavGraphBuilder.navigationBuilder(
         YoursCategoryScreen(navController, R.string.artists) {
             LibraryArtistsScreen(navController, onDeselect = {})
         }
-    }
-
-    composable(Screens.ListenTogether.route) {
-        ListenTogetherScreen(navController, showTopBar = false)
-    }
-
-    composable(
-        route = "listen_together_from_topbar",
-    ) {
-        ListenTogetherScreen(navController, showTopBar = true)
     }
 
     composable("history") {
@@ -518,10 +507,6 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/integrations/listenbrainz") {
         ListenBrainzSettings(navController)
-    }
-
-    composable(route = "settings/integrations/listen_together") {
-        ListenTogetherSettings(navController)
     }
 
     composable("settings/updater") {

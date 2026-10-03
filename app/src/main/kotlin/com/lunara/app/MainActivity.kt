@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
@@ -60,8 +59,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -119,7 +116,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.coroutineScope
 import androidx.lifecycle.lifecycleScope
@@ -130,7 +126,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import coil3.compose.AsyncImage
 import coil3.imageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -153,7 +148,6 @@ import com.lunara.app.constants.EnableLandscapeScalingKey
 import androidx.datastore.preferences.core.edit
 import com.lunara.app.constants.LastSeenVersionKey
 import com.lunara.app.constants.UpdateDeclinedVersionKey
-import com.lunara.app.constants.ListenTogetherUsernameKey
 import com.lunara.app.constants.LyricsProviderOrderKey
 import com.lunara.app.constants.MiniPlayerBottomSpacing
 import com.lunara.app.constants.MiniPlayerHeight
@@ -188,7 +182,6 @@ import com.lunara.app.constants.OnboardingCompletedKey
 import com.lunara.app.ui.component.LunaraSnackbarHost
 import com.lunara.app.ui.component.LunaraSplash
 import com.lunara.app.ui.screens.OnboardingScreen
-import com.lunara.app.ui.component.AccountSettingsDialog
 import com.lunara.app.ui.component.AppNavigationBar
 import com.lunara.app.ui.component.AppNavigationRail
 import com.lunara.app.ui.component.BottomSheetMenu
@@ -233,7 +226,6 @@ import com.lunara.app.utils.PlaylistLink
 import com.lunara.app.utils.SharedPlaylistImport
 import com.lunara.app.utils.reportException
 import com.lunara.app.utils.setAppLocale
-import com.lunara.app.viewmodels.HomeViewModel
 import com.lunara.app.widget.PlaylistWidgetReceiver
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -817,12 +809,10 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                val homeViewModel: HomeViewModel = hiltViewModel()
-                val accountImageUrl by homeViewModel.accountImageUrl.collectAsStateWithLifecycle()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val (previousTab, setPreviousTab) = rememberSaveable { mutableStateOf("home") }
 
-                val navigationItems = remember { Screens.MainScreens.filter { it != Screens.ListenTogether } }
+                val navigationItems = remember { Screens.MainScreens }
                 val routeIndexMap = remember(navigationItems) {
                     navigationItems.mapIndexed { i, s -> s.route to i }.toMap()
                 }
@@ -1111,7 +1101,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                var showAccountDialog by remember { mutableStateOf(false) }
                 var showSpotifyImportDialog by remember { mutableStateOf(false) }
 
                 val pauseListenHistory by rememberPreference(PauseListenHistoryKey, defaultValue = false)
@@ -1239,8 +1228,8 @@ class MainActivity : ComponentActivity() {
                                         },
                                         actions = {
                                             // In the library, bringing a playlist over is the
-                                            // thing people come here to do; Lunara Together keeps
-                                            // its place on every other screen.
+                                            // thing people come here to do, so it gets the
+                                            // top-bar slot there.
                                             if (currentRoute == Screens.Library.route) {
                                                 TextButton(
                                                     onClick = { showSpotifyImportDialog = true },
@@ -1266,42 +1255,6 @@ class MainActivity : ComponentActivity() {
                                                         text = stringResource(R.string.import_spotify),
                                                         style = MaterialTheme.typography.labelLarge,
                                                     )
-                                                }
-                                            } else {
-                                                TextButton(
-                                                    onClick = { navController.navigate("listen_together_from_topbar") },
-                                                ) {
-                                                    Image(
-                                                        painter = painterResource(R.drawable.lunara_logo),
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(20.dp),
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(stringResource(R.string.blaze_together))
-                                                }
-                                            }
-                                            IconButton(onClick = { showAccountDialog = true }) {
-                                                BadgedBox(badge = {
-                                                    if (latestVersionName != BuildConfig.VERSION_NAME) {
-                                                        Badge()
-                                                    }
-                                                }) {
-                                                    if (accountImageUrl != null) {
-                                                        AsyncImage(
-                                                            model = accountImageUrl,
-                                                            contentDescription = stringResource(R.string.account),
-                                                            modifier =
-                                                                Modifier
-                                                                    .size(24.dp)
-                                                                    .clip(CircleShape),
-                                                        )
-                                                    } else {
-                                                        Icon(
-                                                            painter = painterResource(R.drawable.account),
-                                                            contentDescription = stringResource(R.string.account),
-                                                            modifier = Modifier.size(24.dp),
-                                                        )
-                                                    }
                                                 }
                                             }
                                         },
@@ -1624,16 +1577,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    if (showAccountDialog) {
-                        AccountSettingsDialog(
-                            onDismiss = {
-                                showAccountDialog = false
-                                homeViewModel.refresh()
-                            },
-                            latestVersionName = latestVersionName,
-                        )
-                    }
-
                     sharedSong?.let { song ->
                         playerConnection?.let {
                             Dialog(
@@ -1766,22 +1709,6 @@ class MainActivity : ComponentActivity() {
 
         PlaylistLink.parse(uri)?.let { shared ->
             sharedPlaylist = shared
-            return
-        }
-
-        val listenCode =
-            uri.getQueryParameter("code")
-                ?: uri.getQueryParameter("room")
-                ?: uri.pathSegments.getOrNull(1)
-        // "listen" anywhere in the path, not only at the front: the invite page
-        // is served from a project site, so the link reads /lunara/listen and
-        // the segment it used to look for is second.
-        val isListenLink =
-            uri.pathSegments.any { it.equals("listen", ignoreCase = true) } ||
-                uri.host?.equals("listen", ignoreCase = true) == true
-        if (!listenCode.isNullOrBlank() && isListenLink) {
-            val username = dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
-            listenTogetherManager.joinRoom(listenCode, username)
             return
         }
 

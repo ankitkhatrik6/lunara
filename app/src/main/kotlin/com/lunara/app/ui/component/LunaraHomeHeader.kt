@@ -74,13 +74,12 @@ import java.util.Calendar
 
 /**
  * Lunara home header, ported from the original Flutter app:
- * top row (account | logo + wordmark | settings), greeting card with the
+ * top row (logo + wordmark | settings), greeting card with the
  * hero image overflowing above the card, and a rounded search bar.
  */
 @Composable
 fun LunaraHomeHeader(
     userName: String = stringResource(R.string.blaze_greeting_default_name),
-    onAccountClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onMicClick: () -> Unit = {},
@@ -100,21 +99,16 @@ fun LunaraHomeHeader(
     val iconTint = if (isDark) Color.White else Color(0xDE000000)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Header row: account | logo + "Lunara" | settings
+        // Header row: logo + "Lunara" | settings. The account button that used
+        // to sit on the left is gone with the rest of the account surface; the
+        // spacer keeps the wordmark centred against the settings button.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
         ) {
-            IconButton(onClick = onAccountClick) {
-                Icon(
-                    painter = painterResource(R.drawable.person),
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(28.dp),
-                )
-            }
+            Spacer(Modifier.size(48.dp))
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,

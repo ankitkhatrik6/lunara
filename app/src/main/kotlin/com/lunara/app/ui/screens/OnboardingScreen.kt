@@ -2,7 +2,7 @@
  * Lunara Project (C) 2026
  * Licensed under GPL-3.0 | See NOTICE for contributors
  *
- * First-run onboarding: four pages that show what Lunara does, each with a pair
+ * First-run onboarding: three pages that show what Lunara does, each with a pair
  * of phone frames illustrating the feature. Shown once, then never again.
  */
 
@@ -110,7 +110,6 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         listOf(
             OnboardPage(R.string.onboard_1_title, R.string.onboard_1_body, R.drawable.play, OnboardScreen.HOME, OnboardScreen.LYRICS),
             OnboardPage(R.string.onboard_2_title, R.string.onboard_2_body, R.drawable.lyrics, OnboardScreen.LYRICS, OnboardScreen.HOME),
-            OnboardPage(R.string.onboard_3_title, R.string.onboard_3_body, R.drawable.group_add, OnboardScreen.TOGETHER, OnboardScreen.HOME),
             OnboardPage(R.string.onboard_4_title, R.string.onboard_4_body, R.drawable.gradient, OnboardScreen.THEME, OnboardScreen.LYRICS),
         )
     }

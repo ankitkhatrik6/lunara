@@ -71,10 +71,8 @@ import com.lunara.app.BuildConfig
 import com.lunara.app.LocalChangelogState
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.R
-import com.lunara.app.constants.AccountNameKey
 import com.lunara.app.constants.DarkModeKey
 import com.lunara.app.constants.DynamicThemeKey
-import com.lunara.app.constants.InnerTubeCookieKey
 import com.lunara.app.constants.PureBlackKey
 import com.lunara.app.constants.PureBlackMiniPlayerKey
 import com.lunara.app.ui.component.IconButton
@@ -83,12 +81,7 @@ import com.lunara.app.utils.Updater
 import com.lunara.app.ui.utils.backToMain
 import com.lunara.app.utils.rememberEnumPreference
 import com.lunara.app.utils.rememberPreference
-import com.lunara.app.viewmodels.HomeViewModel
-import com.lunara.innertube.utils.parseCookieString
-import coil3.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.fillMaxSize
 
 private class SettingRow(
@@ -126,14 +119,7 @@ fun SettingsScreen(
         Updater.isUpdateAvailable(BuildConfig.VERSION_NAME, latestVersionName)
     var query by rememberSaveable { mutableStateOf("") }
 
-    // Profile + quick-toggle state for the landing header. The name and picture come
-    // from the account YouTube reports, the same place Home and the account sheet read,
-    // rather than a stored string that is only written at sign-in.
-    val (innerTubeCookie) = rememberPreference(InnerTubeCookieKey, "")
-    val homeViewModel: HomeViewModel = hiltViewModel()
-    val accountName by homeViewModel.accountName.collectAsStateWithLifecycle()
-    val accountImageUrl by homeViewModel.accountImageUrl.collectAsStateWithLifecycle()
-    val isLoggedIn = remember(innerTubeCookie) { "SAPISID" in parseCookieString(innerTubeCookie) }
+    // Appearance state for the quick toggles at the top of the page.
     val (darkMode, onDarkModeChange) = rememberEnumPreference(DarkModeKey, DarkMode.AUTO)
     val (dynamicTheme, onDynamicThemeChange) = rememberPreference(DynamicThemeKey, true)
     val (pureBlack, setPureBlack) = rememberPreference(PureBlackKey, true)
@@ -145,27 +131,17 @@ fun SettingsScreen(
         setPureBlackMiniPlayer(enabled)
     }
 
-    // Lunara keeps a small, essential settings surface: appearance, content
-    // (downloads/storage), a data backup, and about. Everything else - player
-    // tuning, EQ, sleep timer, integrations, listen-together, Android Auto and
-    // accounts - is not part of the Lunara experience.
+    // Lunara keeps a deliberately small settings surface: the appearance
+    // toggles above, then appearance detail, storage and about. Everything
+    // else - player tuning, EQ, sleep timer, integrations and Android Auto -
+    // is not part of the Lunara experience.
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
         stringResource(R.string.settings_group_personalize) to listOf(
             SettingRow(R.drawable.palette, stringResource(R.string.appearance), stringResource(R.string.hint_appearance)) {
                 navController.navigate("settings/appearance")
             },
-        ),
-        stringResource(R.string.settings_group_content) to listOf(
-            SettingRow(R.drawable.language, stringResource(R.string.content), stringResource(R.string.hint_content)) {
-                navController.navigate("settings/content")
-            },
             SettingRow(R.drawable.storage, stringResource(R.string.storage), stringResource(R.string.hint_storage)) {
                 navController.navigate("settings/storage")
-            },
-        ),
-        stringResource(R.string.settings_group_privacy_data) to listOf(
-            SettingRow(R.drawable.restore, stringResource(R.string.backup_restore), stringResource(R.string.hint_backup)) {
-                navController.navigate("settings/backup_restore")
             },
         ),
         stringResource(R.string.settings_group_about) to buildList {
@@ -174,9 +150,6 @@ fun SettingsScreen(
             })
             add(SettingRow(R.drawable.newspaper, stringResource(R.string.changelog), stringResource(R.string.hint_changelog)) {
                 showChangelog.value = true
-            })
-            add(SettingRow(R.drawable.bug_report, stringResource(R.string.report_problem), stringResource(R.string.hint_report_problem)) {
-                showBugReport = true
             })
             if (BuildConfig.UPDATER_AVAILABLE) {
                 add(SettingRow(R.drawable.update, stringResource(R.string.updater), stringResource(R.string.hint_updater)) {
@@ -375,74 +348,6 @@ private fun LunaraSettingRow(row: SettingRow, colorIndex: Int) {
             }
             Text(
                 text = row.subtitle,
-                fontSize = 12.5.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Icon(
-            painter = painterResource(R.drawable.navigate_next),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
-@Composable
-private fun ProfileHeader(name: String, imageUrl: String?, isLoggedIn: Boolean, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-                    ),
-                ),
-            )
-            .padding(14.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    painter = painterResource(R.drawable.person),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = name,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(if (isLoggedIn) R.string.manage_account else R.string.tap_to_sign_in),
                 fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
