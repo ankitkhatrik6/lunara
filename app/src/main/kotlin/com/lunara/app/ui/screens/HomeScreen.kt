@@ -137,7 +137,6 @@ import com.lunara.app.playback.queues.YouTubeQueue
 import com.lunara.app.ui.component.AlbumGridItem
 import com.lunara.app.ui.component.ArtistGridItem
 import com.lunara.app.ui.component.LunaraHomeHeader
-import com.lunara.app.BuildConfig
 import com.lunara.app.ui.component.ChipsRow
 import com.lunara.app.ui.component.HideOnScrollFAB
 import com.lunara.app.ui.component.LocalBottomSheetPageState
