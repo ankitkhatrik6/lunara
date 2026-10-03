@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.20.0",
+        headline = "The Lunara mix",
+        highlights = listOf(
+            "Quick picks now leads Home from your favorites and listening history, alongside Jump back in and artist radio recommendations.",
+            "Live YouTube Music shelves remain the source for discovery, so moods, Indian music, Ghazal and Sufi playlists, new releases, and community-style mixes stay current instead of being hardcoded.",
+            "Catalogue cards keep their own type: songs play, while albums, playlists, and artists open full browse pages with nested songs and collections.",
+            "Home rail cards now use a consistent premium size and spacing so artwork, credits, and actions scan like a dedicated music surface."
+        )
+    ),
+    LunaraRelease(
         version = "2.19.1",
         headline = "Feed artwork and player polish",
         highlights = listOf(

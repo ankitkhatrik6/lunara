@@ -16,6 +16,7 @@ object AppConstants {
     const val LRCLIB_BASE_URL = "https://lrclib.net/api"
     const val KUGOU_LYRICS_BASE_URL = "https://krcs.kugou.com"
     const val KUGOU_SEARCH_BASE_URL = "https://mobileservice.kugou.com/api/v3/search/song"
+    const val LYRICS_PLUS_BASE_URL = "https://lyricsplus.binimum.org"
     
     // Notification & Media Channel
     const val PLAYBACK_NOTIFICATION_CHANNEL_ID = "lunara_playback_channel"

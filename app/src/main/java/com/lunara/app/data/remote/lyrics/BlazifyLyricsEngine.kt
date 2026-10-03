@@ -50,6 +50,11 @@ class BlazifyLyricsEngine @Inject constructor(
         // 3. KuGou is especially useful for Indian and regional catalogues.
         getKugouLyrics(cleanTitle, cleanArtist, durationSec)?.let { return@withContext it }
 
+        // 4. LyricsPlus is a useful line-synced fallback when the regional catalogue is absent.
+        getLyricsPlusLyrics(cleanTitle, cleanArtist, durationSec, album)?.let {
+            return@withContext it
+        }
+
         // 3. Fallback placeholder
         Lyrics(
             songId = songId,
@@ -137,6 +142,33 @@ class BlazifyLyricsEngine @Inject constructor(
             parameter("accesskey", candidate.accessKey)
         }.body<KugouLyricsDownloadResponse>().content
         parseLrcLyrics("kugou", encoded.decodeBase64String())
+    }.getOrNull()
+
+    private suspend fun getLyricsPlusLyrics(
+        title: String,
+        artist: String,
+        durationSec: Int,
+        album: String?
+    ): Lyrics? = runCatching {
+        val response = httpClient.get("${AppConstants.LYRICS_PLUS_BASE_URL}/v2/lyrics/get") {
+            parameter("title", title)
+            parameter("artist", artist)
+            if (durationSec > 0) parameter("duration", durationSec)
+            if (!album.isNullOrBlank()) parameter("album", album)
+        }.body<LyricsPlusResponse>()
+        val lines = response.lyrics.orEmpty()
+            .filter { it.text.isNotBlank() }
+            .sortedBy { it.time }
+        if (lines.isEmpty()) return null
+        parseLrcLyrics(
+            "lyricsplus",
+            lines.joinToString("\n") { line ->
+                val minutes = line.time / 60_000
+                val seconds = (line.time % 60_000) / 1_000
+                val centiseconds = (line.time % 1_000) / 10
+                "[%02d:%02d.%02d]%s".format(minutes, seconds, centiseconds, line.text.trim())
+            }
+        )
     }.getOrNull()
 
     /**
@@ -227,3 +259,14 @@ private data class KugouLyricsCandidate(
 
 @Serializable
 private data class KugouLyricsDownloadResponse(val content: String = "")
+
+@Serializable
+private data class LyricsPlusResponse(
+    val lyrics: List<LyricsPlusLine> = emptyList()
+)
+
+@Serializable
+private data class LyricsPlusLine(
+    val time: Long = 0,
+    val text: String = ""
+)

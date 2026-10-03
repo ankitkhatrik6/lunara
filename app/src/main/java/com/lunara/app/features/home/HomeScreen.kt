@@ -290,6 +290,17 @@ class HomeViewModel @Inject constructor(
         if (liked.isEmpty()) return emptyList()
 
         val rails = mutableListOf<HomeRail>()
+        val quickPicks = (state.favoriteSongs + state.recentlyPlayed)
+            .distinctBy { it.id }
+            .take(12)
+        if (quickPicks.isNotEmpty()) {
+            rails += HomeRail(
+                id = "personal_quick_picks",
+                title = "Quick picks",
+                songs = quickPicks,
+                isLoading = false
+            )
+        }
         if (state.recentlyPlayed.isNotEmpty()) {
             rails += HomeRail(
                 id = "personal_jump_back",
@@ -676,7 +687,7 @@ private fun RailSection(
     onSongClick: (Song) -> Unit,
     onSongActionClick: (Song) -> Unit
 ) {
-    Column(modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
+    Column(modifier = Modifier.padding(top = 12.dp, bottom = 14.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -686,7 +697,7 @@ private fun RailSection(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 color = LunaraTextPrimary
             )
             if (onPlayAll != null && songs.isNotEmpty()) {
@@ -735,7 +746,7 @@ private fun RailSongCard(
 ) {
     Column(
         modifier = Modifier
-            .width(130.dp)
+            .width(148.dp)
             .clickable(onClick = onClick)
     ) {
         Box {
@@ -743,7 +754,7 @@ private fun RailSongCard(
                 url = song.artworkUrl,
                 contentDescription = song.title,
                 modifier = Modifier
-                    .size(130.dp)
+                    .size(148.dp)
                     .clip(RoundedCornerShape(14.dp))
             )
 
@@ -853,10 +864,10 @@ private fun CardRailSection(
     cards: List<BrowseCard>,
     onCardClick: (BrowseCard) -> Unit
 ) {
-    Column(modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
+    Column(modifier = Modifier.padding(top = 12.dp, bottom = 14.dp)) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = LunaraTextPrimary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
@@ -879,14 +890,14 @@ private fun CardRailSection(
 private fun BrowseCardTile(card: BrowseCard, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(130.dp)
+            .width(148.dp)
             .clickable(onClick = onClick)
     ) {
         LunaraArtwork(
             url = card.artworkUrl,
             contentDescription = card.title,
             modifier = Modifier
-                .size(130.dp)
+                .size(148.dp)
                 .clip(RoundedCornerShape(14.dp))
         )
         Spacer(modifier = Modifier.height(8.dp))
