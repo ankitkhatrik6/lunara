@@ -227,10 +227,7 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(greeting = greeting, greetingMessage = message) }
     }
 
-    /**
-     * History is collected as its own flow so a slow network feed can never hold back the
-     * "Recently played" row.
-     */
+    /** History is collected as the personalization signal for the Jump back in rail. */
     private fun observeHistory() {
         viewModelScope.launch {
             libraryRepository.getHistory().collect { history ->
@@ -423,8 +420,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun playRecent(song: Song) = playSong(song, _uiState.value.recentlyPlayed)
-
     /** Plays [song] (or the first track) inside [rail]. */
     fun playRail(rail: HomeRail, song: Song? = null) {
         val queue = rail.songs
@@ -460,18 +455,6 @@ fun HomeScreen(
                 greeting = uiState.greeting,
                 message = uiState.greetingMessage
             )
-        }
-
-        if (uiState.recentlyPlayed.isNotEmpty()) {
-            item {
-                RailSection(
-                    title = "Recently played",
-                    songs = uiState.recentlyPlayed,
-                    playingId = playingId,
-                    onSongClick = { song -> viewModel.playRecent(song) },
-                    onSongActionClick = onSongActionClick
-                )
-            }
         }
 
         if (uiState.isOfflineAndEmpty) {

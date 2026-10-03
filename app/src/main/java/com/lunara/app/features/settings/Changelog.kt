@@ -17,6 +17,16 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.18.0",
+        headline = "Real music metadata",
+        highlights = listOf(
+            "Home song rows now read artist credits from YouTube Music bylines, avoiding Unknown Artist when the catalogue puts credits in a different field.",
+            "Album artwork now upgrades square and YouTube thumbnail URLs to the largest available cover size.",
+            "Recently played is no longer a duplicate Home section; the same history powers Jump back in instead.",
+            "Playback continues to use YouTube Music catalogue entries and audio-only stream formats, never video shelves or video playback URLs."
+        )
+    ),
+    LunaraRelease(
         version = "2.17.3",
         headline = "Browse test alignment",
         highlights = listOf(

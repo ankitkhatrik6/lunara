@@ -396,7 +396,9 @@ object InnerTubeParser {
     private fun parseResponsiveSong(renderer: JsonObject): Song? {
         val item = parseResponsiveItem(renderer) ?: return null
         val videoId = item.videoId ?: return null
-        val credits = item.subtitle.subtitleParts()
+        val byline = renderer.obj("shortBylineText")?.runsText()
+            ?: renderer.obj("longBylineText")?.runsText()
+        val credits = (byline ?: item.subtitle).subtitleParts()
         return Song(
             id = "yt_$videoId",
             title = item.title,
@@ -498,7 +500,12 @@ object InnerTubeParser {
 
     /** YouTube returns thumbnails sized for the web client; ask for a phone sized one. */
     private fun String.upscaledArtwork(): String {
-        val marker = indexOf("=w")
-        return if (marker > 0) substring(0, marker) + "=w1000-h1000-l90-rj" else this
+        return when {
+            contains("i.ytimg.com/vi/") ->
+                replace(Regex("/(default|mqdefault|hqdefault|sddefault|maxresdefault)\\.jpg.*$"), "/maxresdefault.jpg")
+            contains("=w") -> replace(Regex("=w\\d+-h\\d+(-l90-rj)?"), "=w1000-h1000-l90-rj")
+            contains("=s") -> replace(Regex("=s\\d+"), "=s1000")
+            else -> this
+        }
     }
 }
