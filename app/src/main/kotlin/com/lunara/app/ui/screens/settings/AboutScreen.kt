@@ -115,12 +115,6 @@ fun AboutScreen(
                     color = onHero,
                     letterSpacing = (-0.5).sp,
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HeroChip(BuildConfig.VERSION_NAME, onHero)
-                    HeroChip("STABLE", onHero)
-                    if (BuildConfig.DEBUG) HeroChip("DEBUG", onHero)
-                }
             }
         }
 

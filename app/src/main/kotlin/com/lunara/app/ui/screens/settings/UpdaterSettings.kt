@@ -44,7 +44,6 @@ import com.lunara.app.utils.ReleaseInfo
 import com.lunara.app.ui.component.UpdateDialog
 import com.lunara.app.constants.CheckForUpdatesKey
 import com.lunara.app.constants.UpdateNotificationsEnabledKey
-import com.lunara.app.constants.BetaUpdatesKey
 import com.lunara.app.ui.component.IconButton
 import com.lunara.app.ui.component.Material3SettingsGroup
 import com.lunara.app.ui.component.Material3SettingsItem
@@ -62,7 +61,6 @@ fun UpdaterScreen(
 ) {
     val (checkForUpdates, onCheckForUpdatesChange) = rememberPreference(CheckForUpdatesKey, true)
     val (updateNotifications, onUpdateNotificationsChange) = rememberPreference(UpdateNotificationsEnabledKey, true)
-    val (betaUpdates, onBetaUpdatesChange) = rememberPreference(BetaUpdatesKey, false)
 
     val context = LocalContext.current
     var isChecking by remember { mutableStateOf(false) }
@@ -87,7 +85,7 @@ fun UpdaterScreen(
             checkError = null
             withContext(Dispatchers.IO) {
                 Updater
-                    .checkForUpdate(forceRefresh = true, includeBetas = betaUpdates)
+                    .checkForUpdate(forceRefresh = true)
                     .onSuccess { (releaseInfo, hasUpdate) ->
                         if (releaseInfo != null) {
                             latestVersion = releaseInfo.versionName
@@ -102,17 +100,6 @@ fun UpdaterScreen(
             }
             isChecking = false
         }
-    }
-
-    // A result from before the switch changed answers the wrong question, so it goes.
-    fun changeBetaUpdates(enabled: Boolean) {
-        onBetaUpdatesChange(enabled)
-        latestVersion = null
-        latestRelease = null
-        updateAvailable = false
-        changelogContent = null
-        checkedOnce = false
-        checkError = null
     }
 
     Column(
@@ -144,11 +131,6 @@ fun UpdaterScreen(
                     Material3SettingsItem(
                         title = {
                             Text(stringResource(R.string.version_format, BuildConfig.VERSION_NAME))
-                        },
-                        description = {
-                            val arch = BuildConfig.ARCHITECTURE
-                            val variant = if (BuildConfig.CAST_AVAILABLE) "GMS" else "FOSS"
-                            Text("$arch - $variant")
                         },
                     ),
                 ),
@@ -190,20 +172,6 @@ fun UpdaterScreen(
                         )
                     }
 
-                    add(
-                        Material3SettingsItem(
-                            title = { Text(stringResource(R.string.beta_updates)) },
-                            description = { Text(stringResource(R.string.beta_updates_desc)) },
-                            icon = painterResource(R.drawable.bug_report),
-                            trailingContent = {
-                                Switch(
-                                    checked = betaUpdates,
-                                    onCheckedChange = { changeBetaUpdates(it) },
-                                )
-                            },
-                            onClick = { changeBetaUpdates(!betaUpdates) },
-                        ),
-                    )
                 },
         )
 

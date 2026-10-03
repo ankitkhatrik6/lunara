@@ -810,7 +810,6 @@ val CountryCodeToName =
     )
 
 // Home header visibility (greeting card + search bar can be hidden).
-val ShowHomeGreetingKey = booleanPreferencesKey("showHomeGreeting")
 val ShowHomeSearchBarKey = booleanPreferencesKey("showHomeSearchBar")
 
 // How the selected item is highlighted in the bottom navigation bar.

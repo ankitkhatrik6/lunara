@@ -101,7 +101,6 @@ import com.lunara.app.constants.MiniPlayerBackgroundStyleKey
 import com.lunara.app.constants.MiniPlayerDesignKey
 import com.lunara.app.constants.NavBarStyle
 import com.lunara.app.constants.NavBarStyleKey
-import com.lunara.app.constants.ShowHomeGreetingKey
 import com.lunara.app.constants.ShowHomeSearchBarKey
 import com.lunara.app.constants.SlimNavBarKey
 import com.lunara.app.constants.UseNewMiniPlayerDesignKey
@@ -648,16 +647,6 @@ internal fun ThemePhoneFrame(modifier: Modifier = Modifier, content: @Composable
     }
 }
 
-private fun greetingLineRes(): Int {
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    return when {
-        hour in 5..11 -> R.string.home_greeting_morning
-        hour in 12..16 -> R.string.home_greeting_afternoon
-        hour in 17..20 -> R.string.home_greeting_evening
-        else -> R.string.home_greeting_night
-    }
-}
-
 /** A realistic mini Lunara home rendered with the chosen theme, so changes preview live. */
 @Composable
 internal fun ThemePhonePreview(
@@ -686,7 +675,6 @@ internal fun ThemePhonePreview(
     val (defaultTab) = rememberEnumPreference(DefaultOpenTabKey, NavigationTab.HOME)
     val (gridSize) = rememberEnumPreference(GridItemsSizeKey, GridItemSize.SMALL)
     val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
-    val (showGreetingCard) = rememberPreference(ShowHomeGreetingKey, defaultValue = true)
     val (showSearchPill) = rememberPreference(ShowHomeSearchBarKey, defaultValue = true)
     val (navStyle) = rememberEnumPreference(NavBarStyleKey, NavBarStyle.PILL)
     LunaraTheme(darkTheme = useDark, pureBlack = pureBlack, themeColor = themeColor) {
@@ -719,7 +707,7 @@ internal fun ThemePhonePreview(
             // UN-clipped sibling of an un-clipped outer box, so the hero spills out of
             // the card and a little over the wordmark — exactly like the real home.
             val onCard = cs.onPrimary
-            if (showGreetingCard) Box(modifier = Modifier.fillMaxWidth().height(68.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().height(68.dp)) {
                 // Card background (rounded, clipped).
                 Box(
                     modifier = Modifier
@@ -752,10 +740,6 @@ internal fun ThemePhonePreview(
                     // Explicit lineHeights kill the inherited tall line-boxes, compressing
                     // the block: the greeting sits lower, 'Enjoy the music' higher, with
                     // even padding above and below.
-                    Text(stringResource(greetingLineRes()), color = onCard, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, lineHeight = 9.5.sp, maxLines = 2)
-                    Text(stringResource(R.string.blaze_greeting_default_name), color = onCard.copy(alpha = 0.95f), fontSize = 7.5.sp, fontWeight = FontWeight.Bold, lineHeight = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    // The card's two buttons, in miniature: For you (cover square and label)
-                    // and Speed dial (cover square only). The real ones show song covers.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),

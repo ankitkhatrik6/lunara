@@ -86,7 +86,6 @@ import com.lunara.app.constants.SelectedThemeColorKey
 import com.lunara.app.constants.SliderStyle
 import com.lunara.app.constants.SliderStyleKey
 import com.lunara.app.constants.SquigglySliderKey
-import com.lunara.app.constants.ShowHomeGreetingKey
 import com.lunara.app.constants.ShowHomeSearchBarKey
 import com.lunara.app.constants.SlimNavBarKey
 import com.lunara.app.constants.UseNewMiniPlayerDesignKey
@@ -179,7 +178,6 @@ fun LookAndFeelScreen(
     val (slimNavBar, onSlimNavBarChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
     val (navBarStyle, onNavBarStyleChange) = rememberEnumPreference(NavBarStyleKey, NavBarStyle.PILL)
     var showNavBarStyleDialog by rememberSaveable { mutableStateOf(false) }
-    val (showHomeGreeting, onShowHomeGreetingChange) = rememberPreference(ShowHomeGreetingKey, defaultValue = true)
     val (showHomeSearchBar, onShowHomeSearchBarChange) = rememberPreference(ShowHomeSearchBarKey, defaultValue = true)
 
     var tab by rememberSaveable { mutableStateOf(LookFeelTab.THEME) }
@@ -272,15 +270,6 @@ fun LookAndFeelScreen(
                                             Switch(checked = slimNavBar, onCheckedChange = onSlimNavBarChange)
                                         },
                                         onClick = { onSlimNavBarChange(!slimNavBar) },
-                                    ),
-                                    Material3SettingsItem(
-                                        icon = painterResource(R.drawable.home_outlined),
-                                        title = { Text(stringResource(R.string.show_home_greeting)) },
-                                        description = { Text(stringResource(R.string.show_home_greeting_desc)) },
-                                        trailingContent = {
-                                            Switch(checked = showHomeGreeting, onCheckedChange = onShowHomeGreetingChange)
-                                        },
-                                        onClick = { onShowHomeGreetingChange(!showHomeGreeting) },
                                     ),
                                     Material3SettingsItem(
                                         icon = painterResource(R.drawable.search),

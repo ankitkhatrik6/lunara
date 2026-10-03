@@ -1229,8 +1229,6 @@ fun HomeScreen(
                     LunaraHomeHeader(
                         // Asked for by a user: greet the person, not "Music Lover",
                         // once we actually know who they are.
-                        userName = accountName.trim().takeIf { it.isNotEmpty() && isLoggedIn }
-                            ?: stringResource(R.string.blaze_greeting_default_name),
                         onSettingsClick = { navController.navigate("settings") },
                         onSearchClick = {
                             navController.navigate(Screens.Search.route)
