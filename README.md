@@ -1,6 +1,6 @@
 # Lunara
 
-Lunara is a GPL-3.0 Android music player forked from Blazify, with the account and social surfaces removed.
+Lunara is a GPL-3.0 Android music player with a sign-in-free, account-free listening experience.
 
 ## Included
 

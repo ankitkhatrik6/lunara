@@ -145,48 +145,25 @@ fun SettingsScreen(
         setPureBlackMiniPlayer(enabled)
     }
 
+    // Lunara keeps a small, essential settings surface: appearance, content
+    // (downloads/storage), a data backup, and about. Everything else - player
+    // tuning, EQ, sleep timer, integrations, listen-together, Android Auto and
+    // accounts - is not part of the Lunara experience.
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
         stringResource(R.string.settings_group_personalize) to listOf(
-            SettingRow(R.drawable.gradient, stringResource(R.string.look_and_feel), stringResource(R.string.look_and_feel_desc)) {
-                navController.navigate("settings/appearance/look_and_feel")
-            },
             SettingRow(R.drawable.palette, stringResource(R.string.appearance), stringResource(R.string.hint_appearance)) {
                 navController.navigate("settings/appearance")
             },
         ),
-        stringResource(R.string.settings_group_playback) to listOf(
-            SettingRow(R.drawable.play, stringResource(R.string.player_and_audio), stringResource(R.string.hint_player)) {
-                navController.navigate("settings/player")
-            },
-        ),
-        stringResource(R.string.settings_group_content) to buildList {
-            add(SettingRow(R.drawable.language, stringResource(R.string.content), stringResource(R.string.hint_content)) {
+        stringResource(R.string.settings_group_content) to listOf(
+            SettingRow(R.drawable.language, stringResource(R.string.content), stringResource(R.string.hint_content)) {
                 navController.navigate("settings/content")
-            })
-            add(SettingRow(R.drawable.lyrics, stringResource(R.string.lyrics), stringResource(R.string.hint_lyrics_home)) {
-                navController.navigate("settings/lyrics")
-            })
-            if (hasAndroidAuto) {
-                add(SettingRow(R.drawable.ic_android_auto, stringResource(R.string.android_auto), stringResource(R.string.hint_android_auto)) {
-                    navController.navigate("settings/android_auto")
-                })
-            }
-        },
-        stringResource(R.string.settings_group_connections) to listOf(
-            SettingRow(R.drawable.link, stringResource(R.string.integrations), stringResource(R.string.hint_integrations)) {
-                navController.navigate("settings/integrations")
-            },
-            SettingRow(R.drawable.group_outlined, stringResource(R.string.together), stringResource(R.string.hint_together_settings)) {
-                navController.navigate("settings/integrations/listen_together")
-            },
-        ),
-        stringResource(R.string.settings_group_privacy_data) to listOf(
-            SettingRow(R.drawable.security, stringResource(R.string.privacy), stringResource(R.string.hint_privacy)) {
-                navController.navigate("settings/privacy")
             },
             SettingRow(R.drawable.storage, stringResource(R.string.storage), stringResource(R.string.hint_storage)) {
                 navController.navigate("settings/storage")
             },
+        ),
+        stringResource(R.string.settings_group_privacy_data) to listOf(
             SettingRow(R.drawable.restore, stringResource(R.string.backup_restore), stringResource(R.string.hint_backup)) {
                 navController.navigate("settings/backup_restore")
             },
@@ -206,11 +183,6 @@ fun SettingsScreen(
                     navController.navigate("settings/updater")
                 })
             }
-            if (isAndroid12OrLater) {
-                add(SettingRow(R.drawable.link, stringResource(R.string.default_links), stringResource(R.string.hint_links)) {
-                    openDefaultLinksSettings(context)
-                })
-            }
         },
     )
 
@@ -223,13 +195,15 @@ fun SettingsScreen(
         Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
         Spacer(Modifier.height(8.dp))
 
-        ProfileHeader(
-            name = accountName.takeIf { it.isNotBlank() && isLoggedIn } ?: stringResource(R.string.guest),
-            imageUrl = accountImageUrl.takeIf { isLoggedIn },
-            isLoggedIn = isLoggedIn,
-            onClick = { navController.navigate(if (isLoggedIn) "account" else "login") },
+        // No accounts in Lunara: a plain brand header instead of a profile chip.
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 8.dp),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
 
         SettingsSearchField(query = query, onQueryChange = { query = it })
 

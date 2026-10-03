@@ -5,9 +5,9 @@ This application is based on the Metrolist project
 (https://github.com/MetrolistGroup/Metrolist), which is itself based on
 InnerTune. Both are licensed under the GNU General Public License v3.0.
 
-This repository is a modified GPL-3.0 fork of Blazify. Lunara removes account,
-social, recognition, and podcast-facing features while retaining the core
-music playback, InnerTube, library, browse, download, and lyrics architecture.
+Lunara is an independent GPL-3.0 Android music player built around core music
+playback, InnerTube discovery, library, browse, downloads, and lyrics, with a
+sign-in-free surface.
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
