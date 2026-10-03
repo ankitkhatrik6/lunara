@@ -21,11 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -81,9 +81,13 @@ jobs:
 
       - name: Build release APK and AAB
         env:
+          LUNARA_KEYSTORE_FILE: ${{ env.LUNARA_KEYSTORE_FILE }}
           LUNARA_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
           LUNARA_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
           LUNARA_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
         run: ./gradlew assembleRelease bundleRelease --stacktrace
 
       - name: Rename outputs

@@ -35,9 +35,16 @@ val debugKeystorePassword = System.getenv("LUNARA_DEBUG_KEYSTORE_PASSWORD")?.tak
 fun releaseSecret(name: String): String? =
     (System.getenv(name) ?: localProperties.getProperty(name))?.takeIf { it.isNotBlank() }
 
-val releaseStorePassword = releaseSecret("STORE_PASSWORD")
-val releaseKeyAlias = releaseSecret("KEY_ALIAS")
-val releaseKeyPassword = releaseSecret("KEY_PASSWORD")
+val releaseKeystorePathOverride = System.getenv("LUNARA_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+val releaseStorePassword =
+    releaseSecret("STORE_PASSWORD")
+        ?: System.getenv("LUNARA_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+val releaseKeyAlias =
+    releaseSecret("KEY_ALIAS")
+        ?: System.getenv("LUNARA_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+val releaseKeyPassword =
+    releaseSecret("KEY_PASSWORD")
+        ?: System.getenv("LUNARA_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
 val debugKeyAlias = System.getenv("LUNARA_DEBUG_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
 val debugKeyPassword = System.getenv("LUNARA_DEBUG_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
 val persistentDebugKeystoreFile = file("persistent-debug.keystore")
@@ -175,7 +182,7 @@ android {
             keyPassword = debugKeyPassword
         }
         create("release") {
-            storeFile = file("keystore/release.keystore")
+            storeFile = releaseKeystorePathOverride?.let(::file) ?: file("keystore/release.keystore")
             // From the environment, or from local.properties for a machine
             // where exporting three variables before every build is a chore.
             // Neither is committed.
@@ -217,7 +224,7 @@ android {
             // rather than fall back. A keystore you have no credentials for is
             // the same situation as not having one.
             signingConfig =
-                if (file("keystore/release.keystore").exists() && releaseStorePassword != null) {
+                if ((releaseKeystorePathOverride?.let(::file)?.exists() == true || file("keystore/release.keystore").exists()) && releaseStorePassword != null) {
                     signingConfigs.getByName("release")
                 } else {
                     signingConfigs.getByName("debug")
