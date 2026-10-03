@@ -428,7 +428,7 @@ object InnerTubeParser {
 
     private fun String?.cleanByline(): String? = this?.split(SEPARATOR)
         ?.map { it.trim() }
-        ?.filter { it.isNotBlank() && !it.isCreditNoise() && it.lowercase() !in kindLabels }
+        ?.filter { it.isNotBlank() && it.lowercase() !in kindLabels }
         ?.joinToString(SEPARATOR)
         ?.takeIf { it.isNotBlank() }
 
