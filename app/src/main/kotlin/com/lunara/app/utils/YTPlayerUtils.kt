@@ -8,7 +8,7 @@ package com.lunara.app.utils
 import android.net.ConnectivityManager
 import android.net.Uri
 import androidx.media3.common.PlaybackException
-import com.lunara.innertube.NewPipeExtractor
+import com.lunara.app.utils.cipher.LunaraExtractor
 import com.lunara.innertube.YouTube
 import com.lunara.innertube.models.YouTubeClient
 import com.lunara.innertube.models.YouTubeClient.Companion.ANDROID_CREATOR
@@ -637,14 +637,11 @@ object YTPlayerUtils {
                 Timber.tag(logTag).d("Player response status OK for client: ${if (clientIndex == -1) MAIN_CLIENT.clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName}")
 
                 // Skip NewPipe for age-restricted content (NewPipe doesn't use our auth)
-                val responseToUse = if (wasOriginallyAgeRestricted) {
-                    Timber.tag(logTag).d("Skipping NewPipe for age-restricted content")
-                    streamPlayerResponse
-                } else {
-                    // Try to get streams using newPipePlayer method
-                    val newPipeResponse = YouTube.newPipePlayer(videoId, streamPlayerResponse)
-                    newPipeResponse ?: streamPlayerResponse
-                }
+                // The response is used exactly as the client returned it. It used
+                // to be handed to the bundled extractor first, to fill in an
+                // address for every format; that path was switched off and is
+                // gone with the library.
+                val responseToUse = streamPlayerResponse
 
                 if (audioConfig == null) {
                     audioConfig = responseToUse.playerConfig?.audioConfig
@@ -722,17 +719,16 @@ object YTPlayerUtils {
                         // shape it cannot read. That address still carries its
                         // throttle, and the content server answers it with a 403, so
                         // the song fails on a step that reported no error at all.
-                        // Ask the library that follows those rewrites for a second
-                        // opinion before giving up on the client entirely.
+                        // Ask once more before giving up on the client: the first
+                        // attempt may have landed while the shared WebView was
+                        // being rebuilt after its renderer was killed.
                         if (streamUrl == originalUrl && ("&n=" in originalUrl || "?n=" in originalUrl)) {
-                            val viaNewPipe = withContext(Dispatchers.IO) {
-                                NewPipeExtractor.deobfuscateThrottling(videoId, originalUrl)
-                            }
-                            if (viaNewPipe != null && viaNewPipe != originalUrl) {
-                                Timber.tag(TAG).d("N-transform recovered via NewPipe")
-                                streamUrl = viaNewPipe
+                            val retried = LunaraExtractor.deobfuscateThrottling(originalUrl)
+                            if (retried != null) {
+                                Timber.tag(TAG).d("N-transform recovered on the second attempt")
+                                streamUrl = retried
                             } else {
-                                Timber.tag(TAG).w("N-transform unavailable from both sources")
+                                Timber.tag(TAG).w("N-transform unavailable")
                             }
                         }
 
@@ -1082,7 +1078,7 @@ object YTPlayerUtils {
             null
         }
 
-        val result = NewPipeExtractor.getSignatureTimestamp(videoId)
+        val result = LunaraExtractor.signatureTimestamp()
         return result.fold(
             onSuccess = { timestamp ->
                 val chosen = cipherSts ?: timestamp
@@ -1159,43 +1155,13 @@ object YTPlayerUtils {
             Timber.tag(logTag).d("Custom cipher deobfuscation failed")
         }
 
-        // Always try NewPipe signature deobfuscation - it doesn't need auth,
-        // it just applies the cipher algorithm from player.js.
-        // This is critical for privately-owned tracks where skipNewPipe is true.
-        val deobfuscatedUrl = NewPipeExtractor.getStreamUrl(format, videoId)
+        // Unscramble the address with the site's own player script, without the
+        // bounded attempt above: it needs no auth, and for privately-owned tracks
+        // (skipNewPipe) it is the only attempt there is.
+        val deobfuscatedUrl = LunaraExtractor.streamUrl(format, videoId)
         if (deobfuscatedUrl != null) {
-            Timber.tag(logTag).d("Stream URL obtained via NewPipe deobfuscation")
+            Timber.tag(logTag).d("Stream URL obtained by unscrambling the stream address")
             return deobfuscatedUrl
-        }
-
-        // Skip StreamInfo fallback for age-restricted or private content
-        // (StreamInfo fetch may fail without auth for these)
-        if (skipNewPipe) {
-            Timber.tag(logTag).d("Skipping StreamInfo fallback for age-restricted/private content")
-            return null
-        }
-
-        // Fallback: try to get URL from StreamInfo
-        Timber.tag(logTag).d("Trying StreamInfo fallback for URL")
-        val streamUrls = YouTube.getNewPipeStreamUrls(videoId)
-        if (streamUrls.isNotEmpty()) {
-            val streamUrl = streamUrls.find { it.first == format.itag }?.second
-            if (streamUrl != null) {
-                Timber.tag(logTag).d("Stream URL obtained from StreamInfo")
-                return streamUrl
-            }
-
-            // If exact itag not found, try to find any audio stream
-            val audioStream = streamUrls.find { urlPair ->
-                playerResponse.streamingData?.adaptiveFormats?.any {
-                    it.itag == urlPair.first && it.isAudio
-                } == true
-            }?.second
-
-            if (audioStream != null) {
-                Timber.tag(logTag).d("Audio stream URL obtained from StreamInfo (different itag)")
-                return audioStream
-            }
         }
 
         Timber.tag(logTag).e("Failed to get stream URL")

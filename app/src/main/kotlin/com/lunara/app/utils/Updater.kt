@@ -44,50 +44,18 @@ object Updater {
     private const val CHECK_INTERVAL_MILLIS = 2 * 60 * 60 * 1000L // 2 hours
 
     /**
-     * Where to ask about releases — and, more importantly, where that answer
-     * comes from.
+     * Where the releases are, asked for through the API this project publishes
+     * them with.
      *
-     * This used to be one address written into the application. Every copy ever
-     * installed asked that one place, which meant the day it stopped answering
-     * was the day every installed copy stopped hearing about new versions, with
-     * nothing anybody could do from this side. That is not a hypothetical: it
-     * happened, and the only way left to reach people was to edit the posts they
-     * had once found us through.
-     *
-     * So the address is now looked up at a place we own outright, rather than
-     * being a fact about the application. Moving to another host becomes a
-     * one-line edit to a file on our own domain, and every installed copy
-     * follows within a couple of hours. The built-in value below is only what to
-     * believe when the lookup itself cannot be reached.
-     *
-     * It is worth being plain about what this trusts: whoever controls that
-     * domain decides where updates are fetched from. What it cannot do is
-     * replace Lunara with something else — Android refuses an update that is
-     * not signed with the same key, so a wrong answer here can at worst offer a
-     * download that will not install.
+     * Lunara's builds are published as GitHub releases by the release workflow,
+     * so the updater asks GitHub's own API for them. It used to ask a
+     * third-party domain for a pointer first and fall back to a Codeberg mirror
+     * that has never carried a Lunara build, so on a fresh install the check
+     * could only ever fail.
      */
-    private const val HOME = "https://rajendrapandey.info.np/lunara/home.json"
-    private const val BUILT_IN_RELEASES = "https://codeberg.org/api/v1/repos/ankitkhatrik6/lunara"
+    private const val RELEASES_API = "https://api.github.com/repos/ankitkhatrik6/lunara"
 
-    @Volatile
-    private var releasesApi: String? = null
-
-    /**
-     * The release API to use, asked for once per run of the application.
-     *
-     * Quiet on failure by design: an unreachable pointer means carrying on with
-     * the address we shipped with, which is the behaviour this had before the
-     * lookup existed. Only an https address is accepted, so a hijacked or
-     * mistyped file cannot send the application somewhere unencrypted.
-     */
-    private suspend fun releasesApi(): String {
-        releasesApi?.let { return it }
-        val found = runCatching {
-            val said = JSONObject(client.get(HOME).bodyAsText()).optString("releases")
-            said.takeIf { it.startsWith("https://") && it.length < 300 }
-        }.getOrNull()
-        return (found ?: BUILT_IN_RELEASES).also { releasesApi = it }
-    }
+    private fun releasesApi(): String = RELEASES_API
 
     /**
      * Compares two version strings.

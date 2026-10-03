@@ -29,9 +29,6 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.ktor.client.encoding)
     implementation(libs.brotli)
-    implementation("com.github.rajendra7169:BlazifyExtractor:v1.0.0") {
-        exclude(group = "com.google.protobuf")
-    }
     implementation(libs.timber)
     testImplementation(libs.junit)
 
