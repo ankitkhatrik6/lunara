@@ -478,11 +478,12 @@ object InnerTubeParser {
 
     /** Best (largest) thumbnail of a row, upscaled for phone width. */
     private fun JsonObject.artworkUrl(): String? {
-        val renderer = findAllObjects(this, "musicThumbnailRenderer").firstOrNull()
-            ?: findAllObjects(this, "thumbnailRenderer").firstOrNull()
         // A queue row of the song radio carries its thumbnail directly instead of wrapping it
-        // in a renderer, so the row itself is the last place to look.
-        val thumbnails = (renderer ?: this).obj("thumbnail")?.arr("thumbnails")?.objects().orEmpty()
+        // in a renderer. Search every thumbnail wrapper because album tiles and song rows use
+        // different nesting levels across YouTube Music clients.
+        val thumbnails = findAllObjects(this, "thumbnail")
+            .flatMap { it.arr("thumbnails")?.objects().orEmpty() }
+            .ifEmpty { listOfNotNull(obj("thumbnail")) }
         val sized = thumbnails.filter { it.int("width") != null }
         val best = if (sized.isNotEmpty()) {
             sized.maxByOrNull { (it.int("width") ?: 0) * (it.int("height") ?: 0) }

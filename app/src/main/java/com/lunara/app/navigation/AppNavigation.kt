@@ -74,7 +74,11 @@ fun LunaraApp(
         BottomNavItem(Screen.Library.route, "Library", Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic)
     )
 
-    val showBottomBar = currentRoute in listOf(Screen.Home.route, Screen.Search.route, Screen.Library.route)
+    val showBottomBar = currentRoute !in listOf(
+        Screen.Player.route,
+        Screen.Lyrics.route,
+        Screen.Settings.route
+    )
     val hasActiveSong = playbackState.currentSong != null
     val showMiniPlayer = hasActiveSong && showBottomBar
 

@@ -17,6 +17,15 @@ data class LunaraRelease(
  */
 val LunaraChangelog: List<LunaraRelease> = listOf(
     LunaraRelease(
+        version = "2.19.1",
+        headline = "Feed artwork and player polish",
+        highlights = listOf(
+            "New release and album tiles now search all YouTube Music thumbnail wrappers for full cover artwork.",
+            "Catalogue bylines continue to show the real artist instead of a missing or generic label.",
+            "The mini-player remains visible while browsing albums, playlists, and artist pages."
+        )
+    ),
+    LunaraRelease(
         version = "2.19.0",
         headline = "A real YouTube Music home",
         highlights = listOf(
