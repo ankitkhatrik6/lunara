@@ -604,7 +604,7 @@
     <string name="like_what_i_do">私の活動を気に入ってもらえましたか？</string>
     <string name="buy_mo_a_coffee">コーヒーをおごる</string>
     <string name="community_and_info">コミュニティと情報</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">お気に入りの曲を再生しますか？</string>
     <string name="yeah">はい</string>
     <string name="stands_with_palestine">このプロジェクトはパレスチナを支持しています 🇵🇸</string>
@@ -748,7 +748,7 @@
     <string name="recognition_notification_processing">認識中…</string>
     <string name="recognition_notification_no_match">一致する曲が見つかりませんでした</string>
     <string name="recognition_notification_failed">認識に失敗しました</string>
-    <string name="listen_on_Lunara">Lunaraで聴く</string>
+    <string name="listen_on_lunara">Lunaraで聴く</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">表示する項目</string>
     <string name="android_auto_reorder_hint">項目をタップするとオン/オフを切り替えられます。長押しで並び替えができます。先頭の項目がデフォルトで表示されます</string>

@@ -604,7 +604,7 @@
     <string name="like_what_i_do">ชอบผลงานของฉันไหม?</string>
     <string name="buy_mo_a_coffee">เลี้ยงกาแฟฉันสักแก้ว!</string>
     <string name="community_and_info">ชุมชนและข้อมูล</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">อยากเล่นเพลงโปรดของพวกเขาไหม?</string>
     <string name="yeah">ใช่เลย!</string>
     <string name="stands_with_palestine">โปรเจกต์นี้ขอยืนหยัดเคียงข้างปาเลสไตน์ 🇵🇸</string>
@@ -827,7 +827,7 @@
     <string name="recognition_notification_processing">กำลังระบุเพลง…</string>
     <string name="recognition_notification_no_match">ไม่พบผลลัพธ์ที่ตรงกัน</string>
     <string name="recognition_notification_failed">ระบุเพลงไม่สำเร็จ</string>
-    <string name="listen_on_Lunara">ฟังบน Lunara</string>
+    <string name="listen_on_lunara">ฟังบน Lunara</string>
     <string name="pin">ปักหมุด</string>
     <string name="unpin">เลิกปักหมุด</string>
     <string name="and">และ</string>

@@ -604,7 +604,7 @@
     <string name="like_what_i_do">喜欢我的作品？</string>
     <string name="buy_mo_a_coffee">请我喝杯咖啡！</string>
     <string name="community_and_info">社区与信息</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">想播放他们最喜欢的歌曲吗？</string>
     <string name="yeah">是的！</string>
     <string name="stands_with_palestine">本项目声援巴勒斯坦 🇵🇸</string>
@@ -750,7 +750,7 @@
     <string name="recognition_notification_processing">正在识别…</string>
     <string name="recognition_notification_no_match">未找到匹配</string>
     <string name="recognition_notification_failed">识别失败</string>
-    <string name="listen_on_Lunara">在 Lunara 上听</string>
+    <string name="listen_on_lunara">在 Lunara 上听</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">可见板块</string>
     <string name="android_auto_reorder_hint">点击某个板块即可启用或禁用。\n长按拖动手柄可重新排序。默认情况下将显示第一个板块</string>

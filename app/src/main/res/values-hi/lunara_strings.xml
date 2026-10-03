@@ -792,7 +792,7 @@
     <string name="recognition_notification_processing">पहचान रहे हैं…</string>
     <string name="recognition_notification_no_match">कोई मेल नहीं मिला</string>
     <string name="recognition_notification_failed">पहचान नहीं हो सकी</string>
-    <string name="listen_on_Lunara">Lunara पर सुनें</string>
+    <string name="listen_on_lunara">Lunara पर सुनें</string>
     <string name="map_csv_columns">CSV कॉलम मिलाएँ</string>
     <string name="first_row_is_header">पहली पंक्ति शीर्षक है</string>
     <string name="artist_name_column">कलाकार के नाम का कॉलम</string>
@@ -899,7 +899,7 @@
     <string name="like_what_i_do">मेरा काम पसंद आया?</string>
     <string name="buy_mo_a_coffee">मुझे एक कॉफ़ी पिलाएँ!</string>
     <string name="community_and_info">समुदाय और जानकारी</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">उनका पसंदीदा गाना चलाना चाहेंगे?</string>
     <string name="yeah">हाँ!</string>
     <string name="stands_with_palestine">यह प्रोजेक्ट फ़िलिस्तीन के साथ खड़ा है 🇵🇸</string>

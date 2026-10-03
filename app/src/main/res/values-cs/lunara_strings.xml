@@ -604,7 +604,7 @@
     <string name="like_what_i_do">Líbí se vám, co dělám?</string>
     <string name="buy_mo_a_coffee">Kupte mi kávu!</string>
     <string name="community_and_info">Komunita a informace</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Chcete přehrát autorovu oblíbenou skladbu?</string>
     <string name="yeah">Jasně!</string>
     <string name="stands_with_palestine">Tento projekt podporuje Palestinu 🇵🇸</string>
@@ -780,7 +780,7 @@
     <string name="recognition_notification_processing">Identifikuji…</string>
     <string name="recognition_notification_no_match">Nenalezena žádná shoda</string>
     <string name="recognition_notification_failed">Rozpoznávání selhalo</string>
-    <string name="listen_on_Lunara">Přehrát v Lunarau</string>
+    <string name="listen_on_lunara">Přehrát v Lunarau</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Viditelné sekce</string>
     <string name="android_auto_reorder_hint">Klepněte na sekci pro její povolení nebo zakázání.\nPodržte posuvník pro změnu pořadí. První sekce bude ve výchozím nastavení zobrazena</string>

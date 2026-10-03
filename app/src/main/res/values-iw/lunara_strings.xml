@@ -634,7 +634,7 @@
     <string name="recognition_notification_processing">מזהה...</string>
     <string name="recognition_notification_no_match">לא נמצאה התאמה</string>
     <string name="recognition_notification_failed">הזיהוי נכשל</string>
-    <string name="listen_on_Lunara">האזן ב-Lunara</string>
+    <string name="listen_on_lunara">האזן ב-Lunara</string>
     <string name="map_csv_columns">מפה עמודות CSV</string>
     <string name="first_row_is_header">השורה הראשונה היא כותרת עליונה</string>
     <string name="artist_name_column">עמודת שם האמן</string>

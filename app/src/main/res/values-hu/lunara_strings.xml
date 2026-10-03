@@ -520,7 +520,7 @@
     <string name="like_what_i_do">Tetszik, amit csinálok?</string>
     <string name="buy_mo_a_coffee">Hívjon meg egy kávéra!</string>
     <string name="community_and_info">Közösség &amp; információ</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Játszuk a kedvenc dalukat?</string>
     <string name="yeah">Naná!</string>
     <string name="stands_with_palestine">Ez a projekt Palesztina mellett áll 🇵🇸</string>
@@ -765,7 +765,7 @@
     <string name="recognition_notification_processing">Azonosítás…</string>
     <string name="recognition_notification_no_match">Nincs találat</string>
     <string name="recognition_notification_failed">Felismerés sikertelen</string>
-    <string name="listen_on_Lunara">Meghallgatás Lunara-en</string>
+    <string name="listen_on_lunara">Meghallgatás Lunara-en</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Látható részek</string>
     <string name="android_auto_reorder_hint">Koppintson egy szakaszra az engedélyezéséhez vagy letiltásához.\nNyomja meg hosszan a fogót az átrendezéshez. Alapértelmezés szerint az első szakasz jelenik meg</string>

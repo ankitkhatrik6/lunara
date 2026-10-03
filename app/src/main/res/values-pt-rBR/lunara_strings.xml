@@ -611,7 +611,7 @@
     <string name="like_what_i_do">Gosta do meu trabalho?</string>
     <string name="buy_mo_a_coffee">Me compre um café!</string>
     <string name="community_and_info">Comunidade e Informações</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Quer tocar sua música favorita?</string>
     <string name="yeah">Sim!</string>
     <string name="stands_with_palestine">Esse projeto apoia a Palestina 🇵🇸</string>
@@ -762,7 +762,7 @@
     <string name="recognition_notification_processing">Identificando…</string>
     <string name="recognition_notification_no_match">Nenhuma correspondência encontrada</string>
     <string name="recognition_notification_failed">Reconhecimento falhou</string>
-    <string name="listen_on_Lunara">Ouvir no Lunara</string>
+    <string name="listen_on_lunara">Ouvir no Lunara</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Seções visíveis</string>
     <string name="android_auto_reorder_hint">Toque em uma seção para ativar ou desativá-la.\nPressione e segure o botão de arrastar para reordenar. A primeira seção será mostrada como padrão</string>

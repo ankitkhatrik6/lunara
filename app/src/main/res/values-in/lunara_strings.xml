@@ -637,7 +637,7 @@
     <string name="like_what_i_do">Suka dengan yang saya lakukan?</string>
     <string name="buy_mo_a_coffee">Belikan saya kopi!</string>
     <string name="community_and_info">Komunitas &amp; Info</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Ingin memutar lagu favorit mereka?</string>
     <string name="yeah">Tentu!</string>
     <string name="stands_with_palestine">Proyek ini berpihak pada Palestina 🇵🇸</string>
@@ -779,7 +779,7 @@
     <string name="recognition_notification_processing">Mengidentifikasi…</string>
     <string name="recognition_notification_no_match">Tidak ditemukan kecocokan</string>
     <string name="recognition_notification_failed">Pengenalan gagal</string>
-    <string name="listen_on_Lunara">Dengarkan di Lunara</string>
+    <string name="listen_on_lunara">Dengarkan di Lunara</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Bagian yang terlihat</string>
     <string name="android_auto_reorder_hint">Ketuk bagian untuk mengaktifkan atau menonaktifkannya.\nTekan lama gagang seret untuk mengurutkan ulang. Bagian pertama akan ditampilkan secara default</string>

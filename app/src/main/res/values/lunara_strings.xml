@@ -352,7 +352,7 @@
     <string name="developer_github">GitHub</string>
     <string name="developer_website_url" translatable="false">https://rajendrapandey.info.np</string>
     <string name="developer_github_url" translatable="false">https://github.com/ankitkhatrik6</string>
-    <string name="Lunara_repo_url" translatable="false">https://github.com/ankitkhatrik6/lunara</string>
+    <string name="lunara_repo_url" translatable="false">https://github.com/ankitkhatrik6/lunara</string>
     <string name="current_version">Current version</string>
     <string name="version_format">Version: %s</string>
     <string name="update_settings">Update settings</string>
@@ -956,7 +956,7 @@
     <string name="recognition_notification_processing">Identifying…</string>
     <string name="recognition_notification_no_match">No match found</string>
     <string name="recognition_notification_failed">Recognition failed</string>
-    <string name="listen_on_Lunara">Listen on Lunara</string>
+    <string name="listen_on_lunara">Listen on Lunara</string>
 
     <!-- CSV Import Strings -->
     <string name="map_csv_columns">Map CSV columns</string>
@@ -1090,7 +1090,7 @@
     <string name="like_what_i_do">Like what I do?</string>
     <string name="buy_mo_a_coffee">Buy me a coffee!</string>
     <string name="community_and_info">Community &amp; Info</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Want to play their favorite song?</string>
     <string name="yeah">Yeah!</string>
     <string name="stands_with_palestine">This project stands with Palestine 🇵🇸</string>

@@ -405,7 +405,7 @@
     <string name="recognition_notification_processing">Identificando…</string>
     <string name="recognition_notification_no_match">Non se atoparon coincidencias</string>
     <string name="recognition_notification_failed">Fallou o recoñecemento</string>
-    <string name="listen_on_Lunara">Escoitar en Lunara</string>
+    <string name="listen_on_lunara">Escoitar en Lunara</string>
     <string name="map_csv_columns">Asociar columnas do CSV</string>
     <string name="first_row_is_header">A primeira fila é o encabezado</string>
     <string name="artist_name_column">Columna do nome do artista</string>
@@ -537,7 +537,7 @@
     <string name="like_what_i_do">Gústache o que fago?</string>
     <string name="buy_mo_a_coffee">Convídame a un café!</string>
     <string name="community_and_info">Comunidade e información</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Queres reproducir a súa canción favorita?</string>
     <string name="yeah">Si!</string>
     <string name="stands_with_palestine">Este proxecto apoia a Palestina 🇵🇸</string>

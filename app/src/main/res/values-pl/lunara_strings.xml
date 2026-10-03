@@ -672,7 +672,7 @@
     <string name="like_what_i_do">Podoba Ci się to co robię?</string>
     <string name="buy_mo_a_coffee">Kup mi kawę</string>
     <string name="community_and_info">Społeczność i informacje</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">Chcesz zagrać ich ulubioną piosenkę?</string>
     <string name="yeah">Spoko</string>
     <string name="stands_with_palestine">Ten projekt wspiera Palestynę 🇵🇸</string>
@@ -772,7 +772,7 @@
     <string name="recognition_notification_processing">Rozpoznawanie...</string>
     <string name="recognition_notification_no_match">Nie znaleziono dopasowania</string>
     <string name="recognition_notification_failed">Rozpoznawanie nie powiodło się</string>
-    <string name="listen_on_Lunara">Słuchaj na Lunara</string>
+    <string name="listen_on_lunara">Słuchaj na Lunara</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Widoczne sekcje</string>
     <string name="android_auto_reorder_hint">Dotknij sekcji aby ją włączyć lub wyłączyć\nPrzytrzymaj ikonę przeciągania aby zmienić kolejność. Domyślnie wyświetlana będzie pierwsza sekcja.</string>

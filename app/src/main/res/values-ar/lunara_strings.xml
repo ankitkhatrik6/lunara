@@ -624,7 +624,7 @@
     <string name="like_what_i_do">هل يعجبك ما أفعله؟</string>
     <string name="buy_mo_a_coffee">اشترِ لي قهوة</string>
     <string name="community_and_info">المجتمع والمعلومات</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">هل تريد تشغيل أغنيتهم المفضلة؟</string>
     <string name="yeah">نعم</string>
     <string name="stands_with_palestine">هذا المشروع يقف مع فلسطين 🇵🇸</string>
@@ -929,7 +929,7 @@
     <string name="recognition_notification_processing">جارٍ التعرّف…</string>
     <string name="recognition_notification_no_match">لم يُعثر على تطابق</string>
     <string name="recognition_notification_failed">فشل التعرّف</string>
-    <string name="listen_on_Lunara">استمع على Lunara</string>
+    <string name="listen_on_lunara">استمع على Lunara</string>
     <string name="discord_status_connecting">جارٍ الاتصال بـ Discord…</string>
     <string name="discord_status_reconnecting">جارٍ إعادة الاتصال بـ Discord…</string>
     <string name="discord_status_connected">متصل</string>

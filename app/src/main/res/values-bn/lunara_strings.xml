@@ -513,7 +513,7 @@
     <string name="like_what_i_do">আমার কাজ কি আপনার ভালো লাগে?</string>
     <string name="buy_mo_a_coffee">আমাকে এক কাপ কফি কিনে দাও!</string>
     <string name="community_and_info">কমিউনিটি ও তথ্য</string>
-    <string name="Lunara">মেট্রোলিস্ট</string>
+    <string name="lunara">মেট্রোলিস্ট</string>
     <string name="wanna_play_favorite_song">তাদের প্রিয় গানটি বাজাতে চান?</string>
     <string name="yeah">হ্যাঁ!</string>
     <string name="stands_with_palestine">এই প্রকল্পটি ফিলিস্তিনের পাশে আছে 🇵🇸</string>
@@ -797,7 +797,7 @@
     <string name="recognition_notification_processing">শনাক্ত করা হচ্ছে…</string>
     <string name="recognition_notification_no_match">কোনো মিল খুঁজে পাওয়া যায়নি</string>
     <string name="recognition_notification_failed">শনাক্তকরণ ব্যর্থ হয়েছে</string>
-    <string name="listen_on_Lunara">মেট্রোলিস্টে শুনুন</string>
+    <string name="listen_on_lunara">মেট্রোলিস্টে শুনুন</string>
     <string name="map_csv_columns">CSV কলামগুলি ম্যাপ করুন</string>
     <string name="first_row_is_header">প্রথম সারিটি হেডার</string>
     <string name="artist_name_column">শিল্পীর নামের কলাম</string>

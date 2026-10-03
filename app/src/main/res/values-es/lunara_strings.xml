@@ -612,7 +612,7 @@
     <string name="like_what_i_do">¿Te gusta lo que hago?</string>
     <string name="buy_mo_a_coffee">¡Invítame un café!</string>
     <string name="community_and_info">Comunidad e información</string>
-    <string name="Lunara">LUNARA</string>
+    <string name="lunara">LUNARA</string>
     <string name="wanna_play_favorite_song">¿Quieres reproducir su canción favorita?</string>
     <string name="yeah">¡Sí!</string>
     <string name="stands_with_palestine">Este proyecto apoya a Palestina 🇵🇸</string>
@@ -812,7 +812,7 @@
     <string name="recognition_notification_processing">Identificando…</string>
     <string name="recognition_notification_no_match">Sin coincidencias</string>
     <string name="recognition_notification_failed">Reconocimiento fallido</string>
-    <string name="listen_on_Lunara">Escuchar en Lunara</string>
+    <string name="listen_on_lunara">Escuchar en Lunara</string>
     <string name="android_auto">Android Auto</string>
     <string name="android_auto_visible_sections">Secciones visibles</string>
     <string name="android_auto_reorder_hint">Toca una sección para habilitarla o deshabilitarla\nMantén presionado el control de arrastre para reordenar. La primera sección se mostrará por defecto</string>
