@@ -1,0 +1,370 @@
+/**
+ * Lunara Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ *
+ * LunaraPlayer-style Library landing: system playlists as colour+glyph gradient
+ * cards (Liked long, Cached/Downloaded pair, Your Top 50 long, Uploaded long),
+ * then user playlists under "Created by you", then "Artists you liked".
+ */
+
+package com.lunara.app.ui.screens.library
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.lunara.app.LocalDatabase
+import com.lunara.app.utils.LocalMusic
+import com.lunara.app.utils.rememberPreference
+import com.lunara.app.constants.LocalMusicFoldersKey
+import com.lunara.app.constants.ShowCachedPlaylistKey
+import com.lunara.app.constants.ShowDownloadedPlaylistKey
+import com.lunara.app.constants.ShowLikedPlaylistKey
+import com.lunara.app.constants.ShowTopPlaylistKey
+import com.lunara.app.constants.ShowUploadedPlaylistKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
+import com.lunara.app.LocalPlayerAwareWindowInsets
+import com.lunara.app.R
+import com.lunara.app.ui.component.LunaraMusicCard
+import com.lunara.app.ui.component.LunaraPlaylistCard
+import com.lunara.app.ui.component.LunaraPlaylistPalette
+import com.lunara.app.ui.component.LunaraSectionHeader
+import com.lunara.app.viewmodels.YoursViewModel
+
+private const val LONG_RATIO = 2.9f
+private const val BOX_RATIO = 1.5f
+private const val USER_RATIO = 1.55f
+
+@Composable
+fun LunaraLibraryHome(
+    navController: NavController,
+    viewModel: YoursViewModel = hiltViewModel(),
+) {
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val artists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
+    val likedSongs by viewModel.likedSongs.collectAsStateWithLifecycle()
+    val likedThumbs by viewModel.likedThumbnails.collectAsStateWithLifecycle()
+    val downloadedThumbs by viewModel.downloadedThumbnails.collectAsStateWithLifecycle()
+    val uploadedThumbs by viewModel.uploadedThumbnails.collectAsStateWithLifecycle()
+    val localThumbs by viewModel.localThumbnails.collectAsStateWithLifecycle()
+    val localCount by viewModel.localSongCount.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    val database = LocalDatabase.current
+    val scope = rememberCoroutineScope()
+    // Scans started from here honour the folders picked in Storage settings.
+    val (localMusicFolders) = rememberPreference(LocalMusicFoldersKey, emptySet())
+    var localGranted by remember { mutableStateOf(LocalMusic.hasPermission(context)) }
+    val audioPermission =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            localGranted = granted
+            if (granted) {
+                scope.launch(Dispatchers.IO) {
+                    runCatching { LocalMusic(context, database).scan(localMusicFolders) }
+                }
+            }
+        }
+    val topThumbs by viewModel.topThumbnails.collectAsStateWithLifecycle()
+    val cachedThumbs by viewModel.cachedThumbnails.collectAsStateWithLifecycle()
+    // Appearance > Auto playlists decides which of these cards show up here.
+    val (showLiked) = rememberPreference(ShowLikedPlaylistKey, defaultValue = true)
+    val (showTop) = rememberPreference(ShowTopPlaylistKey, defaultValue = true)
+    val (showCached) = rememberPreference(ShowCachedPlaylistKey, defaultValue = true)
+    val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, defaultValue = true)
+    val (showUploaded) = rememberPreference(ShowUploadedPlaylistKey, defaultValue = true)
+    val songsWord = stringResource(R.string.songs).lowercase()
+
+    // Featured user playlists surfaced as system-style cards (by name).
+    val weeklyMost = playlists.firstOrNull { it.title.contains("weekly most", ignoreCase = true) }
+    val monthlyMost = playlists.firstOrNull { it.title.contains("monthly most", ignoreCase = true) }
+    val userPlaylists = playlists.filter { it !== weeklyMost && it !== monthlyMost }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
+    ) {
+        item("top_gap") {
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // ---- System playlists ----
+        if (showLiked) item("liked") {
+            LongPad {
+                LunaraPlaylistCard(
+                    title = stringResource(R.string.liked),
+                    subtitle = "${likedSongs.size} $songsWord",
+                    thumbnails = likedThumbs,
+                    seedColor = Color(0xFFB71C5A),
+                    aspectRatio = LONG_RATIO,
+                    iconRes = R.drawable.favorite,
+                    onClick = { navController.navigate("auto_playlist/liked") },
+                )
+            }
+        }
+        if (weeklyMost != null || monthlyMost != null) {
+            item("weekly_monthly") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (weeklyMost != null) {
+                        LunaraPlaylistCard(
+                            title = weeklyMost.title,
+                            subtitle = "${weeklyMost.songCount} $songsWord",
+                            thumbnails = weeklyMost.thumbnails.take(4),
+                            seedColor = Color(0xFFC2185B),
+                            aspectRatio = BOX_RATIO,
+                            onClick = { navController.navigate("local_playlist/${weeklyMost.id}") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    if (monthlyMost != null) {
+                        LunaraPlaylistCard(
+                            title = monthlyMost.title,
+                            subtitle = "${monthlyMost.songCount} $songsWord",
+                            thumbnails = monthlyMost.thumbnails.take(4),
+                            seedColor = Color(0xFF512DA8),
+                            aspectRatio = BOX_RATIO,
+                            onClick = { navController.navigate("local_playlist/${monthlyMost.id}") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        if (showTop) item("top") {
+            LongPad {
+                LunaraPlaylistCard(
+                    title = stringResource(R.string.your_top_50),
+                    subtitle = "",
+                    thumbnails = topThumbs,
+                    seedColor = Color(0xFFEF6C00),
+                    aspectRatio = LONG_RATIO,
+                    iconRes = R.drawable.trending_up,
+                    onClick = { navController.navigate("top_playlist/50") },
+                )
+            }
+        }
+        // Cached and Downloaded share a row. With only one of them switched on it
+        // takes the full width, like the other single cards.
+        if (showCached && showDownloaded) {
+            item("cached_downloaded") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.cached_playlist),
+                        subtitle = "",
+                        thumbnails = cachedThumbs,
+                        seedColor = Color(0xFF00838F),
+                        aspectRatio = BOX_RATIO,
+                        iconRes = R.drawable.cached,
+                        onClick = { navController.navigate("cache_playlist/cached") },
+                        modifier = Modifier.weight(1f),
+                    )
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.offline),
+                        subtitle = "",
+                        thumbnails = downloadedThumbs,
+                        seedColor = Color(0xFF283593),
+                        aspectRatio = BOX_RATIO,
+                        iconRes = R.drawable.download,
+                        onClick = { navController.navigate("auto_playlist/downloaded") },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        } else if (showCached) {
+            item("cached") {
+                LongPad {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.cached_playlist),
+                        subtitle = "",
+                        thumbnails = cachedThumbs,
+                        seedColor = Color(0xFF00838F),
+                        aspectRatio = LONG_RATIO,
+                        iconRes = R.drawable.cached,
+                        onClick = { navController.navigate("cache_playlist/cached") },
+                    )
+                }
+            }
+        } else if (showDownloaded) {
+            item("downloaded") {
+                LongPad {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.offline),
+                        subtitle = "",
+                        thumbnails = downloadedThumbs,
+                        seedColor = Color(0xFF283593),
+                        aspectRatio = LONG_RATIO,
+                        iconRes = R.drawable.download,
+                        onClick = { navController.navigate("auto_playlist/downloaded") },
+                    )
+                }
+            }
+        }
+        // Asked here rather than at launch. Local music is not something the app
+        // needs to start, so the permission belongs at the moment somebody
+        // reaches for the feature, which is also where they will look for it.
+        // Shown whenever there is nothing scanned yet, whether or not the
+        // permission has already been given. Keying it on the permission left a
+        // state with no way out: granted but never scanned meant this card was
+        // hidden for having permission and the one below was hidden for having
+        // no songs, so local music could not be reached at all. That is where
+        // anybody lands who granted it in the system settings, or cleared the
+        // app's data, or ran a scan that found nothing.
+        if (localCount == 0) {
+            item("local-invite") {
+                LongPad {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.local_music),
+                        subtitle = stringResource(R.string.local_music_scan),
+                        thumbnails = emptyList(),
+                        seedColor = Color(0xFF2E7D32),
+                        aspectRatio = LONG_RATIO,
+                        iconRes = R.drawable.library_music,
+                        onClick = {
+                            if (localGranted) {
+                                scope.launch(Dispatchers.IO) {
+                                    runCatching { LocalMusic(context, database).scan(localMusicFolders) }
+                                }
+                            } else {
+                                audioPermission.launch(LocalMusic.permission)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        if (localCount > 0) {
+            item("local") {
+                LongPad {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.local_music),
+                        subtitle = "$localCount $songsWord",
+                        thumbnails = localThumbs,
+                        seedColor = Color(0xFF2E7D32),
+                        aspectRatio = LONG_RATIO,
+                        iconRes = R.drawable.library_music,
+                        onClick = { navController.navigate("auto_playlist/local") },
+                    )
+                }
+            }
+        }
+        if (showUploaded) item("uploaded") {
+            LongPad {
+                LunaraPlaylistCard(
+                    title = stringResource(R.string.uploaded_playlist),
+                    subtitle = "",
+                    thumbnails = uploadedThumbs,
+                    seedColor = Color(0xFF6A1B9A),
+                    aspectRatio = LONG_RATIO,
+                    iconRes = R.drawable.upload,
+                    onClick = { navController.navigate("auto_playlist/uploaded") },
+                )
+            }
+        }
+
+        // ---- Created by you ----
+        if (userPlaylists.isNotEmpty()) {
+            item("cby_head") {
+                Spacer(Modifier.height(8.dp))
+                LunaraSectionHeader(stringResource(R.string.created_by_you))
+            }
+            itemsIndexed(userPlaylists.chunked(2), key = { _, row -> "cby_${row.first().id}" }) { rowIndex, rowItems ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    rowItems.forEachIndexed { j, pl ->
+                        LunaraPlaylistCard(
+                            title = pl.title,
+                            subtitle = "${pl.songCount} $songsWord",
+                            thumbnails = pl.thumbnails.take(4),
+                            seedColor = LunaraPlaylistPalette[(rowIndex * 2 + j) % LunaraPlaylistPalette.size],
+                            aspectRatio = USER_RATIO,
+                            onClick = { navController.navigate("local_playlist/${pl.id}") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+
+        // ---- Artists you liked ----
+        if (artists.isNotEmpty()) {
+            item("art_head") {
+                Spacer(Modifier.height(8.dp))
+                LunaraSectionHeader(stringResource(R.string.artists_you_liked))
+            }
+            item("art_rail") {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(artists, key = { it.id }) { artist ->
+                        LunaraMusicCard(
+                            title = artist.title,
+                            subtitle = if (artist.songCount > 0) "${artist.songCount} $songsWord" else "",
+                            thumbnailUrl = artist.thumbnailUrl,
+                            isCircular = true,
+                            fallbackIcon = R.drawable.artist,
+                            onClick = { navController.navigate("artist/${artist.id}") },
+                        )
+                    }
+                }
+            }
+        }
+
+        item("bottom") { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@Composable
+private fun LongPad(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        content()
+    }
+}

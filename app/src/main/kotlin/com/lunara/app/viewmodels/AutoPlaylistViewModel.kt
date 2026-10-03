@@ -1,0 +1,113 @@
+/**
+ * Lunara Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.viewmodels
+
+import android.content.Context
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.lunara.app.constants.HideExplicitKey
+import com.lunara.app.constants.HideVideoSongsKey
+import com.lunara.app.constants.SongSortDescendingKey
+import com.lunara.app.constants.SongSortType
+import com.lunara.app.constants.SongSortTypeKey
+import com.lunara.app.db.MusicDatabase
+import com.lunara.app.extensions.filterExplicit
+import com.lunara.app.extensions.filterVideoSongs
+import com.lunara.app.extensions.toEnum
+import com.lunara.app.utils.SyncUtils
+import com.lunara.app.utils.dataStore
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class AutoPlaylistViewModel
+@Inject
+constructor(
+    @ApplicationContext context: Context,
+    private val database: MusicDatabase,
+    savedStateHandle: SavedStateHandle,
+    private val syncUtils: SyncUtils,
+) : ViewModel() {
+    val playlist = savedStateHandle.get<String>("playlist")!!
+
+    /** Set when the list was opened from the folder view: show only that folder. */
+    val folder: String? = savedStateHandle.get<String>("folder")
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val likedSongs =
+        context.dataStore.data
+            .map {
+                Triple(
+                    it[SongSortTypeKey].toEnum(SongSortType.CREATE_DATE) to (it[SongSortDescendingKey]
+                        ?: true),
+                    it[HideExplicitKey] ?: false,
+                    it[HideVideoSongsKey] ?: false
+                )
+            }
+            .distinctUntilChanged()
+            .flatMapLatest { (sortDesc, hideExplicit, hideVideoSongs) ->
+                val (sortType, descending) = sortDesc
+                when (playlist) {
+                    "liked" -> database.likedSongs(sortType, descending)
+                        .map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
+
+                    "local" ->
+                        database.localSongs(sortType, descending).map { songs ->
+                            if (folder == null) {
+                                songs
+                            } else {
+                                songs.filter {
+                                    it.song.localPath
+                                        ?.let { path -> java.io.File(path).parent } == folder
+                                }
+                            }
+                        }
+                    "downloaded" -> database.downloadedSongs(sortType, descending)
+                        .map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
+
+                    "uploaded" -> database.uploadedSongs(sortType, descending)
+                        .map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
+
+                    else -> kotlinx.coroutines.flow.flowOf(emptyList())
+                }
+            }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Lazily, emptyList())
+
+    fun syncLikedSongs() {
+        viewModelScope.launch(Dispatchers.IO) { syncUtils.syncLikedSongs() }
+    }
+
+    fun syncUploadedSongs() {
+        viewModelScope.launch(Dispatchers.IO) { syncUtils.syncUploadedSongs() }
+    }
+
+    fun refresh() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isRefreshing.value = true
+            when (playlist) {
+                "liked" -> syncUtils.syncLikedSongsSuspend()
+                "uploaded" -> syncUtils.syncUploadedSongsSuspend()
+            }
+            _isRefreshing.value = false
+        }
+    }
+}

@@ -1,0 +1,675 @@
+/**
+ * Lunara Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.ui.screens.settings
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import com.lunara.app.utils.reportException
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavController
+import coil3.compose.AsyncImage
+import com.lunara.app.ui.theme.LunaraGradientEnd
+import com.lunara.app.ui.theme.LunaraThemeColor
+import com.lunara.innertube.YouTube
+import com.lunara.innertube.utils.parseCookieString
+import com.lunara.app.BuildConfig
+import com.lunara.app.R
+import com.lunara.app.constants.AccountChannelHandleKey
+import com.lunara.app.constants.BetaUpdatesKey
+import com.lunara.app.constants.AccountEmailKey
+import com.lunara.app.constants.AccountNameKey
+import com.lunara.app.constants.DataSyncIdKey
+import com.lunara.app.constants.InnerTubeCookieKey
+import com.lunara.app.constants.UseLoginForBrowse
+import com.lunara.app.constants.VisitorDataKey
+import com.lunara.app.constants.YtmSyncKey
+import com.lunara.app.ui.component.DefaultDialog
+import com.lunara.app.ui.component.InfoLabel
+import com.lunara.app.ui.component.Material3SettingsGroup
+import com.lunara.app.ui.component.Material3SettingsItem
+import com.lunara.app.ui.component.PreferenceEntry
+import com.lunara.app.ui.component.TextFieldDialog
+import com.lunara.app.ui.component.UpdateDialog
+import com.lunara.app.utils.ReleaseInfo
+import com.lunara.app.utils.Updater
+import com.lunara.app.utils.rememberPreference
+import com.lunara.app.viewmodels.AccountSettingsViewModel
+import com.lunara.app.viewmodels.HomeViewModel
+
+@Composable
+fun AccountSettings(
+    navController: NavController,
+    onClose: () -> Unit,
+    latestVersionName: String,
+    showSettings: Boolean = true,
+) {
+    val context = LocalContext.current
+    val (betaUpdates) = rememberPreference(BetaUpdatesKey, false)
+    var showDeveloperDialog by remember { mutableStateOf(false) }
+    // The app checks on launch, so by the time anybody opens this the answer is
+    // usually already known. Starting at Idle asked them to press for something
+    // that had been found minutes ago.
+    var updateState by remember {
+        mutableStateOf<UpdateCheck>(
+            Updater
+                .getCachedLatestRelease()
+                ?.takeIf {
+                    BuildConfig.UPDATER_AVAILABLE &&
+                        Updater.isUpdateAvailable(BuildConfig.VERSION_NAME, it.versionName) &&
+                        Updater.getDownloadUrlForCurrentVariant(it) != null
+                }?.let { UpdateCheck.Available(it) }
+                ?: UpdateCheck.Idle,
+        )
+    }
+    // The download runs in the app, in a dialog, the same one settings and the
+    // launch offer use. It used to hand the file to a browser.
+    var updateRelease by remember { mutableStateOf<ReleaseInfo?>(null) }
+    val repoUrl = stringResource(R.string.lunara_repo_url)
+    val websiteUrl = stringResource(R.string.developer_website_url)
+    val devGithubUrl = stringResource(R.string.developer_github_url)
+    val uriHandler = LocalUriHandler.current
+
+    val (accountNamePref, onAccountNameChange) = rememberPreference(AccountNameKey, "")
+    val (accountEmail, onAccountEmailChange) = rememberPreference(AccountEmailKey, "")
+    val (accountChannelHandle, onAccountChannelHandleChange) = rememberPreference(AccountChannelHandleKey, "")
+    val (innerTubeCookie, onInnerTubeCookieChange) = rememberPreference(InnerTubeCookieKey, "")
+    val (visitorData, onVisitorDataChange) = rememberPreference(VisitorDataKey, "")
+    val (dataSyncId, onDataSyncIdChange) = rememberPreference(DataSyncIdKey, "")
+
+    val isLoggedIn = remember(innerTubeCookie) {
+        "SAPISID" in parseCookieString(innerTubeCookie)
+    }
+    val (useLoginForBrowse, onUseLoginForBrowseChange) = rememberPreference(UseLoginForBrowse, true)
+    val (ytmSync, onYtmSyncChange) = rememberPreference(YtmSyncKey, true)
+
+    val homeViewModel: HomeViewModel = hiltViewModel()
+    val accountSettingsViewModel: AccountSettingsViewModel = hiltViewModel()
+    val accountName by homeViewModel.accountName.collectAsStateWithLifecycle()
+    val accountImageUrl by homeViewModel.accountImageUrl.collectAsStateWithLifecycle()
+
+    var showToken by remember { mutableStateOf(false) }
+    var showTokenEditor by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(id = R.string.app_name),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    brush = Brush.horizontalGradient(
+                        listOf(LunaraThemeColor, LunaraGradientEnd),
+                    ),
+                ),
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            ) {
+                Icon(painterResource(R.drawable.close), contentDescription = null)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Logout confirmation dialog
+        if (showLogoutDialog) {
+            DefaultDialog(
+                onDismiss = { showLogoutDialog = false },
+                title = { Text(stringResource(R.string.logout_dialog_title)) },
+                content = {
+                    Text(
+                        text = stringResource(R.string.logout_dialog_message),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(horizontal = 18.dp)
+                    )
+                },
+                buttons = {
+                    TextButton(
+                        onClick = {
+                            Timber.d("[LOGOUT_CLEAR] User chose to clear data")
+                            scope.launch {
+                                try {
+                                    Timber.d("[LOGOUT_CLEAR] Starting clear and logout process")
+                                    // Forget account first (stops all sync), then clear data.
+                                    // This prevents background syncs from re-adding songs.
+                                    accountSettingsViewModel.logoutAndClearLibraryData(context)
+                                    Timber.d("[LOGOUT_CLEAR] Library data cleared and account forgotten")
+                                } catch (e: Exception) {
+                                    Timber.e(e, "[LOGOUT_CLEAR] Error clearing library data, proceeding with logout")
+                                    reportException(e)
+                                }
+                                onInnerTubeCookieChange("")
+                                Timber.d("[LOGOUT_CLEAR] Logout complete")
+                                showLogoutDialog = false
+                                onClose()
+                            }
+                        }
+                    ) {
+                        Text(stringResource(R.string.logout_clear))
+                    }
+                    TextButton(
+                        onClick = {
+                            Timber.d("[LOGOUT_KEEP] User chose to keep data")
+                            scope.launch {
+                                Timber.d("[LOGOUT_KEEP] Starting logout process (keeping data)")
+                                accountSettingsViewModel.logoutKeepData(context, onInnerTubeCookieChange)
+                                Timber.d("[LOGOUT_KEEP] Logout complete")
+                                showLogoutDialog = false
+                                onClose()
+                            }
+                        }
+                    ) {
+                        Text(stringResource(R.string.logout_keep))
+                    }
+                }
+            )
+        }
+
+        if (showTokenEditor) {
+            val text = """
+                ***INNERTUBE COOKIE*** =$innerTubeCookie
+                ***VISITOR DATA*** =$visitorData
+                ***DATASYNC ID*** =$dataSyncId
+                ***ACCOUNT NAME*** =$accountNamePref
+                ***ACCOUNT EMAIL*** =$accountEmail
+                ***ACCOUNT CHANNEL HANDLE*** =$accountChannelHandle
+            """.trimIndent()
+
+            TextFieldDialog(
+                initialTextFieldValue = TextFieldValue(text),
+                onDone = { data ->
+                    var cookie = ""
+                    var visitorDataValue = ""
+                    var dataSyncIdValue = ""
+                    var accountNameValue = ""
+                    var accountEmailValue = ""
+                    var accountChannelHandleValue = ""
+
+                    data.split("\n").forEach {
+                        when {
+                            it.startsWith("***INNERTUBE COOKIE*** =") -> cookie = it.substringAfter("=")
+                            it.startsWith("***VISITOR DATA*** =") -> visitorDataValue = it.substringAfter("=")
+                            it.startsWith("***DATASYNC ID*** =") -> dataSyncIdValue = it.substringAfter("=")
+                            it.startsWith("***ACCOUNT NAME*** =") -> accountNameValue = it.substringAfter("=")
+                            it.startsWith("***ACCOUNT EMAIL*** =") -> accountEmailValue = it.substringAfter("=")
+                            it.startsWith("***ACCOUNT CHANNEL HANDLE*** =") -> accountChannelHandleValue = it.substringAfter("=")
+                        }
+                    }
+                    // Write all credentials atomically to DataStore and wait for completion
+                    // before restarting, preventing the race condition where the process
+                    // would be killed before async DataStore coroutines finished writing.
+                    accountSettingsViewModel.saveTokenAndRestart(
+                        context = context,
+                        cookie = cookie,
+                        visitorData = visitorDataValue,
+                        dataSyncId = dataSyncIdValue,
+                        accountName = accountNameValue,
+                        accountEmail = accountEmailValue,
+                        accountChannelHandle = accountChannelHandleValue,
+                    )
+                },
+                onDismiss = { showTokenEditor = false },
+                singleLine = false,
+                maxLines = 20,
+                isInputValid = { fullText ->
+                    // Extract the cookie value from the formatted template line,
+                    // then validate it separately — avoids the bug where parseCookieString
+                    // received the entire multi-line template and failed to find "SAPISID"
+                    // as a key because the "***INNERTUBE COOKIE*** =" prefix shadowed it.
+                    val cookieLine = fullText.lines()
+                        .find { it.startsWith("***INNERTUBE COOKIE*** =") }
+                    val cookieValue = cookieLine?.substringAfter("***INNERTUBE COOKIE*** =")?.trim() ?: ""
+                    cookieValue.isNotEmpty() && "SAPISID" in parseCookieString(cookieValue)
+                },
+                extraContent = {
+                    Spacer(Modifier.height(8.dp))
+                    InfoLabel(text = stringResource(R.string.token_adv_login_description))
+                }
+            )
+        }
+
+        Material3SettingsGroup(
+            items = listOf(
+                Material3SettingsItem(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isLoggedIn && accountImageUrl != null) {
+                                AsyncImage(
+                                    model = accountImageUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                                )
+
+                                Spacer(Modifier.width(12.dp))
+                            }
+
+                            Text(
+                                text = if (isLoggedIn) accountName else stringResource(R.string.login),
+                            )
+                        }
+                    },
+                    icon = if (!isLoggedIn) painterResource(R.drawable.login) else null,
+                    trailingContent = {
+                        if (isLoggedIn) {
+                            OutlinedButton(
+                                onClick = {
+                                    Timber.d("[LOGOUT] User clicked logout button, showing dialog")
+                                    showLogoutDialog = true
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                )
+                            ) {
+                                Text(stringResource(R.string.action_logout))
+                            }
+                        }
+                    },
+                    onClick = {
+                        onClose()
+                        if (isLoggedIn) {
+                            navController.navigate("account")
+                        } else {
+                            navController.navigate("login")
+                        }
+                    }
+                )
+            ),
+            useLowContrast = true
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Material3SettingsGroup(
+            items = listOf(
+                Material3SettingsItem(
+                    title = {
+                        Text(
+                            when {
+                                !isLoggedIn -> stringResource(R.string.advanced_login)
+                                showToken -> stringResource(R.string.token_shown)
+                                else -> stringResource(R.string.token_hidden)
+                            }
+                        )
+                    },
+                    icon = painterResource(R.drawable.token),
+                    onClick = {
+                        if (!isLoggedIn) showTokenEditor = true
+                        else if (!showToken) showToken = true
+                        else showTokenEditor = true
+                    }
+                ),
+                Material3SettingsItem(
+                    title = { Text(stringResource(R.string.more_content)) },
+                    icon = painterResource(R.drawable.cached),
+                    trailingContent = {
+                        Switch(
+                            enabled = isLoggedIn,
+                            checked = useLoginForBrowse,
+                            onCheckedChange = {
+                                YouTube.useLoginForBrowse = it
+                                onUseLoginForBrowseChange(it)
+                            },
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (useLoginForBrowse) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    enabled = isLoggedIn
+                ),
+                Material3SettingsItem(
+                    title = { Text(stringResource(R.string.yt_sync)) },
+                    icon = painterResource(R.drawable.cached),
+                    trailingContent = {
+                        Switch(
+                            enabled = isLoggedIn,
+                            checked = ytmSync,
+                            onCheckedChange = onYtmSyncChange,
+                            thumbContent = {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (ytmSync) R.drawable.check else R.drawable.close
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        )
+                    },
+                    enabled = isLoggedIn
+                )
+            ),
+            useLowContrast = true
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        ) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.together)) },
+                icon = { Icon(painterResource(R.drawable.group_outlined), null) },
+                onClick = {
+                    onClose()
+                    navController.navigate("listen_together_from_topbar")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // Integrations lives in settings and is set up once; checking for a
+            // new version is the thing people come back to. The izzy build has
+            // no updater at all, so there it simply is not offered.
+            if (BuildConfig.UPDATER_AVAILABLE) {
+                // Asked and answered in place. Sending someone to a screen whose
+                // only content is the same question, to press it again, is two
+                // taps and a page for one line of text.
+                PreferenceEntry(
+                    title = { Text(stringResource(R.string.check_for_updates_title)) },
+                    description =
+                        when (val state = updateState) {
+                            UpdateCheck.Running -> stringResource(R.string.update_check_running)
+                            UpdateCheck.Latest -> stringResource(R.string.update_check_latest)
+                            UpdateCheck.Failed -> stringResource(R.string.update_check_failed)
+                            is UpdateCheck.Available ->
+                                stringResource(R.string.update_check_available, state.release.versionName)
+                            UpdateCheck.Idle -> stringResource(R.string.update_check_idle)
+                        },
+                    icon = {
+                        BadgedBox(
+                            badge = { if (updateState is UpdateCheck.Available) Badge() },
+                        ) {
+                            Icon(painterResource(R.drawable.update), null)
+                        }
+                    },
+                    onClick = {
+                        val ready = updateState as? UpdateCheck.Available
+                        if (ready != null) {
+                            updateRelease = ready.release
+                            return@PreferenceEntry
+                        }
+                        if (updateState == UpdateCheck.Running) return@PreferenceEntry
+                        updateState = UpdateCheck.Running
+                        scope.launch {
+                            val result = Updater.checkForUpdate(forceRefresh = true, includeBetas = betaUpdates)
+                            updateState =
+                                result.fold(
+                                    onSuccess = { (release, isNewer) ->
+                                        val url = release?.let(Updater::getDownloadUrlForCurrentVariant)
+                                        if (isNewer && release != null && url != null) {
+                                            UpdateCheck.Available(release)
+                                        } else {
+                                            UpdateCheck.Latest
+                                        }
+                                    },
+                                    onFailure = { UpdateCheck.Failed },
+                                )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                )
+
+                Spacer(Modifier.height(4.dp))
+            }
+
+            if (showSettings) {
+                PreferenceEntry(
+                    title = { Text(stringResource(R.string.settings)) },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (BuildConfig.UPDATER_AVAILABLE && latestVersionName != BuildConfig.VERSION_NAME) {
+                                    Badge()
+                                }
+                            }
+                        ) {
+                            Icon(painterResource(R.drawable.settings), contentDescription = null)
+                        }
+                    },
+                    onClick = {
+                        onClose()
+                        navController.navigate("settings")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                )
+
+                Spacer(Modifier.height(4.dp))
+            }
+
+            // A second row saying the same thing, one line below the row that
+            // already says it, used to live here. It opened a browser.
+        }
+
+        updateRelease?.let { release ->
+            UpdateDialog(release = release, onDismiss = { updateRelease = null })
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            text = stringResource(R.string.developer_heading),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .clickable { showDeveloperDialog = true }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.developer_photo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape),
+            )
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.developer_name),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.developer_role_short),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            OutlinedButton(
+                onClick = { uriHandler.openUri(repoUrl) },
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.github),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.developer_star),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+    }
+
+    if (showDeveloperDialog) {
+        DefaultDialog(onDismiss = { showDeveloperDialog = false }) {
+            Image(
+                painter = painterResource(R.drawable.developer_photo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape),
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = stringResource(R.string.developer_name),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            Spacer(Modifier.height(2.dp))
+
+            Text(
+                text = stringResource(R.string.developer_role),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                text = stringResource(R.string.developer_bio),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                TextButton(onClick = { uriHandler.openUri(websiteUrl) }) {
+                    Text(stringResource(R.string.developer_website))
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { uriHandler.openUri(devGithubUrl) }) {
+                    Text(stringResource(R.string.developer_github))
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+/** What the update row has to say, without leaving the sheet to say it. */
+private sealed interface UpdateCheck {
+    data object Idle : UpdateCheck
+
+    data object Running : UpdateCheck
+
+    data object Latest : UpdateCheck
+
+    data object Failed : UpdateCheck
+
+    data class Available(val release: ReleaseInfo) : UpdateCheck
+}

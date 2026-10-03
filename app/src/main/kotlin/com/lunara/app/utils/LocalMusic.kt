@@ -1,0 +1,719 @@
+/**
+ * Lunara Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.utils
+
+import android.Manifest
+import android.content.ContentUris
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
+import com.lunara.innertube.YouTube
+import com.lunara.innertube.models.SongItem
+import com.lunara.app.constants.LocalMusicArtworkOnlineKey
+import com.lunara.app.ui.utils.resize
+import com.lunara.app.db.MusicDatabase
+import com.lunara.app.db.entities.AlbumEntity
+import com.lunara.app.db.entities.ArtistEntity
+import com.lunara.app.db.entities.SongAlbumMap
+import com.lunara.app.db.entities.LocalTagOverride
+import com.lunara.app.db.entities.SongArtistMap
+import com.lunara.app.db.entities.SongEntity
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.io.File
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import kotlin.math.abs
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
+import com.lunara.app.constants.LocalMusicMinSizeKey
+import com.lunara.app.constants.LocalMusicMinDurationKey
+import com.lunara.app.db.entities.Song
+
+/**
+ * The music already on the phone.
+ *
+ * Folders are remembered rather than copied: pointing Lunara at a music
+ * library and then finding a second copy of it inside the app would be both
+ * surprising and expensive. What is stored is a row per track saying where the
+ * file is, so the library fills instantly and the disk is only re-read when
+ * asked.
+ *
+ * A local song is an ordinary [SongEntity] whose id carries a marker and whose
+ * [SongEntity.localPath] holds its content URI. Everything downstream — the
+ * queue, the mini player, the equalizer, liking, play counts — treats it
+ * exactly like anything streamed, because as far as those are concerned it is
+ * just another song.
+ */
+@Singleton
+class LocalMusic
+@Inject
+constructor(
+    @ApplicationContext private val context: Context,
+    private val database: MusicDatabase,
+) {
+    companion object {
+        const val SONG_PREFIX = "local:"
+        const val ARTIST_PREFIX = "local-artist:"
+        const val ALBUM_PREFIX = "local-album:"
+
+        /** Loose enough for a re-encode, tight enough to reject a different song. */
+        private const val DURATION_TOLERANCE_SECONDS = 5
+
+        /** Album art has lived at this address since long before MediaStore grew a thumbnail API. */
+        private val ALBUM_ART = Uri.parse("content://media/external/audio/albumart")
+
+        /**
+         * Names the download sites stamp onto the files they hand out. Matched
+         * whole, never as a fragment: "Pagal" on its own is a real song title.
+         */
+        private val DOWNLOAD_SITES =
+            listOf(
+                "pagalnew", "pagalworld", "pagalsongs", "pagalfree", "paglasongs",
+                "songspk", "songs\\.pk", "djpunjab", "djjohal", "djmaza", "mr-?jatt",
+                "webmusic", "wapking", "masstamilan", "pendujatt", "riskyjatt",
+                "downloadming", "sensongsmp3", "likewap", "naasongs", "isongs",
+                "bestwap", "freshmaza", "raagsong", "mymp3song", "songsmp3",
+                "mp3juices", "musicpleer", "mp3\\.pm", "mp3pm", "y2mate", "ytmp3", "tubidy",
+            ).joinToString("|")
+
+        fun isLocal(id: String) = id.startsWith(SONG_PREFIX)
+
+        /** The one permission that matters, which Android 13 split out by media type. */
+        val permission: String
+            get() =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Manifest.permission.READ_MEDIA_AUDIO
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+
+        fun hasPermission(context: Context) =
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Re-reads the device and brings the database in line with it.
+     *
+     * [folders] limits the scan to files under those directories. An empty set
+     * means everything MediaStore considers music, which is the sensible
+     * default before anyone has expressed a preference.
+     *
+     * Returns how many tracks are now on file, or null if permission is missing.
+     */
+    /**
+     * Reapply the corrections people made to files that describe themselves
+     * badly, over the top of what the scan just read back off those files.
+     */
+    private fun applyOverrides() {
+        val present = database.localSongIds().toSet()
+        database.localTagOverrides().forEach { override ->
+            // A file that a length or size limit has just taken out of the
+            // library, or that has left the phone, has nothing to apply to.
+            // The correction is kept rather than deleted, so it is still there
+            // if the file comes back.
+            if (override.songId !in present) return@forEach
+            runCatching {
+                database.applyLocalTagOverride(
+                    id = override.songId,
+                    title = override.title?.takeIf { it.isNotBlank() },
+                    albumName = override.albumName?.takeIf { it.isNotBlank() },
+                )
+
+                override.artistName?.takeIf { it.isNotBlank() }?.let { name ->
+                    val artist =
+                        ArtistEntity(
+                            id = ARTIST_PREFIX + "name-" + name.lowercase().hashCode(),
+                            name = name,
+                            isLocal = true,
+                        )
+                    database.insert(artist)
+                    database.clearSongArtists(override.songId)
+                    database.insert(
+                        SongArtistMap(songId = override.songId, artistId = artist.id, position = 0),
+                    )
+                }
+            }.onFailure {
+                Timber.tag("LocalMusic").w(it, "could not reapply tags for ${override.songId}")
+            }
+        }
+    }
+
+    /**
+     * Record a correction and show it straight away, rather than making
+     * someone rescan to see the name they just typed.
+     */
+    suspend fun saveTagOverride(
+        songId: String,
+        title: String?,
+        artistName: String?,
+        albumName: String?,
+    ) = withContext(Dispatchers.IO) {
+        val nothingLeft = listOf(title, artistName, albumName).all { it.isNullOrBlank() }
+        if (nothingLeft) {
+            database.deleteLocalTagOverride(songId)
+        } else {
+            database.upsertLocalTagOverride(
+                LocalTagOverride(
+                    songId = songId,
+                    title = title?.takeIf { it.isNotBlank() },
+                    artistName = artistName?.takeIf { it.isNotBlank() },
+                    albumName = albumName?.takeIf { it.isNotBlank() },
+                ),
+            )
+        }
+        applyOverrides()
+        runCatching { refreshDetails(songId) }
+    }
+
+    /** Forget a correction. The next scan restores whatever the file itself says. */
+    suspend fun clearTagOverride(songId: String) = withContext(Dispatchers.IO) {
+        database.deleteLocalTagOverride(songId)
+    }
+
+    fun tagOverride(songId: String): LocalTagOverride? = database.localTagOverride(songId)
+
+    suspend fun scan(folders: Set<String> = emptySet()): Int? =
+        withContext(Dispatchers.IO) {
+            if (!hasPermission(context)) return@withContext null
+
+            val prefs = context.dataStore.data.first()
+            val found =
+                read(
+                    folders = folders,
+                    minDurationSeconds = prefs[LocalMusicMinDurationKey] ?: 0,
+                    minSizeKb = prefs[LocalMusicMinSizeKey] ?: 0,
+                )
+            val seen = found.map { it.song.id }.toSet()
+
+            // Anything that was here last time and is not here now has been
+            // deleted or moved off the device, so it should not linger in the
+            // library pretending to be playable.
+            database.localSongIds().filterNot { it in seen }.forEach { gone ->
+                runCatching { database.deleteLocalSong(gone) }
+                    .onFailure { Timber.tag("LocalMusic").w(it, "could not remove $gone") }
+            }
+
+            // Written straight through rather than through database.query{},
+            // which hands the work to a background executor and returns before
+            // any of it has happened. The artwork pass below reads these rows
+            // back, so it has to be able to see them.
+            found.forEach { track ->
+                database.insert(track.song)
+                // A rescan should pick up a retagged file, and insert alone
+                // ignores conflicts, so the row is refreshed explicitly.
+                database.updateLocalSong(
+                    id = track.song.id,
+                    title = track.song.title,
+                    duration = track.song.duration,
+                    thumbnailUrl = track.song.thumbnailUrl,
+                    albumName = track.song.albumName,
+                    localPath = track.song.localPath,
+                )
+                track.artist?.let {
+                    database.insert(it)
+                    database.insert(SongArtistMap(songId = track.song.id, artistId = it.id, position = 0))
+                }
+                track.album?.let {
+                    database.insert(it)
+                    database.insert(SongAlbumMap(songId = track.song.id, albumId = it.id, index = 0))
+                }
+            }
+
+            // The loop above rewrote every row from what the file says, which
+            // is the whole point of a rescan and also how a correction someone
+            // made by hand would quietly disappear. Put those back.
+            applyOverrides()
+
+            Timber.tag("LocalMusic").i("scan found ${found.size} tracks")
+
+            // Files that carried their own cover are already done. The rest are
+            // looked up unless that has been turned off, which is the only part
+            // of this that touches the network at all.
+            if (context.dataStore.get(LocalMusicArtworkOnlineKey, true)) {
+                runCatching { fetchMissingArtwork() }
+                    .onFailure { Timber.tag("LocalMusic").w(it, "artwork lookup failed") }
+            }
+
+            found.size
+        }
+
+    /**
+     * Fills in artwork the file did not carry.
+     *
+     * Only tracks whose picture had to fall back to MediaStore's album-art
+     * table are looked up, so a file with its own cover never causes a request.
+     * A result is accepted only when the duration agrees to within five
+     * seconds: the titles here come from filenames, and a confident wrong
+     * cover is worse than an honest blank one.
+     */
+    suspend fun fetchMissingArtwork(): Int =
+        withContext(Dispatchers.IO) {
+            var filled = 0
+            var albums = 0
+            // Rows still on MediaStore's album-art fallback, plus any picture
+            // fetched before this asked for a full-size one. A file's own cover
+            // is a file: URL and is never touched.
+            val needing =
+                database.localSongsBlocking().filter {
+                    val art = it.song.thumbnailUrl
+                    val artless = it.artists.isEmpty()
+                    // A file with no album tag has a blank line where the record it
+                    // came from should be, which the same search can answer.
+                    val albumless = it.song.albumName.isNullOrBlank()
+                    artless ||
+                        albumless ||
+                        art == null ||
+                        art.startsWith(ALBUM_ART.toString()) ||
+                        (art.contains("googleusercontent.com") && !art.contains("=w1080"))
+                }
+
+            for (song in needing) {
+                val query =
+                    listOfNotNull(song.song.title, song.artists.firstOrNull()?.name)
+                        .joinToString(" ")
+                        .trim()
+                if (query.isBlank()) continue
+
+                val match =
+                    runCatching {
+                        YouTube
+                            .search(query, YouTube.SearchFilter.FILTER_SONG)
+                            .getOrNull()
+                            ?.items
+                            ?.filterIsInstance<SongItem>()
+                            ?.firstOrNull { candidate ->
+                                val d = candidate.duration ?: return@firstOrNull false
+                                abs(d - song.song.duration) <= DURATION_TOLERANCE_SECONDS
+                            }
+                    }.getOrNull() ?: continue
+
+                // Search results carry a thumbnail sized for a search result,
+                // which is roughly 60px and looks it on a full player screen.
+                // Everything else in the app asks for 1080 the same way.
+                database.updateLocalArtwork(song.song.id, match.thumbnail.resize(1080, 1080))
+                attachArtistIfMissing(song, match)
+                if (attachAlbumIfMissing(song, match)) albums++
+                filled++
+            }
+
+            Timber.tag("LocalMusic").i("artwork filled for $filled of ${needing.size}, album for $albums")
+            filled
+        }
+
+    /**
+     * Give a song an artist when the file never said who it was.
+     *
+     * A file with no artist tag and no "Somebody - Song" in its name leaves a
+     * blank line under the title, which reads as the app having failed rather
+     * than the file being bare. The search that already found the cover knows
+     * the answer, so it is taken from there.
+     *
+     * Never over anything already known, and never over a name somebody typed
+     * in themselves: a guess is only better than nothing.
+     */
+    private fun attachArtistIfMissing(song: Song, match: SongItem) {
+        if (song.artists.isNotEmpty()) return
+        if (database.localTagOverride(song.id)?.artistName?.isNotBlank() == true) return
+        val name = match.artists.firstOrNull()?.name?.takeIf { it.isNotBlank() } ?: return
+        runCatching {
+            val artist =
+                ArtistEntity(
+                    id = ARTIST_PREFIX + "name-" + name.lowercase().hashCode(),
+                    name = name,
+                    isLocal = true,
+                )
+            database.insert(artist)
+            database.insert(SongArtistMap(songId = song.id, artistId = artist.id, position = 0))
+        }.onFailure { Timber.tag("LocalMusic").w(it, "could not attach artist for ${song.id}") }
+    }
+
+    /**
+     * Give a song the record it came from when the file never said.
+     *
+     * Same rules as the artist above: only where the file is silent, never
+     * over a name somebody typed in themselves, and only from the match that
+     * already agreed on the title and the length.
+     */
+    private fun attachAlbumIfMissing(song: Song, match: SongItem): Boolean {
+        if (!song.song.albumName.isNullOrBlank()) return false
+        if (database.localTagOverride(song.id)?.albumName?.isNotBlank() == true) return false
+        val name = match.album?.name?.takeIf { it.isNotBlank() } ?: return false
+        return runCatching { database.updateLocalAlbumName(song.id, name); true }
+            .onFailure { Timber.tag("LocalMusic").w(it, "could not attach album for ${song.id}") }
+            .getOrDefault(false)
+    }
+
+    /**
+     * Look this one song up again, now that somebody has said what it is.
+     *
+     * Correcting a name is usually the only way a search could ever have found
+     * the track, so the cover worth having only becomes reachable at the moment
+     * the correction is made. Waiting for the next scan to notice would be a
+     * strange thing to make somebody do.
+     */
+    suspend fun refreshDetails(songId: String) =
+        withContext(Dispatchers.IO) {
+            if (!context.dataStore.get(LocalMusicArtworkOnlineKey, true)) return@withContext
+            val song = database.localSongsBlocking().firstOrNull { it.id == songId } ?: return@withContext
+            val query =
+                listOfNotNull(song.song.title, song.artists.firstOrNull()?.name)
+                    .joinToString(" ")
+                    .trim()
+            if (query.isBlank()) return@withContext
+
+            val match =
+                runCatching {
+                    YouTube
+                        .search(query, YouTube.SearchFilter.FILTER_SONG)
+                        .getOrNull()
+                        ?.items
+                        ?.filterIsInstance<SongItem>()
+                        ?.firstOrNull { candidate ->
+                            val d = candidate.duration ?: return@firstOrNull false
+                            abs(d - song.song.duration) <= DURATION_TOLERANCE_SECONDS
+                        }
+                }.getOrNull() ?: return@withContext
+
+            database.updateLocalArtwork(songId, match.thumbnail.resize(1080, 1080))
+            attachArtistIfMissing(song, match)
+        }
+
+    /** A directory that actually contains music, and how much. */
+    data class Folder(
+        val path: String,
+        val name: String,
+        val count: Int,
+    )
+
+    /**
+     * The folders music was found in, commonest first.
+     *
+     * Offered instead of the system folder picker on purpose. That returns a
+     * document tree rather than a path, which is not what the scan filters on,
+     * and it would happily let someone pick a folder with nothing in it. This
+     * only ever offers places that already hold music, and can say how much.
+     */
+    suspend fun folders(): List<Folder> =
+        withContext(Dispatchers.IO) {
+            if (!hasPermission(context)) return@withContext emptyList()
+            val counts = linkedMapOf<String, Int>()
+            context.contentResolver
+                .query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Audio.Media.DATA),
+                    "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                    null,
+                    null,
+                )?.use { cursor ->
+                    val col = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                    while (cursor.moveToNext()) {
+                        val dir = cursor.getString(col)?.substringBeforeLast('/', "").orEmpty()
+                        if (dir.isNotEmpty()) counts[dir] = (counts[dir] ?: 0) + 1
+                    }
+                }
+            counts.entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .map { Folder(it.key, it.key.substringAfterLast('/'), it.value) }
+        }
+
+    private data class Track(
+        val song: SongEntity,
+        val artist: ArtistEntity?,
+        val album: AlbumEntity?,
+    )
+
+    private fun read(
+        folders: Set<String>,
+        minDurationSeconds: Int,
+        minSizeKb: Int,
+    ): List<Track> {
+        val projection =
+            arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ARTIST_ID,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.YEAR,
+                MediaStore.Audio.Media.DATE_MODIFIED,
+                MediaStore.Audio.Media.DATA,
+                MediaStore.Audio.Media.MIME_TYPE,
+                MediaStore.Audio.Media.SIZE,
+            )
+
+        val tracks = mutableListOf<Track>()
+        var skipped = 0
+
+        context.contentResolver
+            .query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                // Ringtones, notification sounds and voice memos are audio but
+                // nobody wants them turning up next to their albums.
+                //
+                // Format is checked as each row is read, below: the player has
+                // a fixed set of decoders and a file it cannot open is worse
+                // than a file it never listed. A library that appears in full
+                // and plays nothing reads as a broken app.
+                "${MediaStore.Audio.Media.IS_MUSIC} != 0",
+                null,
+                "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC",
+            )?.use { cursor ->
+                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val artistIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val yearCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+                val modifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                val pathCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(pathCol)
+                    if (folders.isNotEmpty() && folders.none { path != null && path.startsWith(it) }) continue
+
+                    // A phone's music folder is also where voice notes, alarm
+                    // tones and half-second message sounds end up, and
+                    // MediaStore calls all of it music. Neither limit does
+                    // anything until somebody sets it.
+                    if (minDurationSeconds > 0) {
+                        val seconds = cursor.getLong(durationCol) / 1000
+                        if (seconds in 1 until minDurationSeconds.toLong()) {
+                            skipped += 1
+                            continue
+                        }
+                    }
+                    if (minSizeKb > 0 && cursor.getLong(sizeCol) in 1 until minSizeKb.toLong() * 1024) {
+                        skipped += 1
+                        continue
+                    }
+
+                    // Skipped rather than listed and then refused at the tap of
+                    // play. Windows Media, Monkey's Audio and the DSD formats
+                    // are the common ones here: MediaStore calls them music
+                    // because they are, and the player has no decoder for them.
+                    val mime = cursor.getString(mimeCol)?.lowercase()
+                    if (mime != null && !playable(mime, path)) {
+                        skipped += 1
+                        continue
+                    }
+
+                    val mediaId = cursor.getLong(idCol)
+                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId)
+                    val albumId = cursor.getLong(albumIdCol)
+                    // Addresses are built with Uri.fromFile, not File.toURI.
+                    // The two look alike and are not: File.toURI writes
+                    // "file:/path" with one slash, which the image loader does
+                    // not open, so a cover pulled out of a file's own tags was
+                    // saved correctly and then never drawn — a blank square in
+                    // the list and four blank squares on the library card.
+                    //
+                    // The file's own picture frame first, then MediaStore's
+                    // album-art table, which is empty more often than not. A
+                    // row is left with no picture at all rather than an address
+                    // that will not open, so the app draws its placeholder
+                    // instead of a black square.
+                    val artwork =
+                        embeddedArt(uri, SONG_PREFIX + mediaId)
+                            ?: albumArtIfReadable(albumId)
+
+                    // A file with no title tag still has a name, and a name is
+                    // more use than "<unknown>".
+                    val title =
+                        (
+                            cursor.getString(titleCol)?.takeIf { it.isNotBlank() }
+                                ?: path?.let { File(it).nameWithoutExtension }
+                                ?: continue
+                        ).let(::tidy)
+
+                    // A file with no artist tag usually still says who it is,
+                    // in the one place people have always written it: the file
+                    // name, as "Somebody - The Song". Without this the row has
+                    // a title and a blank line under it, which reads as the app
+                    // having failed rather than the file being untagged.
+                    val taggedArtist =
+                        cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" }
+                    val artistName = taggedArtist ?: artistFromFileName(path)
+                    val albumName = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" }
+
+                    tracks +=
+                        Track(
+                            song =
+                                SongEntity(
+                                    id = SONG_PREFIX + mediaId,
+                                    title = title,
+                                    duration = (cursor.getLong(durationCol) / 1000).toInt(),
+                                    thumbnailUrl = artwork,
+                                    albumId = albumName?.let { ALBUM_PREFIX + albumId },
+                                    albumName = albumName,
+                                    year = cursor.getInt(yearCol).takeIf { it > 0 },
+                                    dateModified = cursor.getLong(modifiedCol).asDateTime(),
+                                    inLibrary = LocalDateTime.now(),
+                                    isLocal = true,
+                                    localPath = uri.toString(),
+                                ),
+                            artist =
+                                artistName?.let {
+                                    ArtistEntity(
+                                        // A name read off the file name has no
+                                        // MediaStore id behind it, so it is
+                                        // keyed by the name itself — otherwise
+                                        // every such song would be filed under
+                                        // whatever artist id the untagged file
+                                        // happened to be given, which is one
+                                        // shared id for all of them.
+                                        id =
+                                            if (taggedArtist != null) {
+                                                ARTIST_PREFIX + cursor.getLong(artistIdCol)
+                                            } else {
+                                                ARTIST_PREFIX + "name-" + it.lowercase().hashCode()
+                                            },
+                                        name = it,
+                                        isLocal = true,
+                                    )
+                                },
+                            album =
+                                albumName?.let {
+                                    AlbumEntity(
+                                        id = ALBUM_PREFIX + albumId,
+                                        title = it,
+                                        year = cursor.getInt(yearCol).takeIf { y -> y > 0 },
+                                        thumbnailUrl = artwork,
+                                        songCount = 0,
+                                        duration = 0,
+                                        isLocal = true,
+                                    )
+                                },
+                        )
+                }
+            }
+
+        if (skipped > 0) {
+            Timber.tag("LocalMusic").i("skipped $skipped files the player has no decoder for")
+        }
+        return tracks
+    }
+
+    /**
+     * Files downloaded from the web arrive named like
+     * `Sweety_Tera_Drama(128k).mp3`, and MediaStore takes that as the title.
+     * Lyrics and artwork are both matched on the title, so the underscores
+     * alone are enough to make every lookup miss.
+     */
+    /**
+     * The artist a file name is claiming, or nothing.
+     *
+     * "Artist - Title.mp3" is the one convention almost every downloaded file
+     * follows. Only the first dash is a separator, and only when both halves
+     * look like words rather than a track number or a stray hyphen in a title.
+     */
+    private fun artistFromFileName(path: String?): String? {
+        val name = path?.let { File(it).nameWithoutExtension } ?: return null
+        val at = name.indexOf(" - ").takeIf { it > 0 } ?: return null
+        val candidate = tidy(name.take(at))
+        // "01 - Song" is a track number, not a person.
+        if (candidate.isBlank() || candidate.all { it.isDigit() }) return null
+        // Neither is the download site that put its name in front of the song.
+        if (candidate.matches(Regex("(?i)(?:www\\.)?(?:$DOWNLOAD_SITES)[a-z0-9.\\-]*"))) return null
+        if (candidate.length > 60) return null
+        return candidate
+    }
+
+
+    /**
+     * Whether the player has a decoder for this file.
+     *
+     * Media3 ships a fixed set: MP3, AAC and the MP4 family, FLAC, Vorbis,
+     * Opus, WAV, Matroska, AMR, ALAC. It has none for Windows Media, Monkey's
+     * Audio, DSD or Real Audio, and no amount of trying will play them.
+     *
+     * MediaStore's own mime type is trusted first. Some devices leave it
+     * blank or wrong, so the file name is the fallback rather than a guess in
+     * either direction: unknown is allowed through, since refusing to list a
+     * file that would have played is the worse mistake.
+     */
+    private fun playable(mime: String, path: String?): Boolean {
+        val refused = listOf(
+            "x-ms-wma", "wma", "monkeys-audio", "ape", "dsd", "dsf", "dff",
+            "vnd.rn-realaudio", "realaudio", "x-tta", "x-musepack", "musepack",
+        )
+        if (refused.any { mime.contains(it) }) return false
+        val extension = path?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        return extension !in setOf("wma", "ape", "dsf", "dff", "dsd", "ra", "rm", "tta", "mpc")
+    }
+
+    private fun tidy(raw: String): String {
+        var t = raw.replace(Regex("(\\.(mp3|m4a|aac|flac|ogg|opus|wav|wma|vm))+$", RegexOption.IGNORE_CASE), "")
+        t = t.replace('_', ' ')
+        t = t.replace(Regex("\\s*[(\\[][^)\\]]*(?:kbps|k|bit|hq|hd|official|audio|video|lyrics?)[^)\\]]*[)\\]]", RegexOption.IGNORE_CASE), " ")
+        t = t.replace(Regex("\\s*\\b\\d{2,3}\\s?kbps\\b", RegexOption.IGNORE_CASE), " ")
+        // Songs downloaded from the usual sites arrive stamped with the site's
+        // name — "Fake A Smile - PagalNew", "Perfect (mp3.pm)". It is not part
+        // of the song, it looks wrong in the list, and it is also what stops
+        // the cover lookup from recognising the track.
+        t = t.replace(
+            Regex("\\s*[(\\[][^)\\]]*(?:$DOWNLOAD_SITES|\\.(?:com|net|in|pm|info|me|co|org|cc|to|ws))[^)\\]]*[)\\]]", RegexOption.IGNORE_CASE),
+            " ",
+        )
+        t = t.replace(
+            Regex("\\s*[-\u2013\u2014|~]+\\s*(?:www\\.)?(?:$DOWNLOAD_SITES)[a-z0-9.\\-]*\\s*$", RegexOption.IGNORE_CASE),
+            "",
+        )
+        t = t.replace(Regex("\\b(?:www\\.)?[a-z0-9-]{2,}\\.(?:com|net|in|pm|info|me|co|org|cc|to|ws)\\b", RegexOption.IGNORE_CASE), " ")
+        t = t.replace(Regex("\\s{2,}"), " ").trim(' ', '-', '\u2013', '\u2014', '_')
+        return t.ifBlank { raw }
+    }
+
+    /**
+     * MediaStore's album-art table is often empty for files that were never
+     * part of a real album, but the file itself may still carry a picture
+     * frame. Reading it costs nothing and needs no network.
+     */
+    private fun embeddedArt(uri: Uri, songId: String): String? {
+        val out = File(context.filesDir, "localart/${songId.substringAfter(SONG_PREFIX)}.jpg")
+        if (out.exists() && out.length() > 0) return Uri.fromFile(out).toString()
+        return runCatching {
+            android.media.MediaMetadataRetriever().use { r ->
+                r.setDataSource(context, uri)
+                val bytes = r.embeddedPicture ?: return null
+                out.parentFile?.mkdirs()
+                out.writeBytes(bytes)
+                Uri.fromFile(out).toString()
+            }
+        }.getOrNull()
+    }
+
+    /**
+     * MediaStore hands out an album-art address for every album id whether or
+     * not there is a picture behind it, so the only way to know is to open it.
+     */
+    private fun albumArtIfReadable(albumId: Long): String? {
+        val uri = ContentUris.withAppendedId(ALBUM_ART, albumId)
+        return runCatching {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                if (stream.read() == -1) null else uri.toString()
+            }
+        }.getOrNull()
+    }
+
+    /** MediaStore counts in seconds; everything in the database is a LocalDateTime. */
+    private fun Long.asDateTime(): LocalDateTime =
+        LocalDateTime.ofInstant(Instant.ofEpochSecond(this), ZoneId.systemDefault())
+}

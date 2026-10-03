@@ -1,0 +1,55 @@
+/**
+ * Lunara Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.ui.component
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.lunara.app.R
+import com.lunara.app.ui.screens.settings.MarkdownText
+import com.lunara.app.utils.Updater
+
+@Composable
+fun ReleaseNotesCard() {
+    val releaseInfo = Updater.getCachedLatestRelease() ?: return
+
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.release_notes),
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            // Rendered, not printed. These notes are written in markdown, and as
+            // plain text they reached the screen with their asterisks and hashes
+            // still on — the one card whose entire content is prose.
+            MarkdownText(releaseInfo.description)
+        }
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+}

@@ -1,171 +1,473 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
+
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.gradle.process.ExecOperations
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+import javax.inject.Inject
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
+val baseApplicationId = "com.lunara.app"
+val applicationIdOverride = System.getenv("LUNARA_APPLICATION_ID")?.takeIf { it.isNotBlank() }
+val appNameOverride = System.getenv("LUNARA_APP_NAME")?.takeIf { it.isNotBlank() }
+val debugKeystorePathOverride = System.getenv("LUNARA_DEBUG_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+val debugKeystorePassword = System.getenv("LUNARA_DEBUG_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+
+/**
+ * Release signing credentials, from the environment or local.properties.
+ *
+ * Null when they are not set anywhere, which is the signal to sign with the
+ * debug keystore instead of failing the build.
+ */
+fun releaseSecret(name: String): String? =
+    (System.getenv(name) ?: localProperties.getProperty(name))?.takeIf { it.isNotBlank() }
+
+val releaseStorePassword = releaseSecret("STORE_PASSWORD")
+val releaseKeyAlias = releaseSecret("KEY_ALIAS")
+val releaseKeyPassword = releaseSecret("KEY_PASSWORD")
+val debugKeyAlias = System.getenv("LUNARA_DEBUG_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
+val debugKeyPassword = System.getenv("LUNARA_DEBUG_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+val persistentDebugKeystoreFile = file("persistent-debug.keystore")
+val workflowDebugKeystoreFile = debugKeystorePathOverride?.let(::file)
+
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
+    id("com.android.application")
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+abstract class GenerateProtoTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val protocArtifact: ConfigurableFileCollection
+
+    @get:InputFile
+    abstract val protoSourceFile: RegularFileProperty
+
+    @get:Internal
+    abstract val generatedSourcesDir: DirectoryProperty
+
+    @get:Internal
+    abstract val protocExecutable: RegularFileProperty
+
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    @TaskAction
+    fun generate() {
+        val protoFile = protoSourceFile.get().asFile
+        val outputDir = generatedSourcesDir.get().asFile
+        val protocFile = protocExecutable.get().asFile
+
+        outputDir.mkdirs()
+
+        // Comes from the protocTool configuration, already resolved. Gradle
+        // hands it over read-only from its cache, so it is copied out before
+        // being marked executable.
+        val resolved = protocArtifact.singleFile
+        if (!protocFile.exists() || protocFile.length() != resolved.length()) {
+            protocFile.parentFile.mkdirs()
+            resolved.copyTo(protocFile, overwrite = true)
+        }
+        protocFile.setExecutable(true)
+
+        logger.lifecycle("Generating protobuf files in $outputDir")
+        execOperations.exec {
+            executable = protocFile.absolutePath
+            args(
+                "--java_out=lite:$outputDir",
+                "--kotlin_out=$outputDir",
+                "-I=${protoFile.parentFile}",
+                protoFile.absolutePath,
+            )
+        }
+        logger.lifecycle("Protobuf files generated successfully")
+    }
 }
 
 android {
     namespace = "com.lunara.app"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.lunara.app"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 35
-        versionName = "2.21.0"
+        applicationId = applicationIdOverride ?: baseApplicationId
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "3.0.0"
+        resValue("string", "app_name", appNameOverride ?: "Lunara")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
+        vectorDrawables.useSupportLibrary = true
+
+        // Intel/AMD too: without them the APK will not install on Waydroid, most Android
+        // emulators, or x86 tablets and TV boxes that have no ARM translation. The only
+        // native code is two small AndroidX libraries, so each one adds about 20 KB.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
+
+        // LastFM API keys from GitHub Secrets
+        val lastFmKey = localProperties.getProperty("LASTFM_API_KEY") ?: System.getenv("LASTFM_API_KEY") ?: ""
+        val lastFmSecret = localProperties.getProperty("LASTFM_SECRET") ?: System.getenv("LASTFM_SECRET") ?: ""
+
+        buildConfigField("String", "LASTFM_API_KEY", "\"$lastFmKey\"")
+        buildConfigField("String", "LASTFM_SECRET", "\"$lastFmSecret\"")
+        buildConfigField("String", "ARCHITECTURE", "\"universal\"")
+        buildConfigField("Long", "DISCORD_APP_ID", "1447278780795064401L")
+    }
+
+    flavorDimensions += listOf("variant")
+    productFlavors {
+        // FOSS - no gcast. The updater is on: it was off while it pointed at the
+        // repository this project was forked from, where a "new version" was
+        // somebody else's app. It reads this project's own releases now, and
+        // this is the build people are handed directly, so it is also the build
+        // that most needs to be able to tell them a new one exists.
+        create("foss") {
+            dimension = "variant"
+            isDefault = true
+            buildConfigField("Boolean", "CAST_AVAILABLE", "false")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "true")
+        }
+
+        // GMS - Updater and gcast
+        create("gms") {
+            dimension = "variant"
+            buildConfigField("Boolean", "CAST_AVAILABLE", "true")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "true")
+        }
+
+        // IzzyOnDroid - no gcast, no updater - the ONLY F-droid compliant build
+        create("izzy") {
+            dimension = "variant"
+            buildConfigField("Boolean", "CAST_AVAILABLE", "false")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "false")
         }
     }
 
-    // Release signing is provided by CI (GitHub Actions) through environment variables.
-    // When they are absent (local builds), the release build type falls back to debug
-    // signing so `assembleRelease` still produces an installable APK.
-    val releaseKeystorePath = System.getenv("LUNARA_KEYSTORE_FILE")
     signingConfigs {
-        if (!releaseKeystorePath.isNullOrBlank()) {
-            create("release") {
-                storeFile = file(releaseKeystorePath)
-                storePassword = System.getenv("LUNARA_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("LUNARA_KEY_ALIAS") ?: "lunara"
-                keyPassword = System.getenv("LUNARA_KEY_PASSWORD")
-            }
+        create("persistentDebug") {
+            storeFile = persistentDebugKeystoreFile
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("workflowDebug") {
+            storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
+            storePassword = debugKeystorePassword
+            keyAlias = debugKeyAlias
+            keyPassword = debugKeyPassword
+        }
+        create("release") {
+            storeFile = file("keystore/release.keystore")
+            // From the environment, or from local.properties for a machine
+            // where exporting three variables before every build is a chore.
+            // Neither is committed.
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storePassword = "android"
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
         }
     }
 
     buildTypes {
         release {
+            // AGP stamps the git commit into META-INF/version-control-info.textproto,
+            // which makes the APK depend on how the source arrived rather than
+            // what is in it. A build from a worktree, a tarball or a zip writes
+            // an error stub there instead of the revision, and reproducible
+            // build verification fails on that one file while all 1004 others
+            // match. Nothing here reads it, so it is not written.
+            vcsInfo {
+                include = false
+            }
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.findByName("release")
-                ?: signingConfigs.findByName("debug")
+            isCrunchPngs = false
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
+            // Sign with the real release keystore when present; otherwise fall back
+            // to the local debug keystore so optimized builds can be sideloaded.
+            // The keystore alone is not enough — without its passwords the
+            // release config cannot sign, and the build used to fail outright
+            // rather than fall back. A keystore you have no credentials for is
+            // the same situation as not having one.
+            signingConfig =
+                if (file("keystore/release.keystore").exists() && releaseStorePassword != null) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
         debug {
-            isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
+            if (applicationIdOverride == null) {
+                applicationIdSuffix = ".debug"
+            }
+            isDebuggable = true
+            if (appNameOverride == null) {
+                resValue("string", "app_name", "Lunara Debug")
+            }
+            signingConfig =
+                if (workflowDebugKeystoreFile != null) {
+                    signingConfigs.getByName("workflowDebug")
+                } else if (persistentDebugKeystoreFile.exists()) {
+                    signingConfigs.getByName("persistentDebug")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs = freeCompilerArgs + listOf(
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-            "-opt-in=androidx.media3.common.util.UnstableApi"
-        )
-    }
-
-    testOptions {
-        unitTests {
-            // The JVM tests cover the logic that has no UI: the queue rule behind the song radio,
-            // the parser for YouTube's `next` response, download bookkeeping. Some of that code
-            // is handed an `android.net.Uri`, and without this a stubbed framework method throws
-            // "not mocked" and fails a test for a reason that has nothing to do with the code.
-            isReturnDefaultValues = true
+    kotlin {
+        jvmToolchain(21)
+        compilerOptions {
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+            jvmTarget.set(JvmTarget.JVM_21)
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
+        resValues = true
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    lint {
+        lintConfig = file("lint.xml")
+        warningsAsErrors = false
+        abortOnError = false
+        checkDependencies = false
+    }
+
+    androidResources {
+        generateLocaleConfig = true
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+            keepDebugSymbols +=
+                listOf(
+                    "**/libandroidx.graphics.path.so",
+                    "**/libdatastore_shared_counter.so",
+                )
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/CONTRIBUTORS.md"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
         }
     }
 }
 
-// A failing unit test is only actionable if the build says *why*. The default output prints the
-// exception type and a location - and for a test whose body is a coroutine that location is the
-// test's own first line, not the assertion that failed - so the message and the stack are asked for
-// here. Every failing test then reads straight from the CI log.
-tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    testLogging {
-        events("failed")
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+val protocVersion = libs.versions.protobuf.get()
+
+// protoc was fetched by hand over HTTP from inside the generate task, with a
+// browser User-Agent set on the request. It is the same artifact from the same
+// host either way, but declared as a dependency it resolves through the normal
+// path: it caches, it builds with the network down, and anyone reading this
+// file can see what the build is about to execute.
+val protocClassifier: String = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arch = System.getProperty("os.arch").lowercase()
+
+    val osName = when {
+        os.contains("linux") -> "linux"
+        os.contains("mac") || os.contains("darwin") -> "osx"
+        os.contains("windows") -> "windows"
+        else -> "linux"
     }
+
+    val archName = when {
+        arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
+        arch.contains("aarch64") || arch.contains("arm64") -> "aarch_64"
+        arch.contains("x86") -> "x86_32"
+        else -> "x86_64"
+    }
+
+    "$osName-$archName"
+}
+
+val protocTool by configurations.creating {
+    isTransitive = false
+    isCanBeResolved = true
+    isCanBeConsumed = false
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.activity.compose)
+    add("protocTool", "com.google.protobuf:protoc:$protocVersion:$protocClassifier@exe")
+}
 
-    // Compose
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
-    implementation(libs.androidx.navigation.compose)
+val protoDir = rootProject.file("proto")
+val protoFile = protoDir.resolve("listentogether.proto")
 
-    // Hilt
-    implementation(libs.hilt.android)
+val generateProto = if (protoFile.exists()) {
+    tasks.register<GenerateProtoTask>("generateProto") {
+        group = "build"
+        description = "Generate Kotlin protobuf files"
+
+        protoSourceFile.set(protoFile)
+        generatedSourcesDir.set(file("src/main/java"))
+        protocArtifact.setFrom(protocTool)
+        protocExecutable.set(layout.buildDirectory.file("protoc/protoc-$protocVersion-$protocClassifier.exe"))
+    }
+} else {
+    logger.warn("Proto file not found at $protoFile. Skipping protobuf generation.")
+    null
+}
+
+tasks.configureEach {
+    if (name.startsWith("compile") || name.startsWith("assemble")) {
+        generateProto?.let { dependsOn(it) }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=kotlin.RequiresOptIn",
+        )
+        suppressWarnings.set(false)
+    }
+}
+
+// Android provides org.json as a platform API (/apex/com.android.art/javalib/core-libart.jar).
+// The standalone org.json:json artefact bundles an older Apache Harmony copy of JSONArray that
+// contains an internal `myArrayList` field absent from the platform class.  Without obfuscation
+// R8 inlines against this internal field; at runtime the platform class is resolved instead,
+// producing a NoSuchFieldError.  Excluding the artefact globally ensures only the platform
+// class is ever referenced.
+configurations.configureEach {
+    exclude(group = "org.json", module = "json")
+}
+
+dependencies {
+    implementation(libs.guava)
+    implementation(libs.coroutines.guava)
+    implementation(libs.concurrent.futures)
+
+    implementation(libs.activity)
+    implementation(libs.hilt.navigation)
+    implementation(libs.datastore)
+
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.util)
+    implementation(libs.compose.ui.tooling)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.reorderable)
+
+    implementation(libs.viewmodel)
+    implementation(libs.viewmodel.compose)
+    implementation(libs.lifecycle.process)
+
+    implementation(libs.material3)
+    implementation(libs.palette)
+    implementation(libs.materialKolor)
+
+    implementation(libs.appcompat)
+
+    implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.browser)
+
+    implementation(libs.ucrop)
+
+    implementation(libs.shimmer)
+
+    implementation(libs.media3)
+    implementation(libs.media3.session)
+    // Live broadcasts are served as a playlist of segments rather than one file.
+    implementation(libs.media3.hls)
+    implementation(libs.media3.okhttp)
+
+    // Google Cast - only included in GMS flavor (not available in F-Droid/FOSS builds)
+    "gmsImplementation"(libs.media3.cast)
+    "gmsImplementation"(libs.mediarouter)
+    "gmsImplementation"(libs.cast.framework)
+
+    implementation(libs.room.runtime)
+    implementation(libs.kuromoji.ipadic)
+    implementation(libs.tinypinyin)
+    ksp(libs.room.compiler)
+    implementation(libs.room.ktx)
+
+    implementation(libs.apache.lang3)
+
+    implementation(libs.hilt)
+    implementation(libs.jsoup)
     ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
 
-    // Media3 & ExoPlayer
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.session)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.common)
+    implementation(project(":innertube"))
+    implementation(project(":kugou"))
+    implementation(project(":lrclib"))
+    implementation(project(":lastfm"))
+    implementation(project(":betterlyrics"))
+    implementation(project(":shazamkit"))
+    implementation(project(":paxsenix"))
 
-    // Room
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-
-    // DataStore
-    implementation(libs.androidx.datastore.preferences)
-
-    // WorkManager
-    implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.androidx.hilt.work)
-    ksp(libs.androidx.hilt.work.compiler)
-
-    // Ktor
     implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
-    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.ktor.client.encoding)
+    implementation(libs.ktor.serialization.json)
 
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.coroutines.core)
+    // Protobuf for message serialization (lite version for Android)
+    implementation(libs.protobuf.javalite)
+    implementation(libs.protobuf.kotlin.lite)
 
-    // Image loading
-    implementation(libs.coil.compose)
+    coreLibraryDesugaring(libs.desugaring)
 
-    // Testing
+    implementation(libs.timber)
+
     testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.kotlinx.coroutines.test)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
-    androidTestImplementation(libs.mockk.android)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    // Turns a shared playlist's link into the square people point a camera at.
+    implementation(libs.zxing.core)
+
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.ktor.client.mock)
 }

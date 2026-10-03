@@ -1,0 +1,23 @@
+/**
+ * Lunara Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.db.entities
+
+import androidx.compose.runtime.Immutable
+import androidx.room.Embedded
+import androidx.room.Relation
+
+@Immutable
+data class EventWithSong(
+    @Embedded
+    val event: Event,
+    @Relation(
+        entity = SongEntity::class,
+        parentColumn = "songId",
+        entityColumn = "id",
+    )
+    val song: Song,
+)

@@ -1,0 +1,1356 @@
+/**
+ * Lunara Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.lunara.app.ui.player
+
+import android.annotation.SuppressLint
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.edit
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
+import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
+import com.lunara.app.LocalNavController
+import com.lunara.app.LocalListenTogetherManager
+import com.lunara.app.LocalPlayerConnection
+import com.lunara.app.R
+import com.lunara.app.constants.ListItemHeight
+import com.lunara.app.constants.PlayerBackgroundStyle
+import com.lunara.app.constants.QueueEditLockKey
+import com.lunara.app.constants.UseNewPlayerDesignKey
+import com.lunara.app.extensions.metadata
+import com.lunara.app.extensions.move
+import com.lunara.app.extensions.toggleRepeatMode
+import com.lunara.app.listentogether.RoomRole
+import com.lunara.app.models.MediaMetadata
+import com.lunara.app.ui.component.ActionPromptDialog
+import com.lunara.app.ui.component.LunaraSleepTimerDialog
+import com.lunara.app.ui.component.LunaraSnackbarHost
+import com.lunara.app.ui.component.CastButton
+import com.lunara.app.ui.component.BottomSheet
+import com.lunara.app.ui.component.BottomSheetState
+import com.lunara.app.ui.component.LocalBottomSheetPageState
+import com.lunara.app.ui.component.LocalMenuState
+import com.lunara.app.ui.component.PlayerBottomButton
+import com.lunara.app.ui.component.MediaMetadataListItem
+import com.lunara.app.ui.menu.PlayerMenu
+import com.lunara.app.ui.menu.QueueMenu
+import com.lunara.app.ui.menu.SelectionMediaMetadataMenu
+import com.lunara.app.ui.theme.LunaraThemeColor
+import com.lunara.app.ui.utils.ShowMediaInfo
+import com.lunara.app.utils.dataStore
+import com.lunara.app.utils.makeTimeString
+import com.lunara.app.utils.rememberPreference
+import com.lunara.app.utils.safeDataStoreEdit
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.roundToInt
+import com.lunara.app.constants.SleepTimerDefaultKey
+import android.widget.Toast
+import androidx.compose.runtime.derivedStateOf
+import com.lunara.app.constants.SleepTimerFadeOutKey
+import com.lunara.app.constants.SleepTimerStopAfterCurrentSongKey
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.material3.Button
+import androidx.compose.ui.text.font.FontWeight
+
+
+@SuppressLint("UnrememberedMutableState")
+@OptIn(ExperimentalFoundationApi::class)
+/** Tall enough for a key and its label, the way the player's own row is. */
+private val QueueBottomBarHeight = 76.dp
+
+@Composable
+fun Queue(
+    state: BottomSheetState,
+    playerBottomSheetState: BottomSheetState,
+    modifier: Modifier = Modifier,
+    background: Color,
+    onBackgroundColor: Color,
+    TextBackgroundColor: Color,
+    textButtonColor: Color,
+    iconButtonColor: Color,
+    pureBlack: Boolean,
+    showInlineLyrics: Boolean,
+    playerBackground: PlayerBackgroundStyle = PlayerBackgroundStyle.DEFAULT,
+    onToggleLyrics: () -> Unit = {},
+    // When false, the collapsed peek bar (queue/sleep/lyrics quick buttons) is hidden.
+    // The queue is still reachable by expanding it (e.g. the RING design's queue icon).
+    showCollapsedContent: Boolean = true,
+) {
+    val navController = LocalNavController.current
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val clipboardManager = LocalClipboard.current
+    val menuState = LocalMenuState.current
+    val sleepTimerDefaultSetTemplate = stringResource(R.string.sleep_timer_default_set)
+    val bottomSheetPageState = LocalBottomSheetPageState.current
+
+    // Listen Together state (reactive)
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val listenTogetherRoleState = listenTogetherManager?.role?.collectAsStateWithLifecycle(initialValue = com.lunara.app.listentogether.RoomRole.NONE)
+    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST
+
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val isPlaying by playerConnection.isEffectivelyPlaying.collectAsStateWithLifecycle()
+    val repeatMode by playerConnection.repeatMode.collectAsStateWithLifecycle()
+
+    val currentWindowIndex by playerConnection.currentWindowIndex.collectAsStateWithLifecycle()
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
+
+    val currentFormat by playerConnection.currentFormat.collectAsStateWithLifecycle(initialValue = null)
+
+    val selectedSongs = remember { mutableStateListOf<MediaMetadata>() }
+    val selectedItems = remember { mutableStateListOf<Timeline.Window>() }
+
+    // Cast state - safely access castConnectionHandler to prevent crashes during service lifecycle changes
+    val castHandler =
+        remember(playerConnection) {
+            try {
+                playerConnection.service.castConnectionHandler
+            } catch (e: Exception) {
+                null
+            }
+        }
+    val isCasting by castHandler?.isCasting?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+    val castIsPlaying by castHandler?.castIsPlaying?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+
+    var inSelectMode by rememberSaveable { mutableStateOf(false) }
+    val selection =
+        rememberSaveable(
+            saver =
+                listSaver<MutableList<String>, String>(
+                    save = { it.toList() },
+                    restore = { it.toMutableStateList() },
+                ),
+        ) { mutableStateListOf() }
+    val onExitSelectionMode = {
+        inSelectMode = false
+        selection.clear()
+    }
+    if (inSelectMode) {
+        BackHandler(onBack = onExitSelectionMode)
+    }
+
+    var locked by rememberPreference(QueueEditLockKey, defaultValue = true)
+
+    val (useNewPlayerDesign, onUseNewPlayerDesignChange) =
+        rememberPreference(
+            UseNewPlayerDesignKey,
+            defaultValue = false,
+        )
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    var dismissJob: Job? by remember { mutableStateOf(null) }
+
+    val coroutineScope = rememberCoroutineScope()
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    val sleepTimerDefault by rememberPreference(SleepTimerDefaultKey, 30f)
+    var sleepTimerValue by remember { mutableFloatStateOf(sleepTimerDefault) }
+    val isAtDefault by remember {
+        derivedStateOf { sleepTimerValue.roundToInt() == sleepTimerDefault.roundToInt() }
+    }
+    val sleepTimerStopAfterCurrentSong by rememberPreference(SleepTimerStopAfterCurrentSongKey, false)
+    val sleepTimerFadeOut by rememberPreference(SleepTimerFadeOutKey, false)
+    val sleepTimerEnabled = remember(
+        playerConnection.service.sleepTimer?.triggerTime,
+        playerConnection.service.sleepTimer?.pauseWhenSongEnd
+    ) {
+        playerConnection.service.sleepTimer?.isActive ?: false
+    }
+    var sleepTimerTimeLeft by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(sleepTimerEnabled) {
+        if (sleepTimerEnabled) {
+            while (isActive) {
+                sleepTimerTimeLeft =
+                    if (playerConnection.service.sleepTimer?.pauseWhenSongEnd == true) {
+                        playerConnection.player.duration - playerConnection.player.currentPosition
+                    } else {
+                        (playerConnection.service.sleepTimer?.triggerTime ?: 0L) - System.currentTimeMillis()
+                    }
+                delay(1000L)
+            }
+        }
+    }
+
+    BottomSheet(
+        state = state,
+        modifier = modifier,
+        background = {
+            Box(Modifier.fillMaxSize().background(Color.Unspecified))
+        },
+        collapsedContent = collapsed@{
+            if (!showCollapsedContent) return@collapsed
+            if (useNewPlayerDesign) {
+                // New design
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 30.dp, vertical = 12.dp)
+                            .windowInsetsPadding(
+                                WindowInsets.systemBars.only(
+                                    WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal,
+                                ),
+                            ),
+                ) {
+                    val buttonSize = 42.dp
+                    val iconSize = 24.dp
+                    val queueShape =
+                        RoundedCornerShape(
+                            topStart = 50.dp,
+                            bottomStart = 50.dp,
+                            topEnd = 3.dp,
+                            bottomEnd = 3.dp,
+                        )
+                    val middleShape = RoundedCornerShape(3.dp)
+                    val repeatShape =
+                        RoundedCornerShape(
+                            topStart = 3.dp,
+                            bottomStart = 3.dp,
+                            topEnd = 50.dp,
+                            bottomEnd = 50.dp,
+                        )
+
+                    PlayerQueueButton(
+                        icon = R.drawable.queue_music,
+                        onClick = { state.expandSoft() },
+                        isActive = false,
+                        shape = queueShape,
+                        modifier = Modifier.size(buttonSize),
+                        textButtonColor = textButtonColor,
+                        iconButtonColor = iconButtonColor,
+                        iconSize = iconSize,
+                        textBackgroundColor = TextBackgroundColor,
+                        playerBackground = playerBackground,
+                    )
+
+                    PlayerQueueButton(
+                        icon = R.drawable.bedtime,
+                        onClick = {
+                            // Always open the dialog; a running timer shows countdown + END/RESET
+                            showSleepTimerDialog = true
+                        },
+                        isActive = sleepTimerEnabled,
+                        enabled = !isListenTogetherGuest,
+                        shape = middleShape,
+                        modifier = Modifier.size(buttonSize),
+                        textButtonColor = textButtonColor,
+                        iconButtonColor = iconButtonColor,
+                        text = if (sleepTimerEnabled) makeTimeString(sleepTimerTimeLeft) else null,
+                        iconSize = iconSize,
+                        textBackgroundColor = TextBackgroundColor,
+                        playerBackground = playerBackground,
+                    )
+
+                    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsStateWithLifecycle()
+                    PlayerQueueButton(
+                        icon = R.drawable.shuffle,
+                        onClick = {
+                            playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
+                        },
+                        isActive = shuffleModeEnabled,
+                        enabled = !isListenTogetherGuest,
+                        shape = middleShape,
+                        modifier = Modifier.size(buttonSize),
+                        textButtonColor = textButtonColor,
+                        iconButtonColor = iconButtonColor,
+                        iconSize = iconSize,
+                        textBackgroundColor = TextBackgroundColor,
+                        playerBackground = playerBackground,
+                    )
+
+                    PlayerQueueButton(
+                        icon = R.drawable.lyrics,
+                        onClick = { onToggleLyrics() },
+                        isActive = showInlineLyrics,
+                        shape = middleShape,
+                        modifier = Modifier.size(buttonSize),
+                        textButtonColor = textButtonColor,
+                        iconButtonColor = iconButtonColor,
+                        iconSize = iconSize,
+                        textBackgroundColor = TextBackgroundColor,
+                        playerBackground = playerBackground,
+                    )
+
+                    PlayerQueueButton(
+                        icon =
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ALL -> R.drawable.repeat
+                                Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                                else -> R.drawable.repeat
+                            },
+                        onClick = {
+                            playerConnection.player.toggleRepeatMode()
+                        },
+                        isActive = repeatMode != Player.REPEAT_MODE_OFF,
+                        enabled = !isListenTogetherGuest,
+                        shape = repeatShape,
+                        modifier = Modifier.size(buttonSize),
+                        textButtonColor = textButtonColor,
+                        iconButtonColor = iconButtonColor,
+                        iconSize = iconSize,
+                        textBackgroundColor = TextBackgroundColor,
+                        playerBackground = playerBackground,
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(buttonSize)
+                                .clip(CircleShape)
+                                .background(textButtonColor)
+                                .clickable {
+                                    menuState.show {
+                                        PlayerMenu(
+                                            mediaMetadata = mediaMetadata,
+                                            playerBottomSheetState = playerBottomSheetState,
+                                            onShowDetailsDialog = {
+                                                mediaMetadata?.id?.let {
+                                                    bottomSheetPageState.show {
+                                                        ShowMediaInfo(it)
+                                                    }
+                                                }
+                                            },
+                                            onDismiss = menuState::dismiss,
+                                        )
+                                    }
+                                },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.more_vert),
+                            contentDescription = null,
+                            modifier = Modifier.size(iconSize),
+                            tint = iconButtonColor,
+                        )
+                    }
+                }
+            } else {
+                // Old design: four equal columns, the icon above its name, each
+                // one lit amber while what it controls is on. Without that a
+                // tap on Lyrics gave no sign of anything having happened.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp)
+                            .windowInsetsPadding(
+                                WindowInsets.systemBars
+                                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+                            ),
+                ) {
+                    PlayerBottomButton(
+                        icon = R.drawable.queue_music,
+                        label = stringResource(R.string.queue),
+                        active = false,
+                        tint = TextBackgroundColor,
+                        activeTint = LunaraThemeColor,
+                        modifier = Modifier.weight(1f),
+                        onClick = { state.expandSoft() },
+                    )
+
+                    // Nothing is drawn where Cast is unavailable, so the row is
+                    // three columns on builds without Play Services rather than
+                    // four with a dead one.
+                    CastButton(
+                        modifier = Modifier.weight(1f),
+                        tintColor = TextBackgroundColor,
+                        label = stringResource(R.string.cast),
+                        activeTint = LunaraThemeColor,
+                    )
+
+                    PlayerBottomButton(
+                        icon = R.drawable.bedtime,
+                        label =
+                            if (sleepTimerEnabled) {
+                                makeTimeString(sleepTimerTimeLeft)
+                            } else {
+                                stringResource(R.string.sleep_timer)
+                            },
+                        active = sleepTimerEnabled,
+                        tint = TextBackgroundColor,
+                        activeTint = LunaraThemeColor,
+                        enabled = !isListenTogetherGuest,
+                        modifier = Modifier.weight(1f),
+                        // Always open the dialog; a running timer shows countdown + END/RESET
+                        onClick = { showSleepTimerDialog = true },
+                    )
+
+                    PlayerBottomButton(
+                        icon = R.drawable.lyrics,
+                        label = stringResource(R.string.lyrics),
+                        active = showInlineLyrics,
+                        tint = TextBackgroundColor,
+                        activeTint = LunaraThemeColor,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onToggleLyrics() },
+                    )
+                }
+            }
+
+            if (showSleepTimerDialog) {
+                LunaraSleepTimerDialog(
+                    sleepTimerEnabled = sleepTimerEnabled,
+                    sleepTimerTimeLeft = sleepTimerTimeLeft,
+                    pauseWhenSongEnd = playerConnection.service.sleepTimer?.pauseWhenSongEnd == true,
+                    sleepTimerSongsLeft = playerConnection.service.sleepTimer?.songsLeft ?: 0,
+                    initialMinutes = sleepTimerDefault,
+                    onDismiss = { showSleepTimerDialog = false },
+                    onStart = { minutes ->
+                        showSleepTimerDialog = false
+                        playerConnection.service.sleepTimer?.start(
+                            minute = minutes,
+                            stopAfterCurrentSong = sleepTimerStopAfterCurrentSong,
+                            fadeOut = sleepTimerFadeOut,
+                        )
+                    },
+                    onStartEndOfSong = {
+                        showSleepTimerDialog = false
+                        playerConnection.service.sleepTimer?.start(minute = -1)
+                    },
+                    onStartAfterSongs = { count ->
+                        showSleepTimerDialog = false
+                        playerConnection.service.sleepTimer?.startAfterSongs(count)
+                    },
+                    onClear = { playerConnection.service.sleepTimer?.clear() },
+                )
+            }
+        },
+    ) {
+        val queueTitle by playerConnection.queueTitle.collectAsStateWithLifecycle()
+        val queueWindows by playerConnection.queueWindows.collectAsStateWithLifecycle()
+        val liveBroadcasts by playerConnection.liveBroadcasts.collectAsStateWithLifecycle()
+        val automix by playerConnection.service.automixItems.collectAsStateWithLifecycle()
+        val mutableQueueWindows = remember { mutableStateListOf<Timeline.Window>() }
+        val queueLength =
+            remember(queueWindows) {
+                queueWindows.sumOf { it.mediaItem.metadata!!.duration }
+            }
+
+        val coroutineScope = rememberCoroutineScope()
+
+        val headerItems = 1
+        val lazyListState = rememberLazyListState()
+        var dragInfo by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+
+        val currentPlayingUid =
+            remember(currentWindowIndex, queueWindows) {
+                if (currentWindowIndex in queueWindows.indices) {
+                    queueWindows[currentWindowIndex].uid
+                } else {
+                    null
+                }
+            }
+
+        val reorderableState =
+            rememberReorderableLazyListState(
+                lazyListState = lazyListState,
+                scrollThresholdPadding =
+                    WindowInsets.systemBars
+                        .add(
+                            WindowInsets(
+                                top = ListItemHeight,
+                                bottom = ListItemHeight,
+                            ),
+                        ).asPaddingValues(),
+            ) { from, to ->
+                val currentDragInfo = dragInfo
+                dragInfo =
+                    if (currentDragInfo == null) {
+                        from.index to to.index
+                    } else {
+                        currentDragInfo.first to to.index
+                    }
+
+                val safeFrom = (from.index - headerItems).coerceIn(0, mutableQueueWindows.lastIndex)
+                val safeTo = (to.index - headerItems).coerceIn(0, mutableQueueWindows.lastIndex)
+
+                mutableQueueWindows.move(safeFrom, safeTo)
+            }
+
+        LaunchedEffect(reorderableState.isAnyItemDragging) {
+            if (!reorderableState.isAnyItemDragging) {
+                dragInfo?.let { (from, to) ->
+                    val safeFrom = (from - headerItems).coerceIn(0, queueWindows.lastIndex)
+                    val safeTo = (to - headerItems).coerceIn(0, queueWindows.lastIndex)
+
+                    if (!playerConnection.player.shuffleModeEnabled) {
+                        playerConnection.player.moveMediaItem(safeFrom, safeTo)
+                    } else {
+                        playerConnection.player.setShuffleOrder(
+                            DefaultShuffleOrder(
+                                queueWindows
+                                    .map { it.firstPeriodIndex }
+                                    .toMutableList()
+                                    .move(safeFrom, safeTo)
+                                    .toIntArray(),
+                                System.currentTimeMillis(),
+                            ),
+                        )
+                    }
+                    dragInfo = null
+                }
+            }
+        }
+
+        LaunchedEffect(queueWindows) {
+            mutableQueueWindows.apply {
+                clear()
+                addAll(queueWindows)
+            }
+        }
+
+        LaunchedEffect(mutableQueueWindows, currentWindowIndex) {
+            if (currentWindowIndex != -1) {
+                lazyListState.scrollToItem(currentWindowIndex)
+            }
+        }
+
+        // Moves a song to the place right behind the one playing. Shuffle keeps its own
+        // running order, so with it on the order is rewritten instead of the list — the
+        // same split the drag above makes.
+        fun moveToPlayNext(from: Int) {
+            val current = currentWindowIndex
+            if (current == -1 || from !in mutableQueueWindows.indices || from == current) return
+
+            // Behind the songs picked before this one, not in front of them: swipe 5, then 9,
+            // then 11 and they play 5, 9, 11. The menu's Play next has always worked that way.
+            val movingId = mutableQueueWindows[from].mediaItem.mediaId
+            val picks = playerConnection.playNextPicks.filter { it != movingId }
+            var target = current + 1
+            var matched = 0
+            while (target < mutableQueueWindows.size &&
+                matched < picks.size &&
+                mutableQueueWindows[target].mediaItem.mediaId == picks[matched]
+            ) {
+                target++
+                matched++
+            }
+            // Already standing in that spot. The swipe asks twice — once for the anchor it
+            // is heading to and once as it settles — and without this the second ask moved
+            // the song on again, landing it in front of the song playing.
+            if (from == target) return
+
+            val to = if (from > target) target else (target - 1).coerceAtLeast(current)
+            playerConnection.notePlayNextPick(movingId)
+            if (from == to) return
+            if (!playerConnection.player.shuffleModeEnabled) {
+                playerConnection.player.moveMediaItem(from, to)
+            } else {
+                playerConnection.player.setShuffleOrder(
+                    DefaultShuffleOrder(
+                        queueWindows
+                            .map { it.firstPeriodIndex }
+                            .toMutableList()
+                            .move(from, to)
+                            .toIntArray(),
+                        System.currentTimeMillis(),
+                    ),
+                )
+            }
+        }
+
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(background),
+        ) {
+            LazyColumn(
+                state = lazyListState,
+                contentPadding =
+                    WindowInsets.systemBars
+                        .add(
+                            WindowInsets(
+                                top = ListItemHeight + 8.dp,
+                                bottom = QueueBottomBarHeight + 8.dp,
+                            ),
+                        ).asPaddingValues(),
+                modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
+            ) {
+                item(key = "queue_top_spacer") {
+                    Spacer(
+                        modifier =
+                            Modifier
+                                .animateContentSize()
+                                .height(if (inSelectMode) 48.dp else 0.dp),
+                    )
+                }
+
+                itemsIndexed(
+                    items = mutableQueueWindows,
+                    key = { _, item -> item.uid.hashCode() },
+                ) { index, window ->
+                    ReorderableItem(
+                        state = reorderableState,
+                        key = window.uid.hashCode(),
+                    ) {
+                        val currentItem by rememberUpdatedState(window)
+                        val isActive = window.uid == currentPlayingUid
+                        val currentIndex by rememberUpdatedState(index)
+                        val removedSongMsg =
+                            stringResource(R.string.removed_song_from_playlist, currentItem.mediaItem.metadata?.title ?: "")
+                        val playsNextMsg =
+                            stringResource(R.string.queue_plays_next, currentItem.mediaItem.metadata?.title ?: "")
+                        val undoStr = stringResource(R.string.undo)
+                        // Half a row's width, not the whole screen: a song eighty places down
+                        // should take one flick to move, which is the point of the gesture.
+                        //
+                        // Play next moves a row, it does not throw it away, so the swipe is
+                        // refused (false) and the row springs back under the finger. Resetting
+                        // it afterwards instead left the row lying open off screen, because the
+                        // reset changes the value the effect doing it is keyed on.
+                        val dismissBoxState =
+                            rememberSwipeToDismissBoxState(
+                                positionalThreshold = { totalDistance -> totalDistance * 0.5f },
+                                confirmValueChange = { value ->
+                                    if (value == SwipeToDismissBoxValue.StartToEnd) {
+                                        moveToPlayNext(currentIndex)
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                message = playsNextMsg,
+                                                duration = SnackbarDuration.Short,
+                                            )
+                                        }
+                                        false
+                                    } else {
+                                        true
+                                    }
+                                },
+                            )
+
+                        var processedDismiss by remember { mutableStateOf(false) }
+                        LaunchedEffect(dismissBoxState.currentValue) {
+                            val dv = dismissBoxState.currentValue
+                            if (!processedDismiss && !isListenTogetherGuest && dv == SwipeToDismissBoxValue.EndToStart) {
+                                processedDismiss = true
+                                playerConnection.player.removeMediaItem(currentItem.firstPeriodIndex)
+                                dismissJob?.cancel()
+                                dismissJob =
+                                    coroutineScope.launch {
+                                        val snackbarResult =
+                                            snackbarHostState.showSnackbar(
+                                                message = removedSongMsg,
+                                                actionLabel = undoStr,
+                                                duration = SnackbarDuration.Short,
+                                            )
+                                        if (snackbarResult == SnackbarResult.ActionPerformed) {
+                                            playerConnection.player.addMediaItem(currentItem.mediaItem)
+                                            playerConnection.player.moveMediaItem(
+                                                mutableQueueWindows.size,
+                                                currentItem.firstPeriodIndex,
+                                            )
+                                        }
+                                    }
+                            }
+                            if (dv == SwipeToDismissBoxValue.Settled) {
+                                processedDismiss = false
+                            }
+                        }
+
+                        val onCheckedChange: (Boolean) -> Unit = {
+                            if (it) {
+                                selection.add(window.mediaItem.mediaId)
+                            } else {
+                                selection.remove(window.mediaItem.mediaId)
+                            }
+                        }
+
+                        val content: @Composable () -> Unit = {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.animateItem(),
+                            ) {
+                                MediaMetadataListItem(
+                                    mediaMetadata = window.mediaItem.metadata!!,
+                                    isSelected = false,
+                                    isActive = isActive,
+                                    isPlaying = isPlaying && isActive,
+                                    isLive = window.mediaItem.mediaId in liveBroadcasts,
+                                    trailingContent = {
+                                        if (inSelectMode) {
+                                            Checkbox(
+                                                checked = window.mediaItem.mediaId in selection,
+                                                onCheckedChange = onCheckedChange,
+                                            )
+                                        } else {
+                                            if (!isListenTogetherGuest) {
+                                                IconButton(
+                                                    onClick = {
+                                                        menuState.show {
+                                                            QueueMenu(
+                                                                mediaMetadata = window.mediaItem.metadata!!,
+                                                                playerBottomSheetState = playerBottomSheetState,
+                                                                onShowDetailsDialog = {
+                                                                    window.mediaItem.mediaId.let {
+                                                                        bottomSheetPageState.show {
+                                                                            ShowMediaInfo(it)
+                                                                        }
+                                                                    }
+                                                                },
+                                                                onDismiss = menuState::dismiss,
+                                                            )
+                                                        }
+                                                    },
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.more_vert),
+                                                        contentDescription = null,
+                                                    )
+                                                }
+                                            }
+                                            if (!locked && !isListenTogetherGuest) {
+                                                IconButton(
+                                                    onClick = { },
+                                                    modifier = Modifier.draggableHandle(),
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.drag_handle),
+                                                        contentDescription = null,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .background(background)
+                                            .combinedClickable(
+                                                onClick = {
+                                                    if (inSelectMode) {
+                                                        onCheckedChange(window.mediaItem.mediaId !in selection)
+                                                    } else if (!isListenTogetherGuest) {
+                                                        if (index == currentWindowIndex) {
+                                                            if (isCasting) {
+                                                                if (castIsPlaying) {
+                                                                    castHandler?.pause()
+                                                                } else {
+                                                                    castHandler?.play()
+                                                                }
+                                                            } else {
+                                                                playerConnection.togglePlayPause()
+                                                            }
+                                                        } else {
+                                                            if (isCasting) {
+                                                                val mediaId = window.mediaItem.mediaId
+                                                                val navigated = castHandler?.navigateToMediaIfInQueue(mediaId) ?: false
+                                                                if (!navigated) {
+                                                                    playerConnection.player.seekToDefaultPosition(window.firstPeriodIndex)
+                                                                }
+                                                            } else {
+                                                                playerConnection.player.seekToDefaultPosition(
+                                                                    window.firstPeriodIndex,
+                                                                )
+                                                                playerConnection.player.playWhenReady = true
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    if (!inSelectMode) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        inSelectMode = true
+                                                        onCheckedChange(true)
+                                                    }
+                                                },
+                                            ),
+                                )
+                            }
+                        }
+
+                        // Play next is safe, so it works on a locked queue as well; removing
+                        // a song is what the lock is for.
+                        SwipeToDismissBox(
+                            state = dismissBoxState,
+                            enableDismissFromStartToEnd = !isListenTogetherGuest && !isActive,
+                            enableDismissFromEndToStart = !locked && !isListenTogetherGuest,
+                            backgroundContent = {
+                                QueueSwipeBackground(direction = dismissBoxState.dismissDirection)
+                            },
+                        ) {
+                            content()
+                        }
+                    }
+                }
+
+                if (automix.isNotEmpty()) {
+                    item(key = "automix_divider") {
+                        HorizontalDivider(
+                            modifier =
+                                Modifier
+                                    .padding(vertical = 8.dp, horizontal = 4.dp)
+                                    .animateItem(),
+                        )
+
+                        Text(
+                            text = stringResource(R.string.similar_content),
+                            modifier = Modifier.padding(start = 16.dp),
+                        )
+                    }
+
+                    itemsIndexed(
+                        items = automix,
+                        key = { _, it -> it.mediaId },
+                    ) { index, item ->
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            MediaMetadataListItem(
+                                mediaMetadata = item.metadata!!,
+                                trailingContent = {
+                                    if (!isListenTogetherGuest) {
+                                        IconButton(
+                                            onClick = {
+                                                playerConnection.service.playNextAutomix(
+                                                    item,
+                                                    index,
+                                                )
+                                            },
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.playlist_play),
+                                                contentDescription = null,
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                playerConnection.service.addToQueueAutomix(
+                                                    item,
+                                                    index,
+                                                )
+                                            },
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.queue_music),
+                                                contentDescription = null,
+                                            )
+                                        }
+                                    }
+                                },
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = {},
+                                            onLongClick = {
+                                                menuState.show {
+                                                    QueueMenu(
+                                                        mediaMetadata = item.metadata!!,
+                                                        playerBottomSheetState = playerBottomSheetState,
+                                                        onShowDetailsDialog = {
+                                                            item.mediaId.let {
+                                                                bottomSheetPageState.show {
+                                                                    ShowMediaInfo(it)
+                                                                }
+                                                            }
+                                                        },
+                                                        onDismiss = menuState::dismiss,
+                                                    )
+                                                }
+                                            },
+                                        ).animateItem(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Column(
+            modifier =
+                Modifier
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { }
+                    .background(
+                        if (pureBlack) {
+                            Color.Black
+                        } else {
+                            MaterialTheme.colorScheme
+                                .secondaryContainer
+                                .copy(alpha = 0.90f)
+                        },
+                    ).windowInsetsPadding(
+                        WindowInsets.systemBars
+                            .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                    ),
+        ) {
+            // Title over its own line of numbers, and the lock as a key you can see the
+            // state of. The count and the length used to sit in a second column on two
+            // baselines of their own, which read as three headings fighting each other.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    Modifier
+                        .heightIn(min = ListItemHeight)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = queueTitle.orEmpty(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text =
+                            pluralStringResource(
+                                R.plurals.n_song,
+                                queueWindows.size,
+                                queueWindows.size,
+                            ) + "  ·  " + makeTimeString(queueLength * 1000L),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = !inSelectMode,
+                    enter = fadeIn() + slideInVertically { it },
+                    exit = fadeOut() + slideOutVertically { it },
+                ) {
+                    val unlocked = !locked
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier =
+                            Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (unlocked) {
+                                        LunaraThemeColor.copy(alpha = 0.18f)
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                    },
+                                ).clickable { locked = !locked },
+                    ) {
+                        Icon(
+                            // Drawn at the weight of the shuffle and repeat keys. The solid
+                            // padlock the lists ship with sat in this row like a stamp.
+                            painter = painterResource(if (locked) R.drawable.lock_line else R.drawable.lock_open_line),
+                            contentDescription = stringResource(if (locked) R.string.queue_locked else R.string.queue_unlocked),
+                            tint = if (unlocked) LunaraThemeColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = inSelectMode,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                val selectedSongs =
+                    remember(selection.toList(), mutableQueueWindows) {
+                        mutableQueueWindows
+                            .filter { it.mediaItem.mediaId in selection }
+                            .mapNotNull { it.mediaItem.metadata }
+                    }
+                val selectedItems =
+                    remember(selection.toList(), mutableQueueWindows) {
+                        mutableQueueWindows.filter { it.mediaItem.mediaId in selection }
+                    }
+                val count = selection.size
+                Row(
+                    modifier =
+                        Modifier
+                            .height(48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onExitSelectionMode,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.close),
+                            contentDescription = null,
+                        )
+                    }
+                    Text(
+                        text = pluralStringResource(R.plurals.n_selected, count, count),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Checkbox(
+                        checked = count == mutableQueueWindows.size && count > 0,
+                        onCheckedChange = {
+                            if (count == mutableQueueWindows.size) {
+                                selection.clear()
+                            } else {
+                                selection.clear()
+                                mutableQueueWindows.forEach {
+                                    selection.add(it.mediaItem.mediaId)
+                                }
+                            }
+                        },
+                    )
+                    IconButton(
+                        enabled = count > 0,
+                        onClick = {
+                            menuState.show {
+                                SelectionMediaMetadataMenu(
+                                    songSelection = selectedSongs,
+                                    onDismiss = menuState::dismiss,
+                                    clearAction = onExitSelectionMode,
+                                    currentItems = selectedItems,
+                                )
+                            }
+                        },
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.more_vert),
+                            contentDescription = null,
+                            tint = LocalContentColor.current,
+                        )
+                    }
+                }
+            }
+            if (pureBlack) {
+                HorizontalDivider()
+            }
+        }
+
+        val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsStateWithLifecycle()
+
+        val barColor =
+            if (pureBlack) {
+                Color.Black
+            } else {
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.90f)
+            }
+
+        // Songs fade into the bar instead of being cut off by its edge. It carries no
+        // touches of its own, so the list still scrolls under it.
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom =
+                            QueueBottomBarHeight +
+                                WindowInsets.systemBars
+                                    .asPaddingValues()
+                                    .calculateBottomPadding(),
+                    ).fillMaxWidth()
+                    .height(32.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, barColor),
+                        ),
+                    ),
+        )
+
+        Box(
+            modifier =
+                Modifier
+                    .background(barColor)
+                    .fillMaxWidth()
+                    .height(
+                        QueueBottomBarHeight +
+                            WindowInsets.systemBars
+                                .asPaddingValues()
+                                .calculateBottomPadding(),
+                    ).align(Alignment.BottomCenter)
+                    .clickable {
+                        state.collapseSoft()
+                    }.windowInsetsPadding(
+                        WindowInsets.systemBars
+                            .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+                    ).padding(horizontal = 12.dp, vertical = 2.dp),
+        ) {
+            // The same keys the player's own bottom row uses — icon over a small label,
+            // amber while the mode is on — so the two rows read as one family instead of
+            // three bare glyphs floating in a bar.
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().align(Alignment.Center),
+            ) {
+                PlayerBottomButton(
+                    icon = R.drawable.shuffle,
+                    label = stringResource(R.string.shuffle),
+                    active = shuffleModeEnabled,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    activeTint = LunaraThemeColor,
+                    enabled = !isListenTogetherGuest,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        coroutineScope
+                            .launch {
+                                lazyListState.animateScrollToItem(
+                                    if (playerConnection.player.shuffleModeEnabled) playerConnection.player.currentMediaItemIndex else 0,
+                                )
+                            }.invokeOnCompletion {
+                                playerConnection.player.shuffleModeEnabled =
+                                    !playerConnection.player.shuffleModeEnabled
+                            }
+                    },
+                )
+
+                PlayerBottomButton(
+                    icon = R.drawable.expand_more,
+                    label = stringResource(R.string.close),
+                    active = false,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    activeTint = LunaraThemeColor,
+                    modifier = Modifier.weight(1f),
+                    onClick = { state.collapseSoft() },
+                )
+
+                PlayerBottomButton(
+                    icon =
+                        when (repeatMode) {
+                            Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                            else -> R.drawable.repeat
+                        },
+                    label = stringResource(R.string.repeat),
+                    contentDescription =
+                        stringResource(
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> R.string.repeat_mode_one
+                                Player.REPEAT_MODE_ALL -> R.string.repeat_mode_all
+                                else -> R.string.repeat_mode_off
+                            },
+                        ),
+                    active = repeatMode != Player.REPEAT_MODE_OFF,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    activeTint = LunaraThemeColor,
+                    enabled = !isListenTogetherGuest,
+                    modifier = Modifier.weight(1f),
+                    onClick = playerConnection.player::toggleRepeatMode,
+                )
+            }
+        }
+
+        LunaraSnackbarHost(
+            hostState = snackbarHostState,
+            modifier =
+                Modifier
+                    .padding(
+                        bottom =
+                            QueueBottomBarHeight +
+                                WindowInsets.systemBars
+                                    .asPaddingValues()
+                                    .calculateBottomPadding(),
+                    ).align(Alignment.BottomCenter),
+        )
+    }
+}
+
+/**
+ * What shows behind a queue row while it is being swiped: the move on the right, the
+ * removal on the left. Swiping against an empty background told nobody what would happen.
+ */
+@Composable
+private fun QueueSwipeBackground(direction: SwipeToDismissBoxValue) {
+    if (direction == SwipeToDismissBoxValue.Settled) return
+    val playNext = direction == SwipeToDismissBoxValue.StartToEnd
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (playNext) Arrangement.Start else Arrangement.End,
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+    ) {
+        Icon(
+            painter = painterResource(if (playNext) R.drawable.playlist_play else R.drawable.delete),
+            contentDescription = null,
+            tint = if (playNext) LunaraThemeColor else MaterialTheme.colorScheme.error,
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = stringResource(if (playNext) R.string.play_next else R.string.delete),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (playNext) LunaraThemeColor else MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun PlayerQueueButton(
+    icon: Int,
+    onClick: () -> Unit,
+    isActive: Boolean,
+    enabled: Boolean = true,
+    shape: RoundedCornerShape,
+    modifier: Modifier = Modifier,
+    text: String? = null,
+    textButtonColor: Color,
+    iconButtonColor: Color,
+    iconSize: androidx.compose.ui.unit.Dp,
+    textBackgroundColor: Color,
+    playerBackground: PlayerBackgroundStyle,
+) {
+    val buttonModifier =
+        Modifier
+            .clip(shape)
+            .clickable(enabled = enabled, onClick = onClick)
+
+    val alphaFactor = if (enabled) 1f else 0.35f
+
+    val appliedModifier =
+        if (isActive) {
+            modifier.then(buttonModifier.background(textButtonColor)).alpha(alphaFactor)
+        } else {
+            modifier
+                .then(
+                    buttonModifier.border(
+                        width = 1.dp,
+                        color = textButtonColor.copy(alpha = 0.3f),
+                        shape = shape,
+                    ),
+                ).alpha(alphaFactor)
+        }
+
+    Box(
+        modifier = appliedModifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        if (text != null) {
+            Text(
+                text = text,
+                color = iconButtonColor.copy(alpha = if (enabled) 1f else 0.6f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(),
+            )
+        } else {
+            val baseTint =
+                if (isActive) {
+                    iconButtonColor
+                } else {
+                    when (playerBackground) {
+                        PlayerBackgroundStyle.BLUR, PlayerBackgroundStyle.GRADIENT -> {
+                            Color.White
+                        }
+
+                        PlayerBackgroundStyle.DEFAULT -> {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        }
+                    }
+                }
+            val finalTint = if (enabled) baseTint else baseTint.copy(alpha = 0.5f)
+            Icon(
+                painter = painterResource(id = icon),
+                contentDescription = null,
+                modifier = Modifier.size(iconSize),
+                tint = finalTint,
+            )
+        }
+    }
+}

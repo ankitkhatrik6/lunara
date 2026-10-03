@@ -1,0 +1,146 @@
+/**
+ * Lunara Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ *
+ * Backs the "Yours" tab: personal home rails (recently played, recommended,
+ * playlists, favorite artists) sourced from the local library, plus the
+ * logged-in account's YouTube playlists and Mood & Genres from the network.
+ */
+
+package com.lunara.app.viewmodels
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.datasource.cache.Cache
+import com.lunara.innertube.YouTube
+import com.lunara.innertube.models.PlaylistItem
+import com.lunara.innertube.pages.MoodAndGenres
+import com.lunara.innertube.utils.completed
+import com.lunara.app.constants.HiddenSongIdsKey
+import com.lunara.app.db.MusicDatabase
+import com.lunara.app.di.DownloadCache
+import com.lunara.app.di.PlayerCache
+import com.lunara.app.db.entities.Artist
+import com.lunara.app.db.entities.Playlist
+import com.lunara.app.db.entities.Song
+import com.lunara.app.utils.dataStore
+import com.lunara.app.utils.reportException
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class YoursViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    database: MusicDatabase,
+    @PlayerCache private val playerCache: Cache,
+    @DownloadCache private val downloadCache: Cache,
+) : ViewModel() {
+
+    // Recently played: distinct songs from the play-event log, newest first.
+    val recentlyPlayed = database.events()
+        .map { events -> events.map { it.song }.distinctBy { it.id }.take(15) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Recommended: locally-derived quick picks, minus songs hidden with "Don't play this song".
+    val recommended = combine(
+        database.quickPicks(),
+        context.dataStore.data.map { it[HiddenSongIdsKey] ?: emptySet() },
+    ) { songs, hidden -> songs.filterNot { it.id in hidden }.take(15) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Liked songs (drives the Favorites card thumbnail + count).
+    val likedSongs: kotlinx.coroutines.flow.StateFlow<List<Song>> =
+        database.likedSongsByCreateDateAsc()
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Up-to-4 cover thumbnails for the system-playlist cards (Library landing).
+    val likedThumbnails = likedSongs
+        .map { it.mapNotNull(Song::thumbnailUrl).take(4) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val downloadedThumbnails = database.downloadedSongsByCreateDateAsc()
+        .map { it.mapNotNull(Song::thumbnailUrl).take(4) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val uploadedThumbnails = database.uploadedSongsByCreateDateAsc()
+        .map { it.mapNotNull(Song::thumbnailUrl).take(4) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val localThumbnails = database.localSongsByCreateDateAsc()
+        .map { it.mapNotNull(Song::thumbnailUrl).take(4) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val localSongCount = database.localSongCount()
+        .stateIn(viewModelScope, SharingStarted.Lazily, 0)
+    val topThumbnails = database
+        .mostPlayedSongs(fromTimeStamp = java.time.LocalDateTime.of(1970, 1, 1, 0, 0), limit = 4)
+        .map { it.mapNotNull(Song::thumbnailUrl).take(4) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Cached covers: scanned once from the player/download caches.
+    val cachedThumbnails = MutableStateFlow<List<String>>(emptyList())
+
+    // Trending = most-played songs & artists (drives the Yours "Trending" rail).
+    val trendingSongs = database
+        .mostPlayedSongs(fromTimeStamp = java.time.LocalDateTime.of(1970, 1, 1, 0, 0), limit = 12)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val trendingArtists = database
+        .mostPlayedArtists(fromTimeStamp = java.time.LocalDateTime.of(1970, 1, 1, 0, 0), limit = 12)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Local playlists, most-recently-updated first.
+    val playlists: kotlinx.coroutines.flow.StateFlow<List<Playlist>> =
+        database.playlistsByUpdatedDateAsc()
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Followed/subscribed artists.
+    val favoriteArtists: kotlinx.coroutines.flow.StateFlow<List<Artist>> =
+        database.artistsBookmarkedByCreateDateAsc()
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // The signed-in account's YouTube Music playlists (null until loaded).
+    val accountPlaylists = MutableStateFlow<List<PlaylistItem>?>(null)
+
+    // Mood & Genres browse tiles (null until loaded).
+    val moodAndGenres = MutableStateFlow<List<MoodAndGenres>?>(null)
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (YouTube.cookie != null) {
+                YouTube.library("FEmusic_liked_playlists").completed().onSuccess { page ->
+                    accountPlaylists.value = page.items
+                        .filterIsInstance<PlaylistItem>()
+                        .filterNot { it.id == "SE" }
+                }.onFailure { reportException(it) }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            YouTube.moodAndGenres().onSuccess {
+                moodAndGenres.value = it
+            }.onFailure { reportException(it) }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            // Retry briefly — the caches may still be warming up when the VM loads.
+            repeat(5) {
+                val ids = (playerCache.keys + downloadCache.keys).toList()
+                if (ids.isNotEmpty()) {
+                    val covers = database.getSongsByIds(ids)
+                        .filter { it.song.dateDownload != null }
+                        .sortedByDescending { it.song.dateDownload }
+                        .mapNotNull { it.thumbnailUrl }
+                        .take(4)
+                    if (covers.isNotEmpty()) {
+                        cachedThumbnails.value = covers
+                        return@launch
+                    }
+                }
+                kotlinx.coroutines.delay(600)
+            }
+        }
+    }
+}

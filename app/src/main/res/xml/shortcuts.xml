@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_search"
+        android:shortcutId="search"
+        android:shortcutShortLabel="@string/search">
+        <intent
+            android:action="com.lunara.app.action.SEARCH"
+            android:targetClass="com.lunara.app.MainActivity"
+            android:targetPackage="com.lunara.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_library"
+        android:shortcutId="library"
+        android:shortcutShortLabel="@string/filter_library">
+        <intent
+            android:action="com.lunara.app.action.LIBRARY"
+            android:targetClass="com.lunara.app.MainActivity"
+            android:targetPackage="com.lunara.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_liked"
+        android:shortcutId="liked"
+        android:shortcutShortLabel="@string/liked"
+        android:shortcutLongLabel="@string/liked_songs">
+        <intent
+            android:action="com.lunara.app.action.OPEN_WIDGET_TARGET"
+            android:targetClass="com.lunara.app.MainActivity"
+            android:targetPackage="com.lunara.app">
+            <extra
+                android:name="widget_target_type"
+                android:value="liked" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_downloads"
+        android:shortcutId="downloaded"
+        android:shortcutShortLabel="@string/offline"
+        android:shortcutLongLabel="@string/downloaded_songs">
+        <intent
+            android:action="com.lunara.app.action.OPEN_WIDGET_TARGET"
+            android:targetClass="com.lunara.app.MainActivity"
+            android:targetPackage="com.lunara.app">
+            <extra
+                android:name="widget_target_type"
+                android:value="downloaded" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_shuffle"
+        android:shortcutId="shuffle_liked"
+        android:shortcutShortLabel="@string/shortcut_shuffle"
+        android:shortcutLongLabel="@string/shortcut_shuffle_long">
+        <intent
+            android:action="com.lunara.app.action.SHUFFLE_LIKED"
+            android:targetClass="com.lunara.app.MainActivity"
+            android:targetPackage="com.lunara.app" />
+    </shortcut>
+</shortcuts>
