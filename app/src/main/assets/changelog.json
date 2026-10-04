@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.7.1",
+    "versionName": "3.7.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.7.0's new search page used the theme's colours without importing them, so the build failed. Nothing about the app changed beyond that.\n\nThe search page, the design system pieces under it and everything 3.7.0 described are all here as intended."
+  },
+  {
     "tagName": "v3.7.0",
     "versionName": "3.7.0",
     "releaseDate": "2026-10-04T00:00:00Z",
