@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.4.0",
+    "versionName": "3.4.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## The mic is gone\n\n- **Song recognition has been removed**, along with everything that came with it: the microphone permission, the Quick Settings tile, the home-screen widget, the recognition screens and their history, and the mic buttons in the search bar and on the Search page.\n\n## Yours is gone\n\n- **The Yours tab has been removed.** The bottom bar is now Home, Search and Library.\n\n## Tidier\n\n- **The About row in Settings** reads *Lunara* instead of *Version and developer*.\n- **The changelog is Lunara's own**, not the version numbering the project was forked from."
+  },
+  {
     "tagName": "v3.3.0",
     "versionName": "3.3.0",
     "releaseDate": "2026-10-04T00:00:00Z",
