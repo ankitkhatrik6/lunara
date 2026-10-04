@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.6.1",
+    "versionName": "3.6.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.6.0's home page asked for its shelf titles with `stringResource` inside the `LazyColumn`'s layout scope. That scope is a plain `LazyListScope`, not a composable one, so the call is not allowed there and the build failed. The three titles are now resolved once, above the list, and passed in as strings. Nothing about the app changed beyond that."
+  },
+  {
     "tagName": "v3.6.0",
     "versionName": "3.6.0",
     "releaseDate": "2026-10-04T00:00:00Z",

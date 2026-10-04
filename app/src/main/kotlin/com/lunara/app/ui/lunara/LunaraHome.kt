@@ -139,7 +139,13 @@ fun LunaraHome(
             else -> Unit
         }
     }
-Box(modifier = Modifier.fillMaxSize()) {
+    // Resolved here, not in the shelf calls below: the LazyColumn content lambda
+    // is a plain LazyListScope receiver, so it cannot host a composable read.
+    val jumpBackInTitle = stringResource(R.string.jump_back_in)
+    val madeForYouTitle = stringResource(R.string.lunara_made_for_you)
+    val forgottenFavouritesTitle = stringResource(R.string.lunara_forgotten_favourites)
+
+    Box(modifier = Modifier.fillMaxSize()) {
         // The colour of the page, before any of the content. It fades out well
         // above the first shelf, so nothing ever sits on top of it.
         LunaraAmbient(
@@ -185,23 +191,23 @@ Box(modifier = Modifier.fillMaxSize()) {
 
             localShelf(
                 key = "jump_back_in",
-                title = stringResource(R.string.jump_back_in),
-                items = keepListening.orEmpty(),
-                onOpen = ::openLocal,
+                title = jumpBackInTitle,
+                localItems = keepListening.orEmpty(),
+                onOpen = { item, list -> openLocal(item, list) },
             )
 
             songShelf(
                 key = "made_for_you",
-                title = stringResource(R.string.lunara_made_for_you),
+                title = madeForYouTitle,
                 songs = quickPicks.orEmpty(),
-                onPlay = ::playSongs,
+                onPlay = { list, id -> playSongs(list, id) },
             )
 
             songShelf(
                 key = "forgotten_favourites",
-                title = stringResource(R.string.lunara_forgotten_favourites),
+                title = forgottenFavouritesTitle,
                 songs = forgottenFavorites.orEmpty(),
-                onPlay = ::playSongs,
+                onPlay = { list, id -> playSongs(list, id) },
             )
 
             homePage?.sections.orEmpty().forEachIndexed { index, section ->
@@ -307,10 +313,10 @@ private fun LazyListScope.songShelf(
 private fun LazyListScope.localShelf(
     key: String,
     title: String,
-    items: List<LocalItem>,
+    localItems: List<LocalItem>,
     onOpen: (LocalItem, List<LocalItem>) -> Unit,
 ) {
-    if (items.isEmpty()) return
+    if (localItems.isEmpty()) return
     item(key = "${key}_title") {
         LunaraSectionHeader(title = title)
     }
@@ -319,11 +325,11 @@ private fun LazyListScope.localShelf(
             contentPadding = PaddingValues(horizontal = LunaraSpacing.screenEdge),
             horizontalArrangement = Arrangement.spacedBy(LunaraSpacing.md),
         ) {
-            items(items, key = { it.id }) { item ->
+            items(localItems, key = { it.id }) { item ->
                 LunaraShelfCard(
                     title = item.title,
                     artworkUrl = item.thumbnailUrl,
-                    onClick = { onOpen(item, items) },
+                    onClick = { onOpen(item, localItems) },
                 )
             }
         }
