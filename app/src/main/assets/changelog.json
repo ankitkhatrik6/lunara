@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.6.0",
+    "versionName": "3.6.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## A new home page, and a design system under it\n\n- **The home page is rebuilt.** No greeting, no hero card, no carousel that moves on its own - every one of those cost a swipe before the first piece of music was reachable. It opens on a wash of colour, two columns of small tiles for what you had on recently, then shelves.\n- **A design system now sits under everything** - one spacing scale, five corner radii, four steps of elevation and a set of motion values, so the screens agree with each other instead of each inventing its own numbers.\n- **Everything answers your finger.** Artwork presses in before the next screen loads; nothing moves linearly; nothing springs past its resting size.\n\nThe rest of the app is being rebuilt on the same foundation - player, search, library and settings next."
+  },
+  {
     "tagName": "v3.5.0",
     "versionName": "3.5.0",
     "releaseDate": "2026-10-04T00:00:00Z",

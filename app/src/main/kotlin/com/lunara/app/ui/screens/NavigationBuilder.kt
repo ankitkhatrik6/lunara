@@ -45,6 +45,7 @@ import com.lunara.app.ui.screens.playlist.LocalPlaylistScreen
 import com.lunara.app.ui.screens.playlist.OnlinePlaylistScreen
 import com.lunara.app.ui.screens.playlist.TopPlaylistScreen
 import com.lunara.app.ui.screens.podcast.OnlinePodcastScreen
+import com.lunara.app.ui.lunara.LunaraHome
 import com.lunara.app.ui.screens.search.OnlineSearchResult
 import com.lunara.app.ui.screens.search.SearchScreen
 import com.lunara.app.ui.screens.settings.AboutScreen
@@ -105,7 +106,7 @@ fun NavGraphBuilder.navigationBuilder(
     snackbarHostState: SnackbarHostState,
 ) {
     composable(Screens.Home.route) {
-        HomeScreen(snackbarHostState = snackbarHostState)
+        LunaraHome()
     }
 
     composable(Screens.Search.route) { backStackEntry ->
