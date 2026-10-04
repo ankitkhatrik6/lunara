@@ -46,6 +46,7 @@ import com.lunara.app.ui.screens.playlist.OnlinePlaylistScreen
 import com.lunara.app.ui.screens.playlist.TopPlaylistScreen
 import com.lunara.app.ui.screens.podcast.OnlinePodcastScreen
 import com.lunara.app.ui.lunara.LunaraHome
+import com.lunara.app.ui.lunara.LunaraSearch
 import com.lunara.app.ui.screens.search.OnlineSearchResult
 import com.lunara.app.ui.screens.search.SearchScreen
 import com.lunara.app.ui.screens.settings.AboutScreen
@@ -110,21 +111,11 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable(Screens.Search.route) { backStackEntry ->
-        val pureBlackEnabled by rememberPreference(PureBlackKey, defaultValue = true)
-        val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
-        val isSystemInDarkTheme = isSystemInDarkTheme()
-        val useDarkTheme =
-            remember(darkTheme, isSystemInDarkTheme) {
-                if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
-            }
-        val pureBlack =
-            remember(pureBlackEnabled, useDarkTheme) {
-                pureBlackEnabled && useDarkTheme
-            }
-        SearchScreen(
-            pureBlack = pureBlack,
-            savedStateHandle = backStackEntry.savedStateHandle
-        )
+        // The page paints its own top: a title, a glass field and the source
+        // switch, on the ambient wash. A Material top bar over that would be a
+        // second piece of chrome saying the same thing in another language, so
+        // there is not one.
+        LunaraSearch(savedStateHandle = backStackEntry.savedStateHandle)
     }
 
     composable(Screens.Library.route) {

@@ -1424,4 +1424,15 @@
         <item quantity="one">%1$s, one song, shared with you.</item>
         <item quantity="other">%1$s, %2$d songs, shared with you.</item>
     </plurals>
+
+    <!-- Search -->
+    <string name="lunara_browse">Browse</string>
+    <string name="lunara_recent">Recent</string>
+    <string name="lunara_clear_recent">Clear</string>
+    <string name="lunara_search_hint">Songs, albums, artists or a link</string>
+    <string name="lunara_local_folders">Folders</string>
+    <string name="lunara_nothing_recent">Nothing searched yet</string>
+    <string name="lunara_nothing_recent_body">What you look for shows up here, so the next search is one tap.</string>
+    <string name="lunara_search_in_library">Your library</string>
+    <string name="lunara_search_online">YouTube Music</string>
 </resources>

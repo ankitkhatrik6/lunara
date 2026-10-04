@@ -142,4 +142,55 @@ object LunaraSizes {
 
     /** The floating mini-player's artwork. */
     val miniArtwork: Dp = 44.dp
+
+    /** The search field: tall enough to be a target, short enough to be a field. */
+    val field: Dp = 52.dp
+
+    /** A two-option switch - your library, or everything. */
+    val segmented: Dp = 44.dp
+
+    /** A chip in a row of chips. */
+    val chip: Dp = 36.dp
+
+    /** Artwork on a list row: big enough to recognise, small enough to scan. */
+    val rowArtwork: Dp = 52.dp
+
+    /** A tile in the browse grid. */
+    val browseTile: Dp = 104.dp
+
+    /** A large round control: play, shuffle, the one thing a page is for. */
+    val actionButton: Dp = 56.dp
+}
+
+/**
+ * How much of something is left showing.
+ *
+ * Written down because the same idea kept being given a different number: a
+ * surface at 0.70 sitting next to one at 0.82 is two surfaces pretending to be
+ * one, and the seam is visible the moment anything scrolls behind them.
+ *
+ * These live here rather than in a colour literal because they are not colours.
+ * They are how much of the colour behind you are allowed to keep.
+ */
+object LunaraAlpha {
+    /** A surface you can see through: a field, a floating bar, a tile. */
+    const val glass = 0.72f
+
+    /** A surface that is nearly solid but still picks up what is behind it. */
+    const val glassStrong = 0.90f
+
+    /** The edge on a glass surface. Any more and it stops being an edge. */
+    const val hairline = 0.30f
+
+    /** Secondary text: present, but not competing with the title above it. */
+    const val muted = 0.62f
+
+    /** Something that cannot be used right now. */
+    const val disabled = 0.38f
+
+    /** The top of an ambient wash, where it is loudest. */
+    const val halo = 0.34f
+
+    /** Where an ambient wash has already given up. */
+    const val haloFade = 0.10f
 }

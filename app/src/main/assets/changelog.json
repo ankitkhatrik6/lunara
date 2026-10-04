@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.7.0",
+    "versionName": "3.7.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Search, rebuilt on the design system\n\n- **Search no longer opens with the keyboard in your face.** It opens on the two things you were most likely to want: the last things you looked for, as chips you can tap, and a grid of six places with new music in them. Type, and all of that is replaced by results - from then on the only thing on the page worth having is the answer.\n- **Library or YouTube Music is one control, not a toggle icon.** Two words in a pill, with the one you are searching filled in.\n- **Pasting a link still does the right thing.** It plays what the link points at rather than searching for the text of the link.\n- **The page has no top bar.** It paints its own: the title, a glass field and the source switch, sitting on the glow of colour at the top, so there is not a second piece of chrome saying the same thing in another language.\n\n## The pieces, written down once\n\n- **The design system gained the rest of what a screen needs**: a page title, a search field, a segmented switch, a chip, a list row, a browse tile, an empty state, a hairline, and a loading placeholder that breathes instead of shimmering.\n- **A short scale of translucency** now sits beside the spacing and radius scales, so two glass surfaces can no longer be given two different amounts of see-through.\n\nThe player, the library and settings are next."
+  },
+  {
     "tagName": "v3.6.1",
     "versionName": "3.6.1",
     "releaseDate": "2026-10-04T00:00:00Z",
