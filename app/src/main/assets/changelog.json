@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.8.1",
+    "versionName": "3.8.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.8.0's new Home page painted a background without importing the thing that paints it, so the build failed. Nothing about the app changed beyond that.\n\nEverything 3.8.0 described - the real Home feed, the single search field, the six-item Settings page - is here as intended."
+  },
+  {
     "tagName": "v3.8.0",
     "versionName": "3.8.0",
     "releaseDate": "2026-10-04T00:00:00Z",
