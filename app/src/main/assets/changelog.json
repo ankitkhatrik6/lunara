@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.4.1",
+    "versionName": "3.4.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.4.0 removed the Music Recognizer widget and its resources, but the Android 12 widget definition in `res/xml-v31` still pointed at them, so resource linking failed. Nothing about the app changed beyond that."
+  },
+  {
     "tagName": "v3.4.0",
     "versionName": "3.4.0",
     "releaseDate": "2026-10-04T00:00:00Z",

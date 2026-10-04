@@ -731,7 +731,6 @@
     <string name="widget_turntable">Turntable</string>
 
     <!-- Music Recognizer Widget strings -->
-    <string name="widget_recognizer_description">Identify songs playing around you directly from your home screen</string>
     <string name="widget_recognizer_tap_to_search">Tap to identify a song</string>
     <string name="widget_recognizer_listening">Listening…</string>
     <string name="widget_recognizer_processing">Identifying…</string>
