@@ -62,15 +62,11 @@ import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.PauseSearchHistoryKey
-import com.lunara.app.constants.SearchSource
-import com.lunara.app.constants.SearchSourceKey
 import com.lunara.app.db.entities.SearchHistory
 import com.lunara.app.playback.queues.YouTubeQueue
-import com.lunara.app.ui.screens.search.LocalSearchScreen
 import com.lunara.app.ui.screens.search.OnlineSearchScreen
 import com.lunara.app.ui.screens.search.SEARCH_FOCUS_ON_OPEN
 import com.lunara.app.utils.SearchRoutes
-import com.lunara.app.utils.rememberEnumPreference
 import com.lunara.app.utils.rememberPreference
 import com.lunara.innertube.models.WatchEndpoint
 import com.lunara.innertube.utils.YouTubeUrlParser
@@ -116,7 +112,6 @@ fun LunaraSearch(
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue())
     }
-    var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
     val pauseSearchHistory by rememberPreference(PauseSearchHistoryKey, defaultValue = false)
 
     val history by remember { database.searchHistory() }
@@ -185,13 +180,6 @@ fun LunaraSearch(
 
         keyboardController?.hide()
         focusManager.clearFocus()
-
-        // Searching your own library keeps you on the page: the answer is here
-        // already, and a second screen to show it would be a detour.
-        if (searchSource == SearchSource.LOCAL) {
-            query = TextFieldValue(searchQuery)
-            return
-        }
 
         if (!pauseSearchHistory) {
             coroutineScope.launch(Dispatchers.IO) {
@@ -289,21 +277,6 @@ fun LunaraSearch(
                         }
                     },
                 )
-
-                Spacer(Modifier.height(LunaraSpacing.md))
-
-                LunaraSegmented(
-                    labels = listOf(
-                        stringResource(R.string.lunara_search_in_library),
-                        stringResource(R.string.lunara_search_online),
-                    ),
-                    selectedIndex = if (searchSource == SearchSource.LOCAL) 0 else 1,
-                    onSelect = { index ->
-                        searchSource =
-                            if (index == 0) SearchSource.LOCAL else SearchSource.ONLINE
-                    },
-                    modifier = Modifier.padding(horizontal = LunaraSpacing.screenEdge),
-                )
             }
 
             Spacer(Modifier.height(LunaraSpacing.xl))
@@ -325,25 +298,13 @@ fun LunaraSearch(
                         onBrowse = { route -> navController.navigate(route) },
                     )
                 } else {
-                    when (searchSource) {
-                        SearchSource.LOCAL -> {
-                            LocalSearchScreen(
-                                query = query.text,
-                                onDismiss = { query = TextFieldValue("") },
-                                pureBlack = false,
-                            )
-                        }
-
-                        SearchSource.ONLINE -> {
-                            OnlineSearchScreen(
-                                query = query.text,
-                                onQueryChange = { query = it },
-                                onSearch = { handleSearch(it) },
-                                onDismiss = { },
-                                pureBlack = false,
-                            )
-                        }
-                    }
+                    OnlineSearchScreen(
+                        query = query.text,
+                        onQueryChange = { query = it },
+                        onSearch = { handleSearch(it) },
+                        onDismiss = { },
+                        pureBlack = false,
+                    )
                 }
             }
         }

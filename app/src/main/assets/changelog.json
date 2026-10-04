@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.8.0",
+    "versionName": "3.8.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Home\n\n- **A real feed, in the order you would want it.** *Jump back in*, *Quick picks*, *New release*, *Trending songs for you*, *Indian music*, *Chill out*, *Mood and genres* - then the rest of what the catalogue sent, under *More for you*. Every shelf is filled from your own listening and from the catalogue; nothing on the page is invented.\n- **The search bar is at the top of Home**, where a search bar belongs. Tapping it opens Search with the keyboard already up.\n- **Mood and genres is a grid of coloured doors**, tinted with the catalogue's own colour for each mood, because a row of identical grey rectangles tells you nothing.\n\n## Search\n\n- **One field, one answer.** The Your library / YouTube Music switch is gone, and the placeholder says *Search Lunara* rather than YouTube Music. Recent searches and the Browse grid are unchanged.\n\n## Settings\n\n- **Six things, and that is the whole page.** Theme (Auto / Dark / Light), Dynamic colour, Pure black, About Lunara, Changelog, Updater. The settings search box, Appearance and Storage are gone - there was nothing left behind them worth configuring."
+  },
+  {
     "tagName": "v3.7.1",
     "versionName": "3.7.1",
     "releaseDate": "2026-10-04T00:00:00Z",

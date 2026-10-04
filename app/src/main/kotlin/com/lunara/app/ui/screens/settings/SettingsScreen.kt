@@ -117,7 +117,6 @@ fun SettingsScreen(
     // headline rather than a version. The badge was permanently on.
     val hasUpdate = BuildConfig.UPDATER_AVAILABLE &&
         Updater.isUpdateAvailable(BuildConfig.VERSION_NAME, latestVersionName)
-    var query by rememberSaveable { mutableStateOf("") }
 
     // Appearance state for the quick toggles at the top of the page.
     val (darkMode, onDarkModeChange) = rememberEnumPreference(DarkModeKey, DarkMode.AUTO)
@@ -131,19 +130,10 @@ fun SettingsScreen(
         setPureBlackMiniPlayer(enabled)
     }
 
-    // Lunara keeps a deliberately small settings surface: the appearance
-    // toggles above, then appearance detail, storage and about. Everything
-    // else - player tuning, EQ, sleep timer, integrations and Android Auto -
-    // is not part of the Lunara experience.
+    // Lunara's settings are the whole of it: the three appearance toggles drawn
+    // as chips just below, then About, Changelog and Updater. There is nothing
+    // else to configure, so there is nothing else on this page.
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
-        stringResource(R.string.settings_group_personalize) to listOf(
-            SettingRow(R.drawable.palette, stringResource(R.string.appearance), stringResource(R.string.hint_appearance)) {
-                navController.navigate("settings/appearance")
-            },
-            SettingRow(R.drawable.storage, stringResource(R.string.storage), stringResource(R.string.hint_storage)) {
-                navController.navigate("settings/storage")
-            },
-        ),
         stringResource(R.string.settings_group_about) to buildList {
             add(SettingRow(R.drawable.info, stringResource(R.string.about), stringResource(R.string.hint_about), badge = hasUpdate) {
                 navController.navigate("settings/about")
@@ -178,56 +168,45 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(4.dp))
 
-        SettingsSearchField(query = query, onQueryChange = { query = it })
+        Spacer(Modifier.height(12.dp))
+        QuickToggles(
+            darkMode = darkMode,
+            onDarkModeChange = onDarkModeChange,
+            dynamicTheme = dynamicTheme,
+            onDynamicThemeChange = onDynamicThemeChange,
+            pureBlack = pureBlack,
+            onPureBlackChange = onPureBlackChange,
+        )
 
-        // Only show quick toggles when not actively searching.
-        if (query.isBlank()) {
-            Spacer(Modifier.height(12.dp))
-            QuickToggles(
-                darkMode = darkMode,
-                onDarkModeChange = onDarkModeChange,
-                dynamicTheme = dynamicTheme,
-                onDynamicThemeChange = onDynamicThemeChange,
-                pureBlack = pureBlack,
-                onPureBlackChange = onPureBlackChange,
-            )
-        }
-
-        val q = query.trim()
         var chipIndex = 0
         groups.forEach { (groupTitle, rows) ->
-            val filtered = if (q.isEmpty()) rows else rows.filter {
-                it.title.contains(q, ignoreCase = true) || it.subtitle.contains(q, ignoreCase = true)
-            }
-            if (filtered.isNotEmpty()) {
-                Spacer(Modifier.height(18.dp))
-                Text(
-                    text = groupTitle.uppercase(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainer),
-                ) {
-                    filtered.forEachIndexed { i, row ->
-                        if (i > 0) {
-                            Box(
-                                Modifier
-                                    .padding(start = 68.dp)
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                            )
-                        }
-                        LunaraSettingRow(row = row, colorIndex = chipIndex)
-                        chipIndex++
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = groupTitle.uppercase(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer),
+            ) {
+                rows.forEachIndexed { i, row ->
+                    if (i > 0) {
+                        Box(
+                            Modifier
+                                .padding(start = 68.dp)
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        )
                     }
+                    LunaraSettingRow(row = row, colorIndex = chipIndex)
+                    chipIndex++
                 }
             }
         }
@@ -449,43 +428,6 @@ private fun QuickChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-@Composable
-private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.search),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.search_settings),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp,
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
     }
 }
 
