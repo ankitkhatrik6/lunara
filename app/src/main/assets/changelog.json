@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.5.0",
+    "versionName": "3.5.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Two buttons where the overflow menu used to be\n\n- **The player's three-dots menu is gone.** It held an entire screen of options - equaliser, audio output, volume, add to queue, play this a few times, don't play this, copy link, block artist, add to library, pin to speed dial, listen together, details, output, advanced - none of which is something anybody reaches for while a song is playing.\n- **In its place: `+` and download.** The `+` puts the current song into a playlist; the download button keeps it offline, shows a spinner while it downloads, and turns into the offline mark once it is saved, where tapping it removes the download again.\n- **The queue header** carries the same `+` instead of the menu.\n\n## Home\n\n- **The recent-music rail is called 'Jump back in'**, the name the old Yours tab used for the same list."
+  },
+  {
     "tagName": "v3.4.1",
     "versionName": "3.4.1",
     "releaseDate": "2026-10-04T00:00:00Z",

@@ -1220,6 +1220,7 @@
     <!-- Yours tab -->
     <string name="yours">Yours</string>
     <string name="recently_played">Recently Played</string>
+    <string name="jump_back_in">Jump back in</string>
     <string name="recommended_for_you">Recommended for You</string>
     <string name="browse_categories">Browse Categories</string>
     <string name="your_playlists">Your Playlists</string>

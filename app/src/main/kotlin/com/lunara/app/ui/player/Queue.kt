@@ -125,7 +125,7 @@ import com.lunara.app.ui.component.LocalBottomSheetPageState
 import com.lunara.app.ui.component.LocalMenuState
 import com.lunara.app.ui.component.PlayerBottomButton
 import com.lunara.app.ui.component.MediaMetadataListItem
-import com.lunara.app.ui.menu.PlayerMenu
+import com.lunara.app.ui.menu.AddToPlaylistDialog
 import com.lunara.app.ui.menu.QueueMenu
 import com.lunara.app.ui.menu.SelectionMediaMetadataMenu
 import com.lunara.app.ui.theme.LunaraThemeColor
@@ -403,16 +403,10 @@ fun Queue(
                                 .background(textButtonColor)
                                 .clickable {
                                     menuState.show {
-                                        PlayerMenu(
-                                            mediaMetadata = mediaMetadata,
-                                            playerBottomSheetState = playerBottomSheetState,
-                                            onShowDetailsDialog = {
-                                                mediaMetadata?.id?.let {
-                                                    bottomSheetPageState.show {
-                                                        ShowMediaInfo(it)
-                                                    }
-                                                }
-                                            },
+                                        AddToPlaylistDialog(
+                                            isVisible = true,
+                                            onGetSong = { listOfNotNull(mediaMetadata?.id) },
+                                            onGetSongIds = { listOfNotNull(mediaMetadata?.id) },
                                             onDismiss = menuState::dismiss,
                                         )
                                     }
@@ -420,7 +414,7 @@ fun Queue(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.more_vert),
+                            painter = painterResource(id = R.drawable.add),
                             contentDescription = null,
                             modifier = Modifier.size(iconSize),
                             tint = iconButtonColor,

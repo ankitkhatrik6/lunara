@@ -224,7 +224,12 @@ import com.lunara.app.ui.component.ResizableIconButton
 import com.lunara.app.ui.component.SquigglySlider
 import com.lunara.app.ui.component.WavySlider
 import com.lunara.app.ui.component.rememberBottomSheetState
-import com.lunara.app.ui.menu.PlayerMenu
+import androidx.core.net.toUri
+import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.DownloadService
+import com.lunara.app.playback.ExoDownloadService
+import com.lunara.app.ui.menu.AddToPlaylistDialog
 import com.lunara.app.ui.screens.settings.DarkMode
 import com.lunara.app.ui.theme.LunaraThemeColor
 import com.lunara.app.ui.theme.PlayerColorExtractor
@@ -2694,37 +2699,108 @@ fun MoreActionsButton(
     textButtonColor: Color,
     iconButtonColor: Color,
 ) {
-    val menuState = LocalMenuState.current
-    val bottomSheetPageState = LocalBottomSheetPageState.current
+    PlayerQuickActions(
+        mediaMetadata = mediaMetadata,
+        textButtonColor = textButtonColor,
+        iconButtonColor = iconButtonColor,
+    )
+}
 
-    Box(
-        modifier =
-            Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(textButtonColor)
-                .clickable {
-                    menuState.show {
-                        PlayerMenu(
-                            mediaMetadata = mediaMetadata,
-                            playerBottomSheetState = state,
-                            onShowDetailsDialog = {
-                                mediaMetadata.id.let {
-                                    bottomSheetPageState.show {
-                                        ShowMediaInfo(it)
-                                    }
-                                }
-                            },
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
-                },
-    ) {
-        Image(
-            painter = painterResource(R.drawable.more_horiz),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(iconButtonColor),
-        )
+/**
+ * The two things worth doing from the player itself: put this song in a playlist,
+ * or keep it offline.
+ *
+ * They replace the overflow menu. That menu held a whole screen of options —
+ * equaliser, audio output, queue, radio, artist, details — none of which is a
+ * thing anybody reaches for while a song is playing, and all of which meant the
+ * one button that does matter had to be found behind three dots first.
+ */
+@Composable
+private fun PlayerQuickActions(
+    mediaMetadata: MediaMetadata,
+    textButtonColor: Color,
+    iconButtonColor: Color,
+) {
+    val menuState = LocalMenuState.current
+    val context = LocalContext.current
+    val download by LocalDownloadUtil.current
+        .getDownload(mediaMetadata.id)
+        .collectAsStateWithLifecycle(initialValue = null)
+    val isDownloaded = download?.state == Download.STATE_COMPLETED
+    val isDownloading = download?.state == Download.STATE_DOWNLOADING || download?.state == Download.STATE_QUEUED
+
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier =
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(textButtonColor)
+                    .clickable {
+                        menuState.show {
+                            AddToPlaylistDialog(
+                                isVisible = true,
+                                onGetSong = { listOf(mediaMetadata.id) },
+                                onGetSongIds = { listOf(mediaMetadata.id) },
+                                onDismiss = menuState::dismiss,
+                            )
+                        }
+                    },
+        ) {
+            Image(
+                painter = painterResource(R.drawable.add),
+                contentDescription = stringResource(R.string.add_to_playlist),
+                colorFilter = ColorFilter.tint(iconButtonColor),
+            )
+        }
+
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier =
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(textButtonColor)
+                    .clickable {
+                        if (isDownloaded || isDownloading) {
+                            DownloadService.sendRemoveDownload(
+                                context,
+                                ExoDownloadService::class.java,
+                                mediaMetadata.id,
+                                false,
+                            )
+                        } else {
+                            DownloadService.sendAddDownload(
+                                context,
+                                ExoDownloadService::class.java,
+                                DownloadRequest
+                                    .Builder(mediaMetadata.id, mediaMetadata.id.toUri())
+                                    .setCustomCacheKey(mediaMetadata.id)
+                                    .setData(mediaMetadata.title.toByteArray())
+                                    .build(),
+                                false,
+                            )
+                        }
+                    },
+        ) {
+            if (isDownloading) {
+                LunaraLoader(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Image(
+                    painter = painterResource(
+                        if (isDownloaded) R.drawable.offline else R.drawable.download,
+                    ),
+                    contentDescription = stringResource(
+                        if (isDownloaded) R.string.remove_download else R.string.action_download,
+                    ),
+                    colorFilter = ColorFilter.tint(iconButtonColor),
+                )
+            }
+        }
     }
 }
 
@@ -3782,22 +3858,12 @@ private fun CassetteTitleKeys(
         RetroIconKey(iconRes = R.drawable.palette) {
             openPlayerDesignGallery(navController, state)
         }
-        RetroIconKey(iconRes = R.drawable.more_horiz) {
-            if (lyricsPage) {
-                onLyricsMenu()
-                return@RetroIconKey
-            }
+        RetroIconKey(iconRes = R.drawable.add) {
             menuState.show {
-                PlayerMenu(
-                    mediaMetadata = mediaMetadata,
-                    playerBottomSheetState = state,
-                    onShowDetailsDialog = {
-                        mediaMetadata.id.let {
-                            bottomSheetPageState.show {
-                                ShowMediaInfo(it)
-                            }
-                        }
-                    },
+                AddToPlaylistDialog(
+                    isVisible = true,
+                    onGetSong = { listOf(mediaMetadata.id) },
+                    onGetSongIds = { listOf(mediaMetadata.id) },
                     onDismiss = menuState::dismiss,
                 )
             }
@@ -3999,38 +4065,9 @@ private fun PlayerMoreMenuButton(
     textButtonColor: Color,
     iconButtonColor: Color,
 ) {
-    val navController = LocalNavController.current
-    val menuState = LocalMenuState.current
-    val bottomSheetPageState = LocalBottomSheetPageState.current
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier =
-            Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(textButtonColor)
-                .clickable {
-                    menuState.show {
-                        PlayerMenu(
-                            mediaMetadata = mediaMetadata,
-                            playerBottomSheetState = state,
-                            onShowDetailsDialog = {
-                                mediaMetadata.id.let {
-                                    bottomSheetPageState.show {
-                                        ShowMediaInfo(it)
-                                    }
-                                }
-                            },
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
-                },
-    ) {
-        Image(
-            painter = painterResource(R.drawable.more_horiz),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(iconButtonColor),
-        )
-    }
+    PlayerQuickActions(
+        mediaMetadata = mediaMetadata,
+        textButtonColor = textButtonColor,
+        iconButtonColor = iconButtonColor,
+    )
 }
