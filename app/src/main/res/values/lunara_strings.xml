@@ -1360,7 +1360,7 @@
     <string name="hint_privacy">History, pauses, listening data</string>
     <string name="hint_storage">Cache, downloads, clear data</string>
     <string name="hint_backup">Export or import your library</string>
-    <string name="hint_about">Version and developer</string>
+    <string name="hint_about">Lunara</string>
     <string name="hint_changelog">What\'s new in this version</string>
     <string name="hint_links">Handle Lunara links by default</string>
     <string name="hint_updater">Check for updates</string>

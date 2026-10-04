@@ -132,68 +132,6 @@ fun NavGraphBuilder.navigationBuilder(
         LibraryScreen()
     }
 
-    composable(Screens.Yours.route) {
-        YoursScreen()
-    }
-
-    composable("yours/playlists") {
-        var showSpotifyImport by rememberSaveable { mutableStateOf(false) }
-        if (showSpotifyImport) {
-            SpotifyImportDialog(
-                onDismiss = { showSpotifyImport = false },
-                onImported = { playlistId ->
-                    showSpotifyImport = false
-                    navController.navigate("local_playlist/$playlistId")
-                },
-            )
-        }
-        YoursCategoryScreen(
-            navController,
-            R.string.playlists,
-            actions = {
-                TextButton(
-                    onClick = { showSpotifyImport = true },
-                    shape = CircleShape,
-                    colors =
-                        ButtonDefaults.textButtonColors(
-                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
-                        ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(34.dp).padding(end = 4.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.spotify),
-                        contentDescription = null,
-                        tint = Color.Unspecified,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.import_spotify),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            },
-        ) {
-            YoursPlaylistsGrid(navController)
-        }
-    }
-    composable("yours/songs") {
-        YoursCategoryScreen(navController, R.string.songs) {
-            LibrarySongsScreen(navController, onDeselect = {})
-        }
-    }
-    composable("yours/albums") {
-        YoursCategoryScreen(navController, R.string.albums) {
-            LibraryAlbumsScreen(navController, onDeselect = {})
-        }
-    }
-    composable("yours/artists") {
-        YoursCategoryScreen(navController, R.string.artists) {
-            LibraryArtistsScreen(navController, onDeselect = {})
-        }
-    }
-
     composable("history") {
         HistoryScreen(navController)
     }
