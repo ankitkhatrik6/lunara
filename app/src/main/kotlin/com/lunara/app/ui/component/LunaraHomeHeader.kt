@@ -80,7 +80,6 @@ import java.util.Calendar
 fun LunaraHomeHeader(
     onSettingsClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
-    onMicClick: () -> Unit = {},
     // Two ways to start music from the card itself, each showing the cover of the
     // song it starts with. Null hides the button; with neither, the card keeps its
     // old "Enjoy the music" line instead.
@@ -173,15 +172,6 @@ fun LunaraHomeHeader(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-            )
-            // Song recognition
-            Icon(
-                painter = painterResource(R.drawable.mic),
-                contentDescription = null,
-                tint = if (isDark) Color.White.copy(alpha = 0.7f) else Color(0x8A000000),
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable(onClick = onMicClick),
             )
         }
 

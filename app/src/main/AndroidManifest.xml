@@ -11,8 +11,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Installing an update fetched from the releases page. Without this the
          installer opens on a screen that refuses rather than on the button. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -33,9 +31,6 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
-    <!-- Microphone feature for music recognition (not required) -->
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <!-- Android TV -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -87,12 +82,6 @@
 
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
                 <category android:name="android.intent.category.APP_MUSIC" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-
-            <!-- Music Recognizer Widget: open recognition / recognition_history screen -->
-            <intent-filter>
-                <action android:name="com.lunara.app.action.RECOGNITION" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -286,14 +275,6 @@
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
-        <activity
-            android:name=".recognition.RecognitionLaunchActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:noHistory="true"
-            android:theme="@style/Theme.Lunara.Transparent" />
-
         <service
             android:name=".playback.MusicService"
             android:exported="true"
@@ -411,45 +392,6 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.lunara.app.cast.CastOptionsProvider" />
-
-        <!-- Music Recognizer Widget -->
-        <receiver
-            android:name=".widget.MusicRecognizerWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_recognizer_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.lunara.app.widget.recognizer.TAP_MIC" />
-                <action android:name="com.lunara.app.widget.recognizer.UPDATE" />
-                <action android:name="com.lunara.app.widget.recognizer.RESET" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/recognizer_widget_info" />
-        </receiver>
-
-        <service
-            android:name=".widget.MusicRecognizerWidgetService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
-
-        <service
-            android:name=".recognition.RecognitionForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
-
-        <!-- Music Recognizer Quick Settings Tile -->
-        <service
-            android:name=".quicksettings.MusicRecognizerTileService"
-            android:label="@string/qs_tile_music_recognizer"
-            android:icon="@drawable/mic"
-            android:exported="true"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
 
         <service
             android:name=".quicksettings.PlaybackTileService"

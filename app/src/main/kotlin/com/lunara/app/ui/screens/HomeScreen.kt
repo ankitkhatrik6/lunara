@@ -1238,7 +1238,6 @@ fun HomeScreen(
                                     .savedStateHandle[SEARCH_FOCUS_ON_OPEN] = true
                             }
                         },
-                        onMicClick = { navController.navigate("recognition") },
                         // Signed in, YouTube's own Supermix, built from everything the person
                         // has played, started on the song whose cover the button shows.
                         // Signed out there is no such mix, so Quick picks, and the Supermix
@@ -2739,7 +2738,6 @@ fun HomeScreen(
                         }
                     }
                 },
-                // Song recognition lives in the home search bar's mic icon now
             )
         }
     }

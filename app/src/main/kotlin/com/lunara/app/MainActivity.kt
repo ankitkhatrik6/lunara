@@ -248,9 +248,7 @@ class MainActivity : ComponentActivity() {
         private const val ACTION_SEARCH = "com.lunara.app.action.SEARCH"
         private const val ACTION_LIBRARY = "com.lunara.app.action.LIBRARY"
         private const val ACTION_SHUFFLE_LIKED = "com.lunara.app.action.SHUFFLE_LIKED"
-        const val ACTION_RECOGNITION = "com.lunara.app.action.RECOGNITION"
         const val ACTION_OPEN_WIDGET_TARGET = "com.lunara.app.action.OPEN_WIDGET_TARGET"
-        const val EXTRA_AUTO_START_RECOGNITION = "auto_start_recognition"
         const val EXTRA_WIDGET_TARGET_TYPE = "widget_target_type"
         const val EXTRA_WIDGET_TARGET_ID = "widget_target_id"
     }
@@ -1065,13 +1063,11 @@ class MainActivity : ComponentActivity() {
                     if (pendingIntent != null) {
                         handleShuffleShortcutIntent(pendingIntent!!)
                         handleWidgetTargetIntent(pendingIntent!!, navController)
-                        handleRecognitionIntent(pendingIntent!!, navController)
                         handleDeepLinkIntent(pendingIntent!!, navController)
                         pendingIntent = null
                     } else {
                         handleShuffleShortcutIntent(intent)
                         handleWidgetTargetIntent(intent, navController)
-                        handleRecognitionIntent(intent, navController)
                         handleDeepLinkIntent(intent, navController)
                     }
                 }
@@ -1081,8 +1077,7 @@ class MainActivity : ComponentActivity() {
                         Consumer<Intent> { intent ->
                             handleShuffleShortcutIntent(intent)
                             handleWidgetTargetIntent(intent, navController)
-                            handleRecognitionIntent(intent, navController)
-                            handleDeepLinkIntent(intent, navController)
+                                handleDeepLinkIntent(intent, navController)
                         }
 
                     addOnNewIntentListener(listener)
@@ -1331,15 +1326,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                            val onSearchLongClick: () -> Unit =
-                                remember(navController) {
-                                    {
-                                        navController.navigate("recognition") {
-                                            launchSingleTop = true
-                                        }
-                                    }
-                                }
-
                             // Pre-calculate values for graphicsLayer to avoid reading state during composition
                             val navBarTotalHeight = bottomInset + NavigationBarHeight
 
@@ -1359,7 +1345,6 @@ class MainActivity : ComponentActivity() {
                                         onItemClick = onNavItemClick,
                                         pureBlack = pureBlack,
                                         slimNav = slimNav,
-                                        onSearchLongClick = onSearchLongClick,
                                         modifier =
                                             Modifier
                                                 .align(Alignment.BottomCenter)
@@ -1460,22 +1445,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                            val onRailSearchLongClick: () -> Unit =
-                                remember(navController) {
-                                    {
-                                        navController.navigate("recognition") {
-                                            launchSingleTop = true
-                                        }
-                                    }
-                                }
-
                             if (showRail && currentRoute != "wrapped") {
                                 AppNavigationRail(
                                     navigationItems = navigationItems,
                                     currentRoute = currentRoute,
                                     onItemClick = onRailItemClick,
                                     pureBlack = pureBlack,
-                                    onSearchLongClick = onRailSearchLongClick,
                                 )
                             }
                             Box(Modifier.weight(1f)) {
@@ -1602,23 +1577,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
             }
-        }
-    }
-
-    /**
-     * Handles the ACTION_RECOGNITION intent sent from the Music Recognizer Widget.
-     * Always navigates to the recognition screen to show the result.
-     */
-    private fun handleRecognitionIntent(
-        intent: Intent,
-        navController: NavHostController,
-    ) {
-        if (intent.action != ACTION_RECOGNITION) return
-        val autoStart = intent.getBooleanExtra(EXTRA_AUTO_START_RECOGNITION, false)
-        intent.action = null
-        intent.removeExtra(EXTRA_AUTO_START_RECOGNITION)
-        navController.navigate(if (autoStart) "recognition?autoStart=true" else "recognition") {
-            launchSingleTop = true
         }
     }
 

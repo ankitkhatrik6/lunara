@@ -569,11 +569,6 @@ fun OnlineSearchResult(
                     pureBlack = pureBlack,
                 )
             }
-            HideOnScrollFAB(
-                lazyListState = lazyListState,
-                icon = R.drawable.mic,
-                onClick = { navController.navigate("recognition") },
-            )
         }
     }
 }

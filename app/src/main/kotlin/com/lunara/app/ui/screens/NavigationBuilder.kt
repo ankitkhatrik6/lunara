@@ -45,8 +45,6 @@ import com.lunara.app.ui.screens.playlist.LocalPlaylistScreen
 import com.lunara.app.ui.screens.playlist.OnlinePlaylistScreen
 import com.lunara.app.ui.screens.playlist.TopPlaylistScreen
 import com.lunara.app.ui.screens.podcast.OnlinePodcastScreen
-import com.lunara.app.ui.screens.recognition.RecognitionHistoryScreen
-import com.lunara.app.ui.screens.recognition.RecognitionScreen
 import com.lunara.app.ui.screens.search.OnlineSearchResult
 import com.lunara.app.ui.screens.search.SearchScreen
 import com.lunara.app.ui.screens.settings.AboutScreen
@@ -473,22 +471,6 @@ fun NavGraphBuilder.navigationBuilder(
         })
     }
 
-    composable(
-        route = "recognition?autoStart={autoStart}",
-        arguments =
-            listOf(
-                navArgument("autoStart") {
-                    type = NavType.BoolType
-                    defaultValue = false
-                },
-            ),
-    ) {
-        RecognitionScreen(navController, it.arguments?.getBoolean("autoStart") ?: false)
-    }
-
-    composable("recognition_history") {
-        RecognitionHistoryScreen(navController)
-    }
     composable("settings/android_auto") {
         AndroidAutoSettings(navController, scrollBehavior)
     }

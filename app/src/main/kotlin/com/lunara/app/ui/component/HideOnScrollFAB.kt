@@ -42,7 +42,6 @@ fun BoxScope.HideOnScrollFAB(
     lazyListState: LazyListState,
     @DrawableRes icon: Int,
     onClick: () -> Unit,
-    onRecognitionClick: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = visible && lazyListState.isScrollingUp(),
@@ -60,21 +59,6 @@ fun BoxScope.HideOnScrollFAB(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(16.dp)
         ) {
-            if (onRecognitionClick != null) {
-                SmallFloatingActionButton(
-                    onClick = onRecognitionClick,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.mic),
-                        contentDescription = stringResource(R.string.recognize_music),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
             FloatingActionButton(
                 onClick = onClick,
             ) {
@@ -93,7 +77,6 @@ fun BoxScope.HideOnScrollFAB(
     lazyListState: LazyGridState,
     @DrawableRes icon: Int,
     onClick: () -> Unit,
-    onRecognitionClick: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = visible && lazyListState.isScrollingUp(),
@@ -111,21 +94,6 @@ fun BoxScope.HideOnScrollFAB(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(16.dp)
         ) {
-            if (onRecognitionClick != null) {
-                SmallFloatingActionButton(
-                    onClick = onRecognitionClick,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.mic),
-                        contentDescription = stringResource(R.string.recognize_music),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
             FloatingActionButton(
                 onClick = onClick,
             ) {
@@ -144,7 +112,6 @@ fun BoxScope.HideOnScrollFAB(
     scrollState: ScrollState,
     @DrawableRes icon: Int,
     onClick: () -> Unit,
-    onRecognitionClick: (() -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = visible && scrollState.isScrollingUp(),
@@ -162,21 +129,6 @@ fun BoxScope.HideOnScrollFAB(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(16.dp)
         ) {
-            if (onRecognitionClick != null) {
-                SmallFloatingActionButton(
-                    onClick = onRecognitionClick,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.mic),
-                        contentDescription = stringResource(R.string.recognize_music),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
             FloatingActionButton(
                 onClick = onClick,
             ) {
