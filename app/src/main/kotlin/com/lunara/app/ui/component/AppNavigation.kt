@@ -67,6 +67,7 @@ import com.lunara.app.ui.theme.SpotifyDivider
 import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyGreen
 import com.lunara.app.ui.theme.SpotifyTextMuted
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.ui.theme.SpotifyTextSecondary
 import com.lunara.app.utils.rememberEnumPreference
 import kotlinx.coroutines.delay
@@ -257,7 +258,7 @@ fun AppNavigationBar(
                 }
 
                 val label = stringResource(screen.titleId)
-                val activeColor = if (navBarStyle == NavBarStyle.UNDERLINE) SpotifyGreen else Color.White
+                val activeColor = if (navBarStyle == NavBarStyle.UNDERLINE) SpotifyGreen else SpotifyTextPrimary
                 val iconTint by animateColorAsState(
                     targetValue = if (isSelected) activeColor else SpotifyTextSecondary,
                     animationSpec = tween(durationMillis = 150),

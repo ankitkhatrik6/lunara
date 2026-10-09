@@ -1058,12 +1058,6 @@
     <string name="app_language_desc">Uygulamanın görüntüleme dilini sistem ayarlarından seçin</string>
     <string name="romanize_select_all">Tümünü seç</string>
     <string name="romanize_languages_title">Latin harflerine çevrilecek diller</string>
-    <string name="report_problem">Sorun bildir</string>
-    <string name="hint_report_problem">Bir şey çalışmıyor mu? Bana anlatın</string>
-    <string name="report_problem_body">Ne olduğunu anlatın; aşağıdaki ayrıntılarla birlikte gönderilecek, böylece kimsenin hangi sürümü kullandığınızı sormasına gerek kalmaz.</string>
-    <string name="report_problem_email">E-posta olarak gönder</string>
-    <string name="report_problem_open">Sorun takipçisini aç</string>
-    <string name="report_problem_copy">Panoya kopyala</string>
     <string name="local_music">Bu cihazdaki müzikler</string>
     <string name="local_music_folders">Nerede aransın</string>
     <string name="local_music_folders_all">Bu telefonun her yerinde</string>

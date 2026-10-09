@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.9.1",
+    "versionName": "3.9.1",
+    "releaseDate": "2026-10-09T00:00:00Z",
+    "description": "## Light mode is readable now\\n\\n- **The loading screen follows your theme.** It no longer flashes a light screen when the app is set to dark.\\n- **White-on-white text and icons are fixed.** Section titles, the navigation bar, chips, the library header, search and settings all read from the theme now, so nothing disappears against a light background any more.\\n\\n## Speed dial\\n\\n- **The shuffle button is gone.** The floating dice-style button that played a random song has been removed from the home screen.\\n\\n## Settings\\n\\n- **'Report a problem' has been removed completely**, along with the bug-report screen, the helper behind it and its translations."
+  },
+  {
     "tagName": "v3.9.0",
     "versionName": "3.9.0",
     "releaseDate": "2026-10-09T00:00:00Z",

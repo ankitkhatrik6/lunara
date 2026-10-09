@@ -1072,12 +1072,6 @@
     <string name="app_language_desc">Выберите язык приложения в системных настройках</string>
     <string name="romanize_select_all">Выбрать все</string>
     <string name="romanize_languages_title">Языки для транслитерации</string>
-    <string name="report_problem">Сообщить о проблеме</string>
-    <string name="hint_report_problem">Что-то не работает? Расскажите мне</string>
-    <string name="report_problem_body">Опишите, что произошло, и сообщение отправится вместе с данными ниже, чтобы никому не пришлось спрашивать, какая у вас версия.</string>
-    <string name="report_problem_email">Отправить письмом</string>
-    <string name="report_problem_open">Открыть трекер задач</string>
-    <string name="report_problem_copy">Скопировать в буфер обмена</string>
     <string name="local_music">Музыка на устройстве</string>
     <string name="local_music_folders">Где искать</string>
     <string name="local_music_folders_all">Везде на телефоне</string>

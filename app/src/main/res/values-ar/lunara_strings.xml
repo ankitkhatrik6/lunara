@@ -1084,12 +1084,6 @@
     <string name="app_language_desc">اختر لغة عرض التطبيق من إعدادات النظام</string>
     <string name="romanize_select_all">تحديد الكل</string>
     <string name="romanize_languages_title">اللغات المراد كتابتها بالحروف اللاتينية</string>
-    <string name="report_problem">الإبلاغ عن مشكلة</string>
-    <string name="hint_report_problem">هل هناك شيء لا يعمل؟ أخبرني</string>
-    <string name="report_problem_body">صِف ما حدث، وسيُرسل مع التفاصيل أدناه حتى لا يضطر أحد لسؤالك عن الإصدار الذي تستخدمه.</string>
-    <string name="report_problem_email">إرساله بالبريد الإلكتروني</string>
-    <string name="report_problem_open">فتح متتبّع المشكلات</string>
-    <string name="report_problem_copy">نسخه إلى الحافظة</string>
     <string name="local_music">الموسيقى على هذا الجهاز</string>
     <string name="local_music_folders">أين يتم البحث</string>
     <string name="local_music_folders_all">في كل مكان على هذا الهاتف</string>

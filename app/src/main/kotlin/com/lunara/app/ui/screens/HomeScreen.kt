@@ -131,14 +131,11 @@ import com.lunara.app.db.entities.Song
 import com.lunara.app.extensions.toMediaItem
 import com.lunara.app.models.toMediaMetadata
 import com.lunara.app.playback.queues.ListQueue
-import com.lunara.app.playback.queues.LocalAlbumRadio
-import com.lunara.app.playback.queues.YouTubeAlbumRadio
 import com.lunara.app.playback.queues.YouTubeQueue
 import com.lunara.app.ui.component.AlbumGridItem
 import com.lunara.app.ui.component.ArtistGridItem
 import com.lunara.app.ui.component.LunaraHomeHeader
 import com.lunara.app.ui.component.ChipsRow
-import com.lunara.app.ui.component.HideOnScrollFAB
 import com.lunara.app.ui.component.LocalBottomSheetPageState
 import com.lunara.app.ui.component.LocalMenuState
 import com.lunara.app.ui.component.NavigationTitle
@@ -658,8 +655,6 @@ fun HomeScreen(
     val dailyDiscover by viewModel.dailyDiscover.collectAsStateWithLifecycle()
     val communityPlaylists by viewModel.communityPlaylists.collectAsStateWithLifecycle()
 
-    val allLocalItems by viewModel.allLocalItems.collectAsStateWithLifecycle()
-    val allYtItems by viewModel.allYtItems.collectAsStateWithLifecycle()
     val speedDialItems by viewModel.speedDialItems.collectAsStateWithLifecycle()
     val speedDialOrder by viewModel.speedDialOrder.collectAsStateWithLifecycle()
     val forYouMixOrder by viewModel.forYouMixOrder.collectAsStateWithLifecycle()
@@ -2655,90 +2650,6 @@ fun HomeScreen(
                     }
                 }
             }
-
-            HideOnScrollFAB(
-                visible = allLocalItems.isNotEmpty() || allYtItems.isNotEmpty(),
-                lazyListState = lazylistState,
-                icon = R.drawable.shuffle,
-                onClick = {
-                    if (!isListenTogetherGuest) {
-                        val local =
-                            when {
-                                allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> Random.nextFloat() < 0.5
-                                allLocalItems.isNotEmpty() -> true
-                                else -> false
-                            }
-                        scope.launch(Dispatchers.Main) {
-                            if (local) {
-                                when (val luckyItem = allLocalItems.random()) {
-                                    is Song -> {
-                                        if (LocalMusic.isLocal(luckyItem.id)) {
-                                            playLocalSong(luckyItem.id, luckyItem.toMediaItem())
-                                        } else {
-                                            playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
-                                        }
-                                    }
-
-                                    is Album -> {
-                                        val albumWithSongs =
-                                            withContext(Dispatchers.IO) {
-                                                database.albumWithSongs(luckyItem.id).first()
-                                            }
-                                        albumWithSongs?.let {
-                                            playerConnection.playQueue(LocalAlbumRadio(it))
-                                        }
-                                    }
-
-                                    is Artist -> {}
-
-                                    is Playlist -> {}
-                                }
-                            } else {
-                                when (val luckyItem = allYtItems.random()) {
-                                    is SongItem -> {
-                                        if (LocalMusic.isLocal(luckyItem.id)) {
-                                            playLocalSong(luckyItem.id, luckyItem.toMediaItem())
-                                        } else {
-                                            playerConnection.playQueue(YouTubeQueue.radio(luckyItem.toMediaMetadata()))
-                                        }
-                                    }
-
-                                    is AlbumItem -> {
-                                        playerConnection.playQueue(YouTubeAlbumRadio(luckyItem.playlistId))
-                                    }
-
-                                    is ArtistItem -> {
-                                        luckyItem.radioEndpoint?.let {
-                                            playerConnection.playQueue(YouTubeQueue(it))
-                                        }
-                                    }
-
-                                    is PlaylistItem -> {
-                                        luckyItem.playEndpoint?.let {
-                                            playerConnection.playQueue(YouTubeQueue(it))
-                                        }
-                                    }
-
-                                    is PodcastItem -> {
-                                        luckyItem.playEndpoint?.let {
-                                            playerConnection.playQueue(YouTubeQueue(it))
-                                        }
-                                    }
-
-                                    is EpisodeItem -> {
-                                        playerConnection.playQueue(
-                                            ListQueue(
-                                                title = luckyItem.title,
-                                                items = listOf(luckyItem.toMediaMetadata().toMediaItem()),
-                                            ),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-            )
         }
     }
 }

@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">在系统设置中选择应用的显示语言</string>
     <string name="romanize_select_all">全选</string>
     <string name="romanize_languages_title">要转写为罗马字的语言</string>
-    <string name="report_problem">报告问题</string>
-    <string name="hint_report_problem">有什么不正常？告诉我</string>
-    <string name="report_problem_body">描述发生了什么，它会连同下面的详情一起发送，这样就没人需要再问你用的是哪个版本。</string>
-    <string name="report_problem_email">通过电子邮件发送</string>
-    <string name="report_problem_open">打开问题追踪页</string>
-    <string name="report_problem_copy">复制到剪贴板</string>
     <string name="local_music">本机音乐</string>
     <string name="local_music_folders">查找位置</string>
     <string name="local_music_folders_all">整部手机</string>

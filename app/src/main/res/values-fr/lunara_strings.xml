@@ -1065,12 +1065,6 @@
     <string name="app_language_desc">Choisir la langue de l\'application dans les paramètres du système</string>
     <string name="romanize_select_all">Tout sélectionner</string>
     <string name="romanize_languages_title">Langues à romaniser</string>
-    <string name="report_problem">Signaler un problème</string>
-    <string name="hint_report_problem">Quelque chose ne marche pas ? Dites-le-moi</string>
-    <string name="report_problem_body">Décrivez ce qui s\'est passé : ce sera envoyé avec les détails ci-dessous, pour que personne n\'ait à vous demander votre version.</string>
-    <string name="report_problem_email">L\'envoyer par e-mail</string>
-    <string name="report_problem_open">Ouvrir le suivi des problèmes</string>
-    <string name="report_problem_copy">Le copier dans le presse-papiers</string>
     <string name="local_music">Musique de cet appareil</string>
     <string name="local_music_folders">Où chercher</string>
     <string name="local_music_folders_all">Partout sur ce téléphone</string>

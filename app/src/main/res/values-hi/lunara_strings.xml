@@ -1058,12 +1058,6 @@
     <string name="app_language_desc">सिस्टम सेटिंग में ऐप की भाषा चुनें</string>
     <string name="romanize_select_all">सभी चुनें</string>
     <string name="romanize_languages_title">रोमन लिपि में बदलने वाली भाषाएँ</string>
-    <string name="report_problem">समस्या बताएँ</string>
-    <string name="hint_report_problem">कुछ ठीक से नहीं चल रहा? मुझे बताएँ</string>
-    <string name="report_problem_body">बताएँ कि क्या हुआ, यह नीचे दी गई जानकारी के साथ भेजा जाएगा, ताकि किसी को आपसे यह न पूछना पड़े कि आप कौन-सा वर्शन इस्तेमाल कर रहे हैं।</string>
-    <string name="report_problem_email">ईमेल से भेजें</string>
-    <string name="report_problem_open">इश्यू ट्रैकर खोलें</string>
-    <string name="report_problem_copy">क्लिपबोर्ड पर कॉपी करें</string>
     <string name="local_music">इस डिवाइस का संगीत</string>
     <string name="local_music_folders">कहाँ ढूँढें</string>
     <string name="local_music_folders_all">पूरे फ़ोन में</string>

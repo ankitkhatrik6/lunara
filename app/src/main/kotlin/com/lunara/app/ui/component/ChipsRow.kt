@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.lunara.app.R
 import com.lunara.app.ui.theme.SpotifyCardSurface
 import com.lunara.app.ui.theme.SpotifyGreen
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 
 @Composable
 fun <E> ChipsRow(
@@ -59,7 +60,7 @@ fun <E> ChipsRow(
         chips.forEach { (value, label) ->
             val selected = currentValue == value
             val pillText by animateColorAsState(
-                targetValue = if (selected) Color.Black else Color.White,
+                targetValue = if (selected) Color.Black else SpotifyTextPrimary,
                 animationSpec = tween(150),
                 label = "chipText",
             )
@@ -158,7 +159,7 @@ fun <Option, E> ChoiceChipsRow(
         chips.forEach { (value, label) ->
             val selected = currentValue == value
             val pillText by animateColorAsState(
-                targetValue = if (selected) Color.Black else Color.White,
+                targetValue = if (selected) Color.Black else SpotifyTextPrimary,
                 animationSpec = tween(150),
                 label = "choiceChipText",
             )

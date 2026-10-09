@@ -36,7 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -57,8 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -84,9 +81,9 @@ import com.lunara.app.ui.theme.SpotifyDivider
 import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyGreen
 import com.lunara.app.ui.theme.SpotifyTextMuted
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.ui.theme.SpotifyTextSecondary
 import com.lunara.app.ui.utils.backToMain
-import com.lunara.app.utils.BugReport
 import com.lunara.app.utils.Updater
 import com.lunara.app.utils.rememberEnumPreference
 import com.lunara.app.utils.rememberPreference
@@ -106,10 +103,7 @@ fun SettingsScreen(
     navController: NavController,
     latestVersionName: String,
 ) {
-    val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
     val showChangelog = LocalChangelogState.current
-    var showBugReport by remember { mutableStateOf(false) }
     val hasUpdate = BuildConfig.UPDATER_AVAILABLE &&
         Updater.isUpdateAvailable(BuildConfig.VERSION_NAME, latestVersionName)
     var query by rememberSaveable { mutableStateOf("") }
@@ -176,15 +170,6 @@ fun SettingsScreen(
                     showChangelog.value = true
                 },
             )
-            add(
-                SettingRow(
-                    icon = R.drawable.bug_report,
-                    title = stringResource(R.string.report_problem),
-                    subtitle = stringResource(R.string.report_problem_body),
-                ) {
-                    showBugReport = true
-                },
-            )
         },
     )
 
@@ -228,7 +213,7 @@ fun SettingsScreen(
                     text = stringResource(R.string.app_name),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = SpotifyTextPrimary,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -311,61 +296,6 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(36.dp))
     }
-
-    if (showBugReport) {
-        AlertDialog(
-            onDismissRequest = { showBugReport = false },
-            icon = { Icon(painterResource(R.drawable.bug_report), null, tint = SpotifyGreen) },
-            title = { Text(stringResource(R.string.report_problem)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.report_problem_body))
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        text = BugReport.details(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SpotifyTextSecondary,
-                    )
-                    Spacer(Modifier.height(18.dp))
-                    ReportChoice(stringResource(R.string.report_problem_email)) {
-                        showBugReport = false
-                        BugReport.email(context)
-                    }
-                    ReportChoice(stringResource(R.string.report_problem_open)) {
-                        showBugReport = false
-                        uriHandler.openUri(BugReport.issueUrl())
-                    }
-                    ReportChoice(stringResource(R.string.report_problem_copy)) {
-                        showBugReport = false
-                        BugReport.copyDetails(context)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showBugReport = false }) {
-                    Text(stringResource(R.string.cancel), color = SpotifyGreen)
-                }
-            },
-            containerColor = SpotifyElevatedSurface,
-            titleContentColor = Color.White,
-            textContentColor = SpotifyTextSecondary,
-        )
-    }
-}
-
-@Composable
-private fun ReportChoice(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        color = SpotifyGreen,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -379,7 +309,7 @@ fun SettingsTopAppBar(
                 text = stringResource(R.string.settings),
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
-                color = Color.White,
+                color = SpotifyTextPrimary,
             )
         },
         navigationIcon = {
@@ -387,12 +317,12 @@ fun SettingsTopAppBar(
                 onClick = navController::navigateUp,
                 onLongClick = navController::backToMain,
             ) {
-                Icon(painterResource(R.drawable.arrow_back), contentDescription = null, tint = Color.White)
+                Icon(painterResource(R.drawable.arrow_back), contentDescription = null, tint = SpotifyTextPrimary)
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = SpotifyBlack,
-            titleContentColor = Color.White,
+            titleContentColor = SpotifyTextPrimary,
         ),
     )
 }
@@ -427,7 +357,7 @@ private fun SpotifySettingRow(row: SettingRow) {
                     text = row.title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = SpotifyTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -561,7 +491,7 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
             onValueChange = onQueryChange,
             singleLine = true,
             textStyle = TextStyle(
-                color = Color.White,
+                color = SpotifyTextPrimary,
                 fontSize = 14.sp,
             ),
             cursorBrush = SolidColor(SpotifyGreen),

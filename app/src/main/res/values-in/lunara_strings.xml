@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">Pilih bahasa tampilan aplikasi di pengaturan sistem</string>
     <string name="romanize_select_all">Pilih semua</string>
     <string name="romanize_languages_title">Bahasa yang diromanisasi</string>
-    <string name="report_problem">Laporkan masalah</string>
-    <string name="hint_report_problem">Ada yang tidak berfungsi? Ceritakan kepada saya</string>
-    <string name="report_problem_body">Jelaskan apa yang terjadi dan laporan akan dikirim bersama detail di bawah, jadi tidak ada yang perlu menanyakan versi yang Anda pakai.</string>
-    <string name="report_problem_email">Kirim lewat email</string>
-    <string name="report_problem_open">Buka pelacak masalah</string>
-    <string name="report_problem_copy">Salin ke papan klip</string>
     <string name="local_music">Musik di perangkat ini</string>
     <string name="local_music_folders">Tempat mencari</string>
     <string name="local_music_folders_all">Di seluruh ponsel ini</string>

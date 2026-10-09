@@ -1065,12 +1065,6 @@
     <string name="app_language_desc">Elige el idioma de la aplicación en la configuración del sistema</string>
     <string name="romanize_select_all">Seleccionar todo</string>
     <string name="romanize_languages_title">Idiomas que romanizar</string>
-    <string name="report_problem">Reportar un problema</string>
-    <string name="hint_report_problem">¿Algo no funciona? Cuéntamelo</string>
-    <string name="report_problem_body">Describe lo que ha pasado y se enviará con los detalles de abajo, para que nadie tenga que preguntarte qué versión usas.</string>
-    <string name="report_problem_email">Enviarlo por correo</string>
-    <string name="report_problem_open">Abrir el gestor de incidencias</string>
-    <string name="report_problem_copy">Copiarlo al portapapeles</string>
     <string name="local_music">Música de este dispositivo</string>
     <string name="local_music_folders">Dónde buscar</string>
     <string name="local_music_folders_all">En todo el teléfono</string>

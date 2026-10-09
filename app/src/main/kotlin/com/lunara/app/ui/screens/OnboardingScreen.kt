@@ -49,6 +49,7 @@ import com.lunara.app.ui.theme.SpotifyCardSurface
 import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyGreen
 import com.lunara.app.ui.theme.SpotifyTextMuted
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.ui.theme.SpotifyTextSecondary
 
 @Composable
@@ -97,7 +98,7 @@ fun OnboardingScreen(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = stringResource(R.string.app_name),
-                        color = Color.White,
+                        color = SpotifyTextPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -108,7 +109,7 @@ fun OnboardingScreen(
                 // Hero title
                 Text(
                     text = "Millions of songs.\nFree on Lunara.",
-                    color = Color.White,
+                    color = SpotifyTextPrimary,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     lineHeight = 38.sp,
@@ -220,7 +221,7 @@ private fun FeatureRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = Color.White,
+                color = SpotifyTextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
             )

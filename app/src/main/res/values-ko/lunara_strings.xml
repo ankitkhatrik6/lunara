@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">시스템 설정에서 앱 표시 언어 선택</string>
     <string name="romanize_select_all">모두 선택</string>
     <string name="romanize_languages_title">로마자로 표기할 언어</string>
-    <string name="report_problem">문제 신고</string>
-    <string name="hint_report_problem">잘 안 되는 게 있나요? 알려 주세요</string>
-    <string name="report_problem_body">무슨 일이 있었는지 적어 주세요. 아래 세부정보와 함께 보내지므로 어떤 버전인지 다시 물어볼 필요가 없습니다.</string>
-    <string name="report_problem_email">이메일로 보내기</string>
-    <string name="report_problem_open">이슈 트래커 열기</string>
-    <string name="report_problem_copy">클립보드에 복사</string>
     <string name="local_music">이 기기의 음악</string>
     <string name="local_music_folders">찾을 위치</string>
     <string name="local_music_folders_all">휴대전화 전체</string>

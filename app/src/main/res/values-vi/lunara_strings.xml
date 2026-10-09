@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">Chọn ngôn ngữ hiển thị của ứng dụng trong cài đặt hệ thống</string>
     <string name="romanize_select_all">Chọn tất cả</string>
     <string name="romanize_languages_title">Ngôn ngữ cần La-tinh hóa</string>
-    <string name="report_problem">Báo cáo sự cố</string>
-    <string name="hint_report_problem">Có gì không hoạt động? Hãy kể cho tôi nghe</string>
-    <string name="report_problem_body">Mô tả chuyện đã xảy ra; nội dung sẽ được gửi kèm chi tiết bên dưới để không ai phải hỏi bạn đang dùng phiên bản nào.</string>
-    <string name="report_problem_email">Gửi qua email</string>
-    <string name="report_problem_open">Mở trình theo dõi sự cố</string>
-    <string name="report_problem_copy">Sao chép vào bảng nhớ tạm</string>
     <string name="local_music">Nhạc trên thiết bị này</string>
     <string name="local_music_folders">Nơi tìm kiếm</string>
     <string name="local_music_folders_all">Mọi nơi trên điện thoại này</string>

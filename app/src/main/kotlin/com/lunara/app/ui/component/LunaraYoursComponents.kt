@@ -52,6 +52,7 @@ import com.lunara.app.ui.theme.SpotifyCardSurface
 import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyGreen
 import com.lunara.app.ui.theme.SpotifyTextMuted
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.ui.theme.SpotifyTextSecondary
 
 /**
@@ -74,7 +75,7 @@ fun LunaraSectionHeader(
             text = title,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = SpotifyTextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
@@ -144,7 +145,7 @@ fun LunaraMusicCard(
             text = title,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            color = SpotifyTextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = if (isCircular) androidx.compose.ui.text.style.TextAlign.Center else null,
@@ -479,7 +480,7 @@ fun <T> LunaraFilterChips(
                     text = label,
                     fontSize = 13.sp,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (selected) Color.Black else Color.White,
+                    color = if (selected) Color.Black else SpotifyTextPrimary,
                 )
             }
         }

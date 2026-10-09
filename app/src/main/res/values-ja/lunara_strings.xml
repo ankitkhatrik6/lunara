@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">システム設定でアプリの表示言語を選択</string>
     <string name="romanize_select_all">すべて選択</string>
     <string name="romanize_languages_title">ローマ字化する言語</string>
-    <string name="report_problem">問題を報告</string>
-    <string name="hint_report_problem">うまく動かない？教えてください</string>
-    <string name="report_problem_body">何が起きたかを書いてください。下の詳細と一緒に送信されるので、どのバージョンかを聞き返す必要がありません。</string>
-    <string name="report_problem_email">メールで送信</string>
-    <string name="report_problem_open">Issue トラッカーを開く</string>
-    <string name="report_problem_copy">クリップボードにコピー</string>
     <string name="local_music">このデバイスの音楽</string>
     <string name="local_music_folders">検索する場所</string>
     <string name="local_music_folders_all">このスマートフォン全体</string>

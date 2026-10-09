@@ -60,6 +60,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.lunara.app.ui.theme.SpotifyElevatedSurface
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.R
@@ -160,7 +161,7 @@ fun LunaraLibraryHome(
                         Icon(
                             painter = painterResource(R.drawable.person),
                             contentDescription = stringResource(R.string.settings),
-                            tint = Color.White,
+                            tint = SpotifyTextPrimary,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -169,7 +170,7 @@ fun LunaraLibraryHome(
                         text = stringResource(R.string.filter_library),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = SpotifyTextPrimary,
                         modifier = Modifier.weight(1f),
                     )
                     Box(
@@ -182,7 +183,7 @@ fun LunaraLibraryHome(
                         Icon(
                             painter = painterResource(R.drawable.search),
                             contentDescription = stringResource(R.string.search),
-                            tint = Color.White,
+                            tint = SpotifyTextPrimary,
                             modifier = Modifier.size(22.dp),
                         )
                     }

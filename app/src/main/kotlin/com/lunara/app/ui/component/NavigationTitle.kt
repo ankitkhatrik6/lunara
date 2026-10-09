@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lunara.app.R
 import com.lunara.app.ui.theme.SpotifyGreen
+import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.ui.theme.SpotifyTextSecondary
 
 @Composable
@@ -91,7 +92,7 @@ fun NavigationTitle(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.3).sp,
                 ),
-                color = Color.White,
+                color = SpotifyTextPrimary,
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
             )

@@ -1051,12 +1051,6 @@
     <string name="app_language_desc">在系統設定中選擇應用程式的顯示語言</string>
     <string name="romanize_select_all">全選</string>
     <string name="romanize_languages_title">要轉成羅馬拼音的語言</string>
-    <string name="report_problem">回報問題</string>
-    <string name="hint_report_problem">有什麼不正常嗎？告訴我</string>
-    <string name="report_problem_body">描述發生了什麼事，它會連同下方的詳細資料一起送出，這樣就沒人需要再問你用的是哪個版本。</string>
-    <string name="report_problem_email">用電子郵件寄出</string>
-    <string name="report_problem_open">開啟問題追蹤頁面</string>
-    <string name="report_problem_copy">複製到剪貼簿</string>
     <string name="local_music">這部裝置上的音樂</string>
     <string name="local_music_folders">尋找位置</string>
     <string name="local_music_folders_all">整支手機</string>

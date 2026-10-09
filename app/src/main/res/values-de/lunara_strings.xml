@@ -1058,12 +1058,6 @@
     <string name="app_language_desc">Anzeigesprache der App in den Systemeinstellungen wählen</string>
     <string name="romanize_select_all">Alle auswählen</string>
     <string name="romanize_languages_title">Zu romanisierende Sprachen</string>
-    <string name="report_problem">Problem melden</string>
-    <string name="hint_report_problem">Funktioniert etwas nicht? Erzähl es mir</string>
-    <string name="report_problem_body">Beschreibe, was passiert ist. Die Meldung wird mit den Details unten gesendet, damit niemand nach deiner Version fragen muss.</string>
-    <string name="report_problem_email">Per E-Mail senden</string>
-    <string name="report_problem_open">Issue-Tracker öffnen</string>
-    <string name="report_problem_copy">In die Zwischenablage kopieren</string>
     <string name="local_music">Musik auf diesem Gerät</string>
     <string name="local_music_folders">Wo suchen</string>
     <string name="local_music_folders_all">Überall auf diesem Telefon</string>
