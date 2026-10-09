@@ -79,7 +79,6 @@ import com.lunara.app.constants.LyricsTextPositionKey
 import com.lunara.app.constants.MiniPlayerDesignKey
 import com.lunara.app.constants.NavBarStyle
 import com.lunara.app.constants.NavBarStyleKey
-import com.lunara.app.constants.PlayerDesignKey
 import com.lunara.app.constants.PureBlackKey
 import com.lunara.app.constants.PureBlackMiniPlayerKey
 import com.lunara.app.constants.SelectedThemeColorKey
@@ -94,7 +93,6 @@ import com.lunara.app.ui.component.EnumDialog
 import com.lunara.app.ui.component.Material3SettingsGroup
 import com.lunara.app.ui.component.Material3SettingsItem
 import com.lunara.app.ui.player.MiniPlayerDesign
-import com.lunara.app.ui.player.PlayerDesign
 import com.lunara.app.ui.theme.LunaraThemeColor
 import com.lunara.app.ui.theme.LunaraTheme
 import com.lunara.app.ui.theme.DefaultThemeColor
@@ -153,15 +151,10 @@ fun LookAndFeelScreen(
         }
 
     // ── Player state ──
-    val (playerDesignId) = rememberPreference(PlayerDesignKey, PlayerDesign.CLASSIC.id)
-    val playerDesign = remember(playerDesignId) {
-        PlayerDesign.entries.firstOrNull { it.id == playerDesignId } ?: PlayerDesign.CLASSIC
-    }
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, SliderStyle.SLIM)
     // Squiggly is a variant of WAVY rather than its own style, so it rides along.
     val (squigglySlider, onSquigglySliderChange) = rememberPreference(SquigglySliderKey, defaultValue = false)
     var showSliderStyleDialog by rememberSaveable { mutableStateOf(false) }
-    val playerConnection = LocalPlayerConnection.current
 
     // ── Lyrics state ──
     val (lyricsPosition, onLyricsPositionChange) =
@@ -211,12 +204,6 @@ fun LookAndFeelScreen(
                         Box(Modifier.padding(horizontal = 16.dp)) {
                             Material3SettingsGroup(
                                 items = listOf(
-                                    Material3SettingsItem(
-                                        icon = painterResource(R.drawable.palette),
-                                        title = { Text(stringResource(R.string.player_theme)) },
-                                        description = { Text(stringResource(playerDesign.nameRes)) },
-                                        onClick = { navController.navigate("settings/appearance/player_design") },
-                                    ),
                                     Material3SettingsItem(
                                         icon = painterResource(R.drawable.sliders),
                                         title = { Text(stringResource(R.string.player_slider_style)) },
@@ -298,12 +285,9 @@ fun LookAndFeelScreen(
     val preview: @Composable (Dp) -> Unit = { height ->
         ThemePhoneMock(
             height = height,
-            // The player preview is drawn at a full phone's size, the others at their own
-            // smaller one; either way the mock-up is scaled, never squeezed.
-            baseWidth = if (tab == LookFeelTab.PLAYER) MockPhoneWidth else SmallMockWidth,
+            baseWidth = SmallMockWidth,
         ) {
             when (tab) {
-                LookFeelTab.PLAYER -> LivePreview(playerDesign, playerConnection)
                 LookFeelTab.LYRICS -> LyricsSampleInterior(
                     darkMode = darkMode,
                     pureBlack = pureBlack,
@@ -604,7 +588,7 @@ internal fun LyricsSampleInterior(
                     )
                 }
                 Spacer(Modifier.width(4.dp))
-                listOf(R.drawable.fullscreen, R.drawable.palette, R.drawable.more_horiz).forEach { icon ->
+                listOf(R.drawable.fullscreen, R.drawable.more_horiz).forEach { icon ->
                     Box(
                         Modifier.padding(start = 3.dp).size(13.dp).clip(CircleShape).background(Color.White),
                         contentAlignment = Alignment.Center,
@@ -647,7 +631,6 @@ internal fun LyricsSampleInterior(
                 listOf(
                     R.drawable.queue_music to R.string.queue,
                     R.drawable.cast to R.string.cast,
-                    R.drawable.bedtime to R.string.sleep_timer,
                     R.drawable.lyrics to R.string.lyrics,
                 ).forEach { (icon, label) ->
                     val tint = if (label == R.string.lyrics) LunaraThemeColor else Color.White.copy(alpha = 0.85f)

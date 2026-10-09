@@ -212,15 +212,12 @@ fun SearchScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // Lunara search pill — same 30dp rounded language as the Home search bar.
+                    // Spotify search bar — crisp 8dp rounded rectangle with high contrast
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(30.dp))
-                            .background(
-                                if (pureBlack) Color.White.copy(alpha = 0.08f)
-                                else MaterialTheme.colorScheme.surfaceContainerHighest,
-                            )
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

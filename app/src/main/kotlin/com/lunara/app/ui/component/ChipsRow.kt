@@ -1,60 +1,42 @@
-/**
- * Lunara Project (C) 2026
- * Metrolist Project (C) 2026
- * Licensed under GPL-3.0 | See NOTICE for contributors
- */
-
 package com.lunara.app.ui.component
 
-import android.annotation.SuppressLint
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandIn
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lunara.app.R
-import com.lunara.app.ui.screens.OptionStats
+import com.lunara.app.ui.theme.SpotifyCardSurface
+import com.lunara.app.ui.theme.SpotifyGreen
 
 @Composable
 fun <E> ChipsRow(
@@ -62,151 +44,149 @@ fun <E> ChipsRow(
     currentValue: E,
     onValueUpdate: (E) -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor: Color = SpotifyCardSurface,
+    isLoading: (E) -> Boolean = { false },
 ) {
     Row(
-        modifier =
-        modifier
+        modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)),
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(12.dp))
 
         chips.forEach { (value, label) ->
-            // Lunara pill chips: fully rounded, amber when selected.
-            FilterChip(
-                label = { Text(label) },
-                selected = currentValue == value,
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = containerColor,
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                onClick = { onValueUpdate(value) },
-                shape = RoundedCornerShape(50),
-                border = null
+            val selected = currentValue == value
+            val pillText by animateColorAsState(
+                targetValue = if (selected) Color.Black else Color.White,
+                animationSpec = tween(150),
+                label = "chipText",
+            )
+            val pillBg by animateColorAsState(
+                targetValue = if (selected) SpotifyGreen else containerColor,
+                animationSpec = tween(150),
+                label = "chipBg",
             )
 
-            Spacer(Modifier.width(8.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .height(34.dp)
+                    .clip(CircleShape)
+                    .background(pillBg)
+                    .clickable { onValueUpdate(value) }
+                    .padding(horizontal = 16.dp),
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = pillText,
+                    maxLines = 1,
+                )
+            }
         }
+
+        Spacer(Modifier.width(12.dp))
     }
 }
 
-@SuppressLint("UnusedContentLambdaTargetStateParameter")
 @Composable
-fun <Int> ChoiceChipsRow(
-    chips: List<Pair<Int, String>>,
-    options: List<Pair<OptionStats, String>>,
-    selectedOption: OptionStats,
-    onSelectionChange: (OptionStats) -> Unit,
-    currentValue: Int,
-    onValueUpdate: (Int) -> Unit,
+fun <Option, E> ChoiceChipsRow(
+    chips: List<Pair<E, String>>,
+    options: List<Pair<Option, String>>,
+    selectedOption: Option,
+    onSelectionChange: (Option) -> Unit,
+    currentValue: E,
+    onValueUpdate: (E) -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor: Color = SpotifyCardSurface,
 ) {
-    var expandIconDegree by remember { mutableFloatStateOf(0f) }
-    val rotationAnimation by animateFloatAsState(
-        targetValue = expandIconDegree,
-        animationSpec = tween(durationMillis = 400),
-        label = "",
-    )
+    var expandIconDegree by remember { mutableStateOf(false) }
 
     Row(
-        modifier =
-        modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(start = 12.dp)
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)),
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        var expanded by remember { mutableStateOf(false) }
+        Spacer(Modifier.width(12.dp))
 
-        Column {
-            AssistChip(
-                onClick = {
-                    expanded = !expanded
-                    expandIconDegree -= 180
-                },
-                label = {
-                    Text(
-                        text =
-                        when (selectedOption) {
-                            OptionStats.WEEKS -> stringResource(id = R.string.weeks)
-                            OptionStats.MONTHS -> stringResource(id = R.string.months)
-                            OptionStats.YEARS -> stringResource(id = R.string.years)
-                            OptionStats.CONTINUOUS -> stringResource(id = R.string.continuous)
+        Box {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .height(34.dp)
+                    .clip(CircleShape)
+                    .background(SpotifyGreen)
+                    .clickable { expandIconDegree = true }
+                    .padding(horizontal = 14.dp),
+            ) {
+                Text(
+                    text = options.find { it.first == selectedOption }?.second.orEmpty(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                )
+                Icon(
+                    painter = painterResource(R.drawable.expand_more),
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+
+            DropdownMenu(
+                expanded = expandIconDegree,
+                onDismissRequest = { expandIconDegree = false },
+            ) {
+                options.forEach { (option, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onSelectionChange(option)
+                            expandIconDegree = false
                         },
                     )
-                },
-                trailingIcon = {
-                    Icon(
-                        painter = painterResource(R.drawable.expand_more),
-                        contentDescription = null,
-                        modifier = Modifier.graphicsLayer(rotationZ = rotationAnimation),
-                    )
-                },
-                shape = RoundedCornerShape(16.dp),
-                border = null,
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = containerColor,
-                    labelColor = MaterialTheme.colorScheme.onSurface
-                )
+                }
+            }
+        }
+
+        chips.forEach { (value, label) ->
+            val selected = currentValue == value
+            val pillText by animateColorAsState(
+                targetValue = if (selected) Color.Black else Color.White,
+                animationSpec = tween(150),
+                label = "choiceChipText",
+            )
+            val pillBg by animateColorAsState(
+                targetValue = if (selected) SpotifyGreen else containerColor,
+                animationSpec = tween(150),
+                label = "choiceChipBg",
             )
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandIn() + fadeIn(),
-                exit = shrinkOut() + fadeOut(),
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .height(34.dp)
+                    .clip(CircleShape)
+                    .background(pillBg)
+                    .clickable { onValueUpdate(value) }
+                    .padding(horizontal = 16.dp),
             ) {
-                DropdownMenu(
-                    modifier = Modifier.padding(start = 12.dp),
-                    expanded = expanded,
-                    onDismissRequest = {
-                        expanded = false
-                        expandIconDegree -= 180
-                    },
-                ) {
-                    options.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(text = option.second) },
-                            onClick = {
-                                onSelectionChange(option.first)
-                                expandIconDegree -= 180
-                                expanded = false
-                            },
-                        )
-                    }
-                }
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = pillText,
+                    maxLines = 1,
+                )
             }
         }
 
-        AnimatedContent(
-            targetState = selectedOption,
-            transitionSpec = { slideInHorizontally() + fadeIn() togetherWith slideOutHorizontally() + fadeOut() },
-            label = "",
-        ) {
-            Row(
-                modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)),
-            ) {
-                chips.forEach { (value, label) ->
-                    Spacer(Modifier.width(8.dp))
-
-                    FilterChip(
-                        label = { Text(label) },
-                        selected = currentValue == value,
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = containerColor,
-                        ),
-                        onClick = { onValueUpdate(value) },
-                        shape = RoundedCornerShape(16.dp),
-                        border = null
-                    )
-                }
-            }
-        }
+        Spacer(Modifier.width(12.dp))
     }
 }

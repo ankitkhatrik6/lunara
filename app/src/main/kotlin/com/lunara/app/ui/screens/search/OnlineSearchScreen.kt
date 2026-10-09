@@ -447,16 +447,21 @@ fun OnlineSearchScreen(
             // app opened, then the moods and genres Explore lists, two to a row,
             // each in its own colour.
             item(key = "browse_heading") {
-                Text(
-                    text = stringResource(R.string.browse),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier =
                         Modifier
                             .animateItem()
-                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-                )
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.browse),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             item(key = "browse_explore") {
                 Row(
@@ -470,7 +475,7 @@ fun OnlineSearchScreen(
                 ) {
                     BrowseTile(
                         title = stringResource(R.string.charts),
-                        stripeColor = 0xFFFFA726,
+                        stripeColor = 0xFF8D67AB,
                         art = browseArt[BrowseArt.CHARTS].orEmpty(),
                         onClick = {
                             onDismiss()
@@ -480,7 +485,7 @@ fun OnlineSearchScreen(
                     )
                     BrowseTile(
                         title = stringResource(R.string.new_release_albums),
-                        stripeColor = 0xFFFF7043,
+                        stripeColor = 0xFF1E3264,
                         art = browseArt[BrowseArt.NEW_RELEASES].orEmpty(),
                         onClick = {
                             onDismiss()
@@ -881,24 +886,17 @@ private fun BrowseTile(
     modifier: Modifier = Modifier,
 ) {
     val seed = Color(stripeColor or 0xFF000000L)
-    // Light tiles need dark type on them; the rest take white.
-    val onSeed = if (seed.luminance() > 0.5f) Color.Black else Color.White
+    val tileShape = RoundedCornerShape(8.dp)
     Box(
         modifier =
             modifier
-                .heightIn(min = 92.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(seed.copy(alpha = 1f).lighten(0.24f), seed, seed.darken(0.18f)),
-                    ),
-                )
+                .heightIn(min = 100.dp)
+                .clip(tileShape)
+                .background(seed)
                 .clickable(onClick = onClick),
     ) {
-        // Up to three covers fanned like a hand of cards, the first in front and leaning
-        // off the corner, the others spread behind it. Drawn back to front.
-        art.take(FAN.size).withIndex().reversed().forEach { (index, cover) ->
-            val place = FAN[index]
+        // Cover in corner rotated at clean 25 deg like Spotify
+        art.firstOrNull()?.let { cover ->
             AsyncImage(
                 model = cover,
                 contentDescription = null,
@@ -906,26 +904,24 @@ private fun BrowseTile(
                 modifier =
                     Modifier
                         .align(Alignment.BottomEnd)
-                        .offset(x = place.x, y = place.y)
-                        .size(56.dp)
-                        .rotate(place.angle)
-                        .shadow(elevation = 6.dp, shape = RoundedCornerShape(6.dp))
-                        .clip(RoundedCornerShape(6.dp)),
+                        .offset(x = 18.dp, y = 14.dp)
+                        .size(68.dp)
+                        .rotate(25f)
+                        .clip(RoundedCornerShape(4.dp)),
             )
         }
         Text(
             text = title,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = onSeed,
+            color = Color.White,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier =
                 Modifier
                     .align(Alignment.TopStart)
                     .padding(14.dp)
-                    // Clear of the covers in the corner.
-                    .fillMaxWidth(if (art.isNotEmpty()) 0.64f else 1f),
+                    .fillMaxWidth(if (art.isNotEmpty()) 0.68f else 1f),
         )
     }
 }

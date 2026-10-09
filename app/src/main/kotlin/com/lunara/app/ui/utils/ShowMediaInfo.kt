@@ -132,13 +132,13 @@ fun ShowMediaInfo(videoId: String) {
                     val baseIconsList = listOf(
                         R.drawable.music_note,
                         R.drawable.person,
-                        R.drawable.media3_icon_bookmark_filled,
+                        R.drawable.info,
                     )
 
                     val iconsList = listOf(
-                        R.drawable.media3_icon_feed,
-                        R.drawable.media3_icon_thumb_up_unfilled,
-                        R.drawable.media3_icon_thumb_down_unfilled,
+                        R.drawable.trending_up,
+                        R.drawable.favorite,
+                        R.drawable.favorite_border,
                         R.drawable.key,
                         R.drawable.play,
                         R.drawable.lock,

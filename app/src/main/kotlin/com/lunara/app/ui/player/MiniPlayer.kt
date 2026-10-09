@@ -207,7 +207,7 @@ private fun NewMiniPlayer(
     // Rounded = same pill but with an explicit prev / play / next cluster.
     val isFloating = variant == MiniPlayerDesign.FLOATING
     val isRoundedControls = variant == MiniPlayerDesign.ROUNDED
-    val cardShape = RoundedCornerShape(if (isFloating) 18.dp else 32.dp)
+    val cardShape = RoundedCornerShape(if (isFloating) 24.dp else 28.dp)
 
     // Theme settings - these rarely change
     val miniPlayerBackground by rememberEnumPreference(
@@ -340,7 +340,7 @@ private fun NewMiniPlayer(
                 .fillMaxWidth()
                 .height(MiniPlayerHeight)
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 8.dp)
                 .let { baseModifier ->
                     if (swipeThumbnail) {
                         baseModifier.pointerInput(Unit) {
@@ -570,6 +570,23 @@ private fun NewMiniPlayer(
                 )
                 }
             }
+
+            // Spotify signature thin progress line along the bottom of the floating mini-player
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .padding(horizontal = 6.dp)
+                    .drawWithContent {
+                        val p = progressState.progress
+                        drawRect(color = Color.White.copy(alpha = 0.18f))
+                        drawRect(
+                            color = com.lunara.app.ui.theme.SpotifyGreen,
+                            size = Size(size.width * p, size.height),
+                        )
+                    }
+            )
         }
     }
 }

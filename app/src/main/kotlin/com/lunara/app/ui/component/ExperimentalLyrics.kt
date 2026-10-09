@@ -132,7 +132,6 @@ import com.lunara.app.lyrics.LyricsEntry
 import com.lunara.app.ui.component.shimmer.ShimmerHost
 import com.lunara.app.ui.component.shimmer.TextPlaceholder
 import com.lunara.app.ui.screens.settings.LyricsPosition
-import com.lunara.app.ui.screens.settings.defaultList
 import com.lunara.app.ui.utils.fadingEdge
 import com.lunara.app.utils.ComposeToImage
 import com.lunara.app.utils.rememberEnumPreference
@@ -147,6 +146,21 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+private val defaultList = listOf(
+    "japanese" to true,
+    "korean" to true,
+    "chinese" to true,
+    "hindi" to true,
+    "punjabi" to true,
+    "russian" to true,
+    "ukrainian" to true,
+    "serbian" to true,
+    "bulgarian" to true,
+    "belarusian" to true,
+    "kyrgyz" to true,
+    "macedonian" to true,
+)
 
 private const val LYRICS_ANCHOR_RATIO = 0.35f
 private val LYRICS_ITEM_FALLBACK_HEIGHT_DP = 68.dp

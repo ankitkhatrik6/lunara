@@ -191,7 +191,6 @@ import com.lunara.app.ui.component.LocalMenuState
 import com.lunara.app.ui.component.BottomSheetState
 import com.lunara.app.ui.component.SpotifyImportDialog
 import com.lunara.app.ui.component.rememberBottomSheetState
-import com.lunara.app.ui.player.PLAYER_DESIGN_GALLERY_ROUTE
 import com.lunara.app.ui.component.shimmer.ShimmerTheme
 import com.lunara.app.ui.menu.YouTubeSongMenu
 import com.lunara.app.ui.player.BottomSheetPlayer
@@ -1464,14 +1463,6 @@ class MainActivity : ComponentActivity() {
                                             NavigationTab.SEARCH -> Screens.Search
                                         }.route,
                                     enterTransition = {
-                                        // Opened from the full player, the theme gallery is there at once
-                                        // under the player, which then fades away over it (see
-                                        // BottomSheetPlayer); sliding it in would show this page for a moment.
-                                        if (targetState.destination.route == PLAYER_DESIGN_GALLERY_ROUTE &&
-                                            playerBottomSheetState.isExpanded
-                                        ) {
-                                            return@NavHost EnterTransition.None
-                                        }
                                         val currentRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
                                         val previousRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
 
@@ -1482,11 +1473,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     exitTransition = {
-                                        if (targetState.destination.route == PLAYER_DESIGN_GALLERY_ROUTE &&
-                                            playerBottomSheetState.isExpanded
-                                        ) {
-                                            return@NavHost ExitTransition.None
-                                        }
                                         val currentRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
                                         val targetRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
 

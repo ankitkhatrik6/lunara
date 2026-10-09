@@ -307,15 +307,15 @@ inline fun ListItem(
                 .clip(RoundedCornerShape(8.dp))
                 .background(
                     color = // selected active
-                        if (isSelected == true) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        else MaterialTheme.colorScheme.secondaryContainer
+                        if (isSelected == true) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
                 )
         } else if (isSelected == true) {
             modifier // inactive selected
                 .height(ListItemHeight)
                 .padding(horizontal = 8.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(color = MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.4f))
+                .background(color = MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.3f))
         } else {
             modifier // default
                 .height(ListItemHeight)
@@ -357,7 +357,8 @@ inline fun ListItem(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -584,9 +585,8 @@ fun SongListItem(
                      isSelected = isSelected,
                      isActive = isActive,
                      isPlaying = isPlaying,
-                     // Lunara/LunaraPlayer song rows: larger, clearly-rounded art.
-                     shape = RoundedCornerShape(14.dp),
-                     modifier = Modifier.size(56.dp)
+                     shape = RoundedCornerShape(6.dp),
+                     modifier = Modifier.size(52.dp)
                  )
              },
              trailingContent = trailingContent,

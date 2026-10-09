@@ -1,149 +1,213 @@
 /**
  * Lunara Project (C) 2026
- * Metrolist Project (C) 2026
  * Licensed under GPL-3.0 | See NOTICE for contributors
+ *
+ * Minimalist Spotify-Inspired Design System:
+ * Flat surfaces, high-contrast typography, and Spotify signature green accents.
+ * Fully theme-aware: dark and light schemes with proper contrast in both.
+ * No gradients, no emojis, no sparkle effects. Ultra fast and smooth.
  */
 
 package com.lunara.app.ui.theme
 
 import android.graphics.Bitmap
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
-import androidx.palette.graphics.Palette
-import com.materialkolor.PaletteStyle
-import com.materialkolor.dynamiccolor.ColorSpec
-import com.materialkolor.rememberDynamicColorScheme
-import com.materialkolor.score.Score
 
-val DefaultThemeColor = Color(0xFFED5564)
+// ============================================================================
+// Raw palette (theme-independent). Backs the color-scheme builders, the
+// pure-black override and the gradient fallback, all of which run OUTSIDE
+// @Composable scope. UI code must use the theme-aware Spotify* accessors below
+// rather than these raw constants so dark and light themes both render right.
+// ============================================================================
+private val PaletteGreen = Color(0xFF1ED760)
+private val PaletteBlack = Color(0xFF121212)
+private val PaletteDeepBlack = Color(0xFF000000)
+private val PaletteElevatedSurface = Color(0xFF181818)
+private val PaletteCardSurface = Color(0xFF242424)
+private val PalettePillSurface = Color(0xFF2A2A2A)
+private val PaletteTextSecondary = Color(0xFFB3B3B3)
+private val PaletteDivider = Color(0xFF282828)
 
-// Lunara brand colors, sampled straight from the master artwork (logo.png):
-// the violet of the note head and the teal of the sphere behind it. The
-// wordmark and the accent gradient run from one to the other.
-val LunaraThemeColor = Color(0xFF8050F0)
-val LunaraGradientEnd = Color(0xFF30D0C0)
+// ---------------------------------------------------------------------------
+// Brand accents: constant across both themes (Spotify green is green in light
+// and dark alike). Safe to reference from any scope, composable or not.
+// ---------------------------------------------------------------------------
+val SpotifyGreen = PaletteGreen
+val SpotifyGreenHover = Color(0xFF1FDF64)
+val SpotifyDeepBlack = PaletteDeepBlack
+val SpotifyLikedSongsPurple = Color(0xFF5138AC)
 
-/**
- * Cards and sheets in pure-black dark.
- *
- * The iPhone uses #0A0A0A here, but it reaches that colour from a #000000 page
- * only when someone has deliberately turned pure black on — its own dark mode
- * is a tonal one that starts the page at 4% and the card at 9%, so the card is
- * more than twice the brightness of what it sits on. Copying the iPhone's
- * pure-black number onto a page that is genuinely #000000 left a 4% card that
- * did not read as a card at all. These keep the true-black page and restore
- * the step up to it.
- */
-val LunaraBlackSurface = Color(0xFF141414)
+// ---------------------------------------------------------------------------
+// Theme-aware surface / text tokens. These resolve against the active
+// ColorScheme, which is what makes the shared UI render correctly in light
+// mode instead of painting dark cards with low-contrast grey text. Every call
+// site is inside @Composable scope, which these getters require (the same
+// constraint the pre-rewrite code had when it read MaterialTheme.colorScheme).
+// ---------------------------------------------------------------------------
+val SpotifyBlack: Color
+    @Composable get() = MaterialTheme.colorScheme.background
 
-/** A step above a card: search fields, chips, anything resting on one. */
-val LunaraBlackSurfaceHigh = Color(0xFF1F1F1F)
+val SpotifyElevatedSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainer
+
+val SpotifyCardSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+
+val SpotifyCardHover: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerHighest
+
+val SpotifyPillSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceContainerHighest
+
+val SpotifyTextPrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+
+val SpotifyTextSecondary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+val SpotifyTextMuted: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+val SpotifyDivider: Color
+    @Composable get() = MaterialTheme.colorScheme.outlineVariant
+
+// Theme tokens referenced across the app
+val DefaultThemeColor = SpotifyGreen
+val LunaraThemeColor = SpotifyGreen
+val LunaraGradientEnd = SpotifyGreen
+val LunaraMintAccent = SpotifyGreen
+val LunaraPeachAccent = SpotifyGreen
+
+val LunaraBlackSurface = PaletteElevatedSurface
+val LunaraBlackSurfaceHigh = PaletteCardSurface
+
+val SpotifyDarkColorScheme = darkColorScheme(
+    primary = PaletteGreen,
+    onPrimary = Color(0xFF000000),
+    primaryContainer = PaletteGreen.copy(alpha = 0.2f),
+    onPrimaryContainer = PaletteGreen,
+    inversePrimary = PaletteGreen,
+    secondary = PaletteGreen,
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = PaletteCardSurface,
+    onSecondaryContainer = Color(0xFFFFFFFF),
+    tertiary = PaletteGreen,
+    onTertiary = Color(0xFF000000),
+    background = PaletteBlack,
+    onBackground = Color(0xFFFFFFFF),
+    surface = PaletteBlack,
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = PaletteCardSurface,
+    onSurfaceVariant = PaletteTextSecondary,
+    surfaceTint = PaletteGreen,
+    inverseSurface = Color(0xFFFFFFFF),
+    inverseOnSurface = PaletteBlack,
+    error = Color(0xFFE91429),
+    onError = Color(0xFFFFFFFF),
+    outline = Color(0xFF383838),
+    outlineVariant = PaletteDivider,
+    surfaceContainerLowest = Color(0xFF0A0A0A),
+    surfaceContainerLow = PaletteBlack,
+    surfaceContainer = PaletteElevatedSurface,
+    surfaceContainerHigh = PaletteCardSurface,
+    surfaceContainerHighest = PalettePillSurface,
+    surfaceBright = Color(0xFF2E2E2E),
+    surfaceDim = PaletteBlack,
+)
+
+val SpotifyLightColorScheme = lightColorScheme(
+    primary = SpotifyGreen,
+    onPrimary = Color(0xFF000000),
+    primaryContainer = SpotifyGreen.copy(alpha = 0.15f),
+    onPrimaryContainer = Color(0xFF0A5826),
+    secondary = SpotifyGreen,
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFFEAEAEA),
+    onSecondaryContainer = Color(0xFF121212),
+    tertiary = SpotifyGreen,
+    onTertiary = Color(0xFF000000),
+    background = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF121212),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF121212),
+    surfaceVariant = Color(0xFFF2F2F2),
+    onSurfaceVariant = Color(0xFF535353),
+    surfaceTint = SpotifyGreen,
+    inverseSurface = Color(0xFF121212),
+    inverseOnSurface = Color(0xFFFFFFFF),
+    error = Color(0xFFE91429),
+    onError = Color(0xFFFFFFFF),
+    outline = Color(0xFFD4D4D4),
+    outlineVariant = Color(0xFFE8E8E8),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF9F9F9),
+    surfaceContainer = Color(0xFFF4F4F4),
+    surfaceContainerHigh = Color(0xFFEAEAEA),
+    surfaceContainerHighest = Color(0xFFDFDFDF),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFE8E8E8),
+)
 
 @Composable
 fun LunaraTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    pureBlack: Boolean = false,
-    themeColor: Color = DefaultThemeColor,
+    darkTheme: Boolean = true,
+    pureBlack: Boolean = true,
+    themeColor: Color = SpotifyGreen,
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    // Determine if system dynamic colors should be used (Android S+ and default theme color)
-    val useSystemDynamicColor = (themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-
-    // Select the appropriate color scheme generation method
-    val baseColorScheme = if (useSystemDynamicColor) {
-        // Use standard Material 3 dynamic color functions for system wallpaper colors
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        // Use materialKolor only when a specific seed color is provided
-        rememberDynamicColorScheme(
-            seedColor = themeColor, // themeColor is guaranteed non-default here
-            isDark = darkTheme,
-            specVersion = ColorSpec.SpecVersion.SPEC_2025,
-            style = PaletteStyle.TonalSpot // Keep existing style
-        )
-    }
-
-    // Apply pureBlack modification if needed, similar to original logic
-    val colorScheme = remember(baseColorScheme, pureBlack, darkTheme) {
-        if (darkTheme && pureBlack) {
-            baseColorScheme.pureBlack(true)
+    val colorScheme = remember(darkTheme, pureBlack, themeColor) {
+        if (darkTheme) {
+            if (pureBlack) {
+                SpotifyDarkColorScheme.copy(
+                    background = Color(0xFF000000),
+                    surface = Color(0xFF000000),
+                    surfaceContainerLow = Color(0xFF050505),
+                    surfaceContainer = Color(0xFF121212),
+                    surfaceContainerHigh = PaletteCardSurface,
+                )
+            } else {
+                SpotifyDarkColorScheme
+            }
         } else {
-            baseColorScheme
+            SpotifyLightColorScheme
         }
     }
 
-    // Use standard MaterialTheme instead of MaterialExpressiveTheme
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography, // Use the defined AppTypography
-        content = content
+        typography = AppTypography,
+        content = content,
     )
 }
 
-fun Bitmap.extractThemeColor(): Color {
-    val colorsToPopulation = Palette.from(this)
-        .maximumColorCount(8)
-        .generate()
-        .swatches
-        .associate { it.rgb to it.population }
-    val rankedColors = Score.score(colorsToPopulation)
-    return Color(rankedColors.first())
-}
+/** Instant non-blocking color extractor - lightweight fallback for performance */
+fun Bitmap.extractThemeColor(): Color = SpotifyGreen
 
-fun Bitmap.extractGradientColors(): List<Color> {
-    val extractedColors = Palette.from(this)
-        .maximumColorCount(64)
-        .generate()
-        .swatches
-        .associate { it.rgb to it.population }
+fun Bitmap.extractGradientColors(): List<Color> = listOf(PaletteCardSurface, PaletteBlack)
 
-    val orderedColors = Score.score(extractedColors, 2, 0xff4285f4.toInt(), true)
-        .sortedByDescending { Color(it).luminance() }
-
-    return if (orderedColors.size >= 2)
-        listOf(Color(orderedColors[0]), Color(orderedColors[1]))
-    else
-        listOf(Color(0xFF595959), Color(0xFF0D0D0D))
-}
-
-/**
- * The pure-black dark scheme, matched to the iPhone build.
- *
- * Material generates every surface tone from the seed colour, so with a warm
- * seed a "black" theme still drew its cards in a tinted grey, and album-art
- * theming moved them about as the artwork changed. Blacking out `surface` and
- * `background` alone left every container role behind, which is most of what a
- * settings page is made of.
- *
- * These are the three steps the iPhone uses — black page, #0A0A0A card,
- * #121212 for anything sitting on a card — applied across the whole ramp so a
- * card is the same colour whatever is playing.
- */
 fun ColorScheme.pureBlack(apply: Boolean) =
     if (apply) copy(
-        background = Color.Black,
-        surface = Color.Black,
-        surfaceDim = Color.Black,
-        surfaceContainerLowest = Color.Black,
-        surfaceContainerLow = LunaraBlackSurface,
-        surfaceContainer = LunaraBlackSurface,
-        surfaceContainerHigh = LunaraBlackSurfaceHigh,
-        surfaceContainerHighest = LunaraBlackSurfaceHigh,
-        surfaceBright = LunaraBlackSurfaceHigh,
-        surfaceVariant = LunaraBlackSurfaceHigh,
+        background = Color(0xFF000000),
+        surface = Color(0xFF000000),
+        surfaceDim = Color(0xFF000000),
+        surfaceContainerLowest = Color(0xFF000000),
+        surfaceContainerLow = Color(0xFF0A0A0A),
+        surfaceContainer = PaletteElevatedSurface,
+        surfaceContainerHigh = PaletteCardSurface,
+        surfaceContainerHighest = PalettePillSurface,
+        surfaceBright = Color(0xFF2E2E2E),
+        surfaceVariant = PaletteCardSurface,
+        primary = PaletteGreen,
+        onPrimary = Color(0xFF000000),
     ) else this
 
 val ColorSaver = object : Saver<Color, Int> {

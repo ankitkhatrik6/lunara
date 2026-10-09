@@ -116,7 +116,6 @@ import com.lunara.app.extensions.toggleRepeatMode
 import com.lunara.app.listentogether.RoomRole
 import com.lunara.app.models.MediaMetadata
 import com.lunara.app.ui.component.ActionPromptDialog
-import com.lunara.app.ui.component.LunaraSleepTimerDialog
 import com.lunara.app.ui.component.LunaraSnackbarHost
 import com.lunara.app.ui.component.CastButton
 import com.lunara.app.ui.component.BottomSheet
@@ -141,11 +140,7 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlin.math.roundToInt
-import com.lunara.app.constants.SleepTimerDefaultKey
 import android.widget.Toast
-import androidx.compose.runtime.derivedStateOf
-import com.lunara.app.constants.SleepTimerFadeOutKey
-import com.lunara.app.constants.SleepTimerStopAfterCurrentSongKey
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.material3.Button
 import androidx.compose.ui.text.font.FontWeight
@@ -179,7 +174,6 @@ fun Queue(
     val haptic = LocalHapticFeedback.current
     val clipboardManager = LocalClipboard.current
     val menuState = LocalMenuState.current
-    val sleepTimerDefaultSetTemplate = stringResource(R.string.sleep_timer_default_set)
     val bottomSheetPageState = LocalBottomSheetPageState.current
 
     // Listen Together state (reactive)
@@ -240,35 +234,6 @@ fun Queue(
     var dismissJob: Job? by remember { mutableStateOf(null) }
 
     val coroutineScope = rememberCoroutineScope()
-    var showSleepTimerDialog by remember { mutableStateOf(false) }
-    val sleepTimerDefault by rememberPreference(SleepTimerDefaultKey, 30f)
-    var sleepTimerValue by remember { mutableFloatStateOf(sleepTimerDefault) }
-    val isAtDefault by remember {
-        derivedStateOf { sleepTimerValue.roundToInt() == sleepTimerDefault.roundToInt() }
-    }
-    val sleepTimerStopAfterCurrentSong by rememberPreference(SleepTimerStopAfterCurrentSongKey, false)
-    val sleepTimerFadeOut by rememberPreference(SleepTimerFadeOutKey, false)
-    val sleepTimerEnabled = remember(
-        playerConnection.service.sleepTimer?.triggerTime,
-        playerConnection.service.sleepTimer?.pauseWhenSongEnd
-    ) {
-        playerConnection.service.sleepTimer?.isActive ?: false
-    }
-    var sleepTimerTimeLeft by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(sleepTimerEnabled) {
-        if (sleepTimerEnabled) {
-            while (isActive) {
-                sleepTimerTimeLeft =
-                    if (playerConnection.service.sleepTimer?.pauseWhenSongEnd == true) {
-                        playerConnection.player.duration - playerConnection.player.currentPosition
-                    } else {
-                        (playerConnection.service.sleepTimer?.triggerTime ?: 0L) - System.currentTimeMillis()
-                    }
-                delay(1000L)
-            }
-        }
-    }
 
     BottomSheet(
         state = state,
@@ -319,24 +284,6 @@ fun Queue(
                         modifier = Modifier.size(buttonSize),
                         textButtonColor = textButtonColor,
                         iconButtonColor = iconButtonColor,
-                        iconSize = iconSize,
-                        textBackgroundColor = TextBackgroundColor,
-                        playerBackground = playerBackground,
-                    )
-
-                    PlayerQueueButton(
-                        icon = R.drawable.bedtime,
-                        onClick = {
-                            // Always open the dialog; a running timer shows countdown + END/RESET
-                            showSleepTimerDialog = true
-                        },
-                        isActive = sleepTimerEnabled,
-                        enabled = !isListenTogetherGuest,
-                        shape = middleShape,
-                        modifier = Modifier.size(buttonSize),
-                        textButtonColor = textButtonColor,
-                        iconButtonColor = iconButtonColor,
-                        text = if (sleepTimerEnabled) makeTimeString(sleepTimerTimeLeft) else null,
                         iconSize = iconSize,
                         textBackgroundColor = TextBackgroundColor,
                         playerBackground = playerBackground,
@@ -458,23 +405,6 @@ fun Queue(
                     )
 
                     PlayerBottomButton(
-                        icon = R.drawable.bedtime,
-                        label =
-                            if (sleepTimerEnabled) {
-                                makeTimeString(sleepTimerTimeLeft)
-                            } else {
-                                stringResource(R.string.sleep_timer)
-                            },
-                        active = sleepTimerEnabled,
-                        tint = TextBackgroundColor,
-                        activeTint = LunaraThemeColor,
-                        enabled = !isListenTogetherGuest,
-                        modifier = Modifier.weight(1f),
-                        // Always open the dialog; a running timer shows countdown + END/RESET
-                        onClick = { showSleepTimerDialog = true },
-                    )
-
-                    PlayerBottomButton(
                         icon = R.drawable.lyrics,
                         label = stringResource(R.string.lyrics),
                         active = showInlineLyrics,
@@ -484,34 +414,6 @@ fun Queue(
                         onClick = { onToggleLyrics() },
                     )
                 }
-            }
-
-            if (showSleepTimerDialog) {
-                LunaraSleepTimerDialog(
-                    sleepTimerEnabled = sleepTimerEnabled,
-                    sleepTimerTimeLeft = sleepTimerTimeLeft,
-                    pauseWhenSongEnd = playerConnection.service.sleepTimer?.pauseWhenSongEnd == true,
-                    sleepTimerSongsLeft = playerConnection.service.sleepTimer?.songsLeft ?: 0,
-                    initialMinutes = sleepTimerDefault,
-                    onDismiss = { showSleepTimerDialog = false },
-                    onStart = { minutes ->
-                        showSleepTimerDialog = false
-                        playerConnection.service.sleepTimer?.start(
-                            minute = minutes,
-                            stopAfterCurrentSong = sleepTimerStopAfterCurrentSong,
-                            fadeOut = sleepTimerFadeOut,
-                        )
-                    },
-                    onStartEndOfSong = {
-                        showSleepTimerDialog = false
-                        playerConnection.service.sleepTimer?.start(minute = -1)
-                    },
-                    onStartAfterSongs = { count ->
-                        showSleepTimerDialog = false
-                        playerConnection.service.sleepTimer?.startAfterSongs(count)
-                    },
-                    onClear = { playerConnection.service.sleepTimer?.clear() },
-                )
             }
         },
     ) {

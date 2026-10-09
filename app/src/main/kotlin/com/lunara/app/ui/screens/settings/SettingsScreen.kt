@@ -2,16 +2,18 @@
  * Lunara Project (C) 2026
  * Metrolist Project (C) 2026
  * Licensed under GPL-3.0 | See NOTICE for contributors
+ *
+ * Minimalist Spotify-Inspired Settings:
+ * Flat surfaces, high-contrast typography, Spotify green accents.
+ * No emojis, no sparkles, no gradients. Fast and smooth 60/120fps.
  */
 
 package com.lunara.app.ui.screens.settings
 
-import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
-import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
@@ -33,12 +36,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,15 +55,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import com.lunara.app.utils.BugReport
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -65,7 +66,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.navigation.NavController
 import com.lunara.app.BuildConfig
 import com.lunara.app.LocalChangelogState
@@ -77,17 +77,25 @@ import com.lunara.app.constants.PureBlackKey
 import com.lunara.app.constants.PureBlackMiniPlayerKey
 import com.lunara.app.ui.component.IconButton
 import com.lunara.app.ui.component.ReleaseNotesCard
-import com.lunara.app.utils.Updater
+import com.lunara.app.ui.theme.SpotifyBlack
+import com.lunara.app.ui.theme.SpotifyCardHover
+import com.lunara.app.ui.theme.SpotifyCardSurface
+import com.lunara.app.ui.theme.SpotifyDivider
+import com.lunara.app.ui.theme.SpotifyElevatedSurface
+import com.lunara.app.ui.theme.SpotifyGreen
+import com.lunara.app.ui.theme.SpotifyTextMuted
+import com.lunara.app.ui.theme.SpotifyTextSecondary
 import com.lunara.app.ui.utils.backToMain
+import com.lunara.app.utils.BugReport
+import com.lunara.app.utils.Updater
 import com.lunara.app.utils.rememberEnumPreference
 import com.lunara.app.utils.rememberPreference
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.layout.fillMaxSize
 
 private class SettingRow(
     val icon: Int,
     val title: String,
     val subtitle: String,
+    val accent: Color = SpotifyGreen,
     val badge: Boolean = false,
     val onClick: () -> Unit,
 )
@@ -100,89 +108,157 @@ fun SettingsScreen(
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val isAndroid12OrLater = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val hasAndroidAuto = remember {
-        try {
-            context.packageManager.getPackageInfo("com.google.android.projection.gearhead", 0)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
     val showChangelog = LocalChangelogState.current
     var showBugReport by remember { mutableStateOf(false) }
-    // Newer, not merely different. An inequality also fires when this build is
-    // ahead of the last published one — which is every development build, and
-    // was every build at all while the version being compared was the release
-    // headline rather than a version. The badge was permanently on.
     val hasUpdate = BuildConfig.UPDATER_AVAILABLE &&
         Updater.isUpdateAvailable(BuildConfig.VERSION_NAME, latestVersionName)
     var query by rememberSaveable { mutableStateOf("") }
 
-    // Appearance state for the quick toggles at the top of the page.
     val (darkMode, onDarkModeChange) = rememberEnumPreference(DarkModeKey, DarkMode.AUTO)
     val (dynamicTheme, onDynamicThemeChange) = rememberPreference(DynamicThemeKey, true)
-    val (pureBlack, setPureBlack) = rememberPreference(PureBlackKey, true)
+    val (pureBlack, setPureBlack) = rememberPreference(PureBlackKey, false)
     val (_, setPureBlackMiniPlayer) = rememberPreference(PureBlackMiniPlayerKey, false)
-    // Look & Feel turns pure black on for the mini player as well. The chip used to
-    // skip that, which left a grey mini player under an otherwise black app.
     val onPureBlackChange: (Boolean) -> Unit = { enabled ->
         setPureBlack(enabled)
         setPureBlackMiniPlayer(enabled)
     }
 
-    // Lunara keeps a deliberately small settings surface: the appearance
-    // toggles above, then appearance detail, storage and about. Everything
-    // else - player tuning, EQ, sleep timer, integrations and Android Auto -
-    // is not part of the Lunara experience.
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
         stringResource(R.string.settings_group_personalize) to listOf(
-            SettingRow(R.drawable.palette, stringResource(R.string.appearance), stringResource(R.string.hint_appearance)) {
+            SettingRow(
+                icon = R.drawable.palette,
+                title = stringResource(R.string.appearance),
+                subtitle = stringResource(R.string.hint_appearance),
+            ) {
                 navController.navigate("settings/appearance")
             },
-            SettingRow(R.drawable.storage, stringResource(R.string.storage), stringResource(R.string.hint_storage)) {
+            SettingRow(
+                icon = R.drawable.contrast,
+                title = stringResource(R.string.look_and_feel),
+                subtitle = stringResource(R.string.look_and_feel_desc),
+            ) {
+                navController.navigate("settings/appearance/look_and_feel")
+            },
+        ),
+        stringResource(R.string.storage) to listOf(
+            SettingRow(
+                icon = R.drawable.storage,
+                title = stringResource(R.string.storage),
+                subtitle = stringResource(R.string.hint_storage),
+            ) {
                 navController.navigate("settings/storage")
+            },
+            SettingRow(
+                icon = R.drawable.security,
+                title = stringResource(R.string.privacy),
+                subtitle = stringResource(R.string.privacy),
+            ) {
+                navController.navigate("settings/privacy")
             },
         ),
         stringResource(R.string.settings_group_about) to buildList {
-            add(SettingRow(R.drawable.info, stringResource(R.string.about), stringResource(R.string.hint_about), badge = hasUpdate) {
-                navController.navigate("settings/about")
-            })
-            add(SettingRow(R.drawable.newspaper, stringResource(R.string.changelog), stringResource(R.string.hint_changelog)) {
-                showChangelog.value = true
-            })
-            if (BuildConfig.UPDATER_AVAILABLE) {
-                add(SettingRow(R.drawable.update, stringResource(R.string.updater), stringResource(R.string.hint_updater)) {
-                    navController.navigate("settings/updater")
-                })
-            }
+            add(
+                SettingRow(
+                    icon = R.drawable.info,
+                    title = stringResource(R.string.about),
+                    subtitle = stringResource(R.string.hint_about),
+                    badge = hasUpdate,
+                ) {
+                    navController.navigate("settings/about")
+                },
+            )
+            add(
+                SettingRow(
+                    icon = R.drawable.newspaper,
+                    title = stringResource(R.string.changelog),
+                    subtitle = stringResource(R.string.hint_changelog),
+                ) {
+                    showChangelog.value = true
+                },
+            )
+            add(
+                SettingRow(
+                    icon = R.drawable.bug_report,
+                    title = stringResource(R.string.report_problem),
+                    subtitle = stringResource(R.string.report_problem_body),
+                ) {
+                    showBugReport = true
+                },
+            )
         },
     )
 
     Column(
         Modifier
+            .fillMaxSize()
+            .background(SpotifyBlack)
             .windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {
         Spacer(Modifier.windowInsetsPadding(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(56.dp))
 
-        // No accounts in Lunara: a plain brand header instead of a profile chip.
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        Spacer(Modifier.height(4.dp))
+        // Minimal Spotify Brand Header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(SpotifyElevatedSurface)
+                .clickable { navController.navigate("settings/about") }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(SpotifyCardSurface),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.lunara_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "v${BuildConfig.VERSION_NAME}",
+                    fontSize = 13.sp,
+                    color = SpotifyTextSecondary,
+                )
+            }
+            Icon(
+                painter = painterResource(R.drawable.navigate_next),
+                contentDescription = null,
+                tint = SpotifyTextSecondary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
 
         SettingsSearchField(query = query, onQueryChange = { query = it })
 
-        // Only show quick toggles when not actively searching.
         if (query.isBlank()) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = "DISPLAY & THEME",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = SpotifyTextSecondary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            )
             QuickToggles(
                 darkMode = darkMode,
                 onDarkModeChange = onDarkModeChange,
@@ -194,39 +270,35 @@ fun SettingsScreen(
         }
 
         val q = query.trim()
-        var chipIndex = 0
         groups.forEach { (groupTitle, rows) ->
             val filtered = if (q.isEmpty()) rows else rows.filter {
                 it.title.contains(q, ignoreCase = true) || it.subtitle.contains(q, ignoreCase = true)
             }
             if (filtered.isNotEmpty()) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(20.dp))
                 Text(
                     text = groupTitle.uppercase(),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+                    letterSpacing = 0.8.sp,
+                    color = SpotifyTextSecondary,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
                 )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainer),
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SpotifyElevatedSurface),
                 ) {
                     filtered.forEachIndexed { i, row ->
                         if (i > 0) {
-                            Box(
-                                Modifier
-                                    .padding(start = 68.dp)
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 58.dp),
+                                thickness = 0.5.dp,
+                                color = SpotifyDivider,
                             )
                         }
-                        LunaraSettingRow(row = row, colorIndex = chipIndex)
-                        chipIndex++
+                        SpotifySettingRow(row = row)
                     }
                 }
             }
@@ -237,28 +309,24 @@ fun SettingsScreen(
             ReleaseNotesCard()
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(36.dp))
     }
 
     if (showBugReport) {
         AlertDialog(
             onDismissRequest = { showBugReport = false },
-            icon = { Icon(painterResource(R.drawable.bug_report), null) },
+            icon = { Icon(painterResource(R.drawable.bug_report), null, tint = SpotifyGreen) },
             title = { Text(stringResource(R.string.report_problem)) },
             text = {
                 Column {
                     Text(stringResource(R.string.report_problem_body))
                     Spacer(Modifier.height(14.dp))
-                    // Shown rather than merely attached. Nothing about someone's
-                    // device should leave without them having seen it first.
                     Text(
                         text = BugReport.details(),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = SpotifyTextSecondary,
                     )
                     Spacer(Modifier.height(18.dp))
-                    // Email first: it is the only one of the three that asks
-                    // nothing of somebody who just wants to say it is broken.
                     ReportChoice(stringResource(R.string.report_problem_email)) {
                         showBugReport = false
                         BugReport.email(context)
@@ -276,58 +344,80 @@ fun SettingsScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showBugReport = false }) {
-                    Text(stringResource(android.R.string.cancel))
+                    Text(stringResource(R.string.cancel), color = SpotifyGreen)
                 }
             },
+            containerColor = SpotifyElevatedSurface,
+            titleContentColor = Color.White,
+            textContentColor = SpotifyTextSecondary,
         )
     }
+}
 
+@Composable
+private fun ReportChoice(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        color = SpotifyGreen,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsTopAppBar(
+    navController: NavController,
+) {
     TopAppBar(
-        title = { Text(stringResource(R.string.settings)) },
+        title = {
+            Text(
+                text = stringResource(R.string.settings),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = Color.White,
+            )
+        },
         navigationIcon = {
             IconButton(
                 onClick = navController::navigateUp,
                 onLongClick = navController::backToMain,
             ) {
-                Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
+                Icon(painterResource(R.drawable.arrow_back), contentDescription = null, tint = Color.White)
             }
         },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = SpotifyBlack,
+            titleContentColor = Color.White,
+        ),
     )
 }
 
-/** Chip background/foreground derived from the app's dynamic theme. */
 @Composable
-private fun chipColorsAt(index: Int): Pair<Color, Color> {
-    val cs = MaterialTheme.colorScheme
-    return when (index % 3) {
-        0 -> cs.primary to cs.onPrimary
-        1 -> cs.secondary to cs.onSecondary
-        else -> cs.tertiary to cs.onTertiary
-    }
-}
-
-@Composable
-private fun LunaraSettingRow(row: SettingRow, colorIndex: Int) {
-    val (chipBg, chipInk) = chipColorsAt(colorIndex)
+private fun SpotifySettingRow(row: SettingRow) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = row.onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(chipBg),
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(SpotifyCardSurface),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(row.icon),
                 contentDescription = null,
-                tint = chipInk,
-                modifier = Modifier.size(21.dp),
+                tint = SpotifyGreen,
+                modifier = Modifier.size(20.dp),
             )
         }
         Spacer(Modifier.width(14.dp))
@@ -337,19 +427,20 @@ private fun LunaraSettingRow(row: SettingRow, colorIndex: Int) {
                     text = row.title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (row.badge) {
                     Spacer(Modifier.width(8.dp))
-                    Badge()
+                    Badge(containerColor = SpotifyGreen)
                 }
             }
+            Spacer(Modifier.height(2.dp))
             Text(
                 text = row.subtitle,
-                fontSize = 12.5.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                color = SpotifyTextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -357,7 +448,7 @@ private fun LunaraSettingRow(row: SettingRow, colorIndex: Int) {
         Icon(
             painter = painterResource(R.drawable.navigate_next),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            tint = SpotifyTextSecondary,
             modifier = Modifier.size(20.dp),
         )
     }
@@ -378,7 +469,6 @@ private fun QuickToggles(
         DarkMode.OFF -> R.drawable.contrast to stringResource(R.string.quick_theme_light)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        // Theme mode cycles Auto -> On -> Off.
         QuickChip(
             icon = modeIcon,
             label = modeLabel,
@@ -416,21 +506,17 @@ private fun QuickChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(8.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
             .clip(shape)
             .clickable(onClick = onClick)
-            .background(
-                if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                else MaterialTheme.colorScheme.surfaceContainer,
-            )
-            // A visible outline makes the active state unmistakable.
+            .background(if (active) SpotifyCardHover else SpotifyElevatedSurface)
             .border(
-                width = if (active) 1.5.dp else 0.dp,
-                color = if (active) MaterialTheme.colorScheme.primary else Color.Transparent,
+                width = if (active) 1.dp else 0.dp,
+                color = if (active) SpotifyGreen else Color.Transparent,
                 shape = shape,
             )
             .padding(vertical = 12.dp, horizontal = 8.dp),
@@ -438,14 +524,14 @@ private fun QuickChip(
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
+            tint = if (active) SpotifyGreen else SpotifyTextSecondary,
+            modifier = Modifier.size(20.dp),
         )
         Text(
             text = label,
             fontSize = 11.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            color = if (active) Color.White else SpotifyTextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -454,64 +540,55 @@ private fun QuickChip(
 
 @Composable
 private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clip(shape)
+            .background(SpotifyElevatedSurface)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Icon(
             painter = painterResource(R.drawable.search),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
+            tint = SpotifyTextSecondary,
+            modifier = Modifier.size(18.dp),
         )
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.search_settings),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp,
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth(),
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            textStyle = TextStyle(
+                color = Color.White,
+                fontSize = 14.sp,
+            ),
+            cursorBrush = SolidColor(SpotifyGreen),
+            modifier = Modifier.weight(1f),
+            decorationBox = { innerTextField ->
+                if (query.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.search_settings),
+                        style = TextStyle(
+                            color = SpotifyTextMuted,
+                            fontSize = 14.sp,
+                        ),
+                    )
+                }
+                innerTextField()
+            },
+        )
+        if (query.isNotEmpty()) {
+            Icon(
+                painter = painterResource(R.drawable.close),
+                contentDescription = null,
+                tint = SpotifyTextSecondary,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .clickable { onQueryChange("") },
             )
         }
-    }
-}
-
-private fun openDefaultLinksSettings(context: Context) {
-    try {
-        val intent = Intent(
-            Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
-            "package:${context.packageName}".toUri(),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(context, R.string.open_app_settings_error, Toast.LENGTH_LONG).show()
-    }
-}
-
-
-@Composable
-private fun ReportChoice(
-    label: String,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
-    ) {
-        Text(label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
     }
 }

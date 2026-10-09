@@ -195,9 +195,6 @@ import com.lunara.app.constants.PlayerButtonsStyle
 import com.lunara.app.constants.PlayerButtonsStyleKey
 import com.lunara.app.constants.PlayerHorizontalPadding
 import com.lunara.app.constants.QueuePeekHeight
-import com.lunara.app.constants.SleepTimerDefaultKey
-import com.lunara.app.constants.SleepTimerFadeOutKey
-import com.lunara.app.constants.SleepTimerStopAfterCurrentSongKey
 import com.lunara.app.constants.SliderStyle
 import com.lunara.app.constants.SliderStyleKey
 import com.lunara.app.constants.SquigglySliderKey
@@ -212,7 +209,6 @@ import com.lunara.app.extensions.toggleRepeatMode
 import com.lunara.app.listentogether.RoomRole
 import com.lunara.app.models.MediaMetadata
 import com.lunara.app.ui.component.BottomSheet
-import com.lunara.app.ui.component.LunaraSleepTimerDialog
 import com.lunara.app.ui.component.BottomSheetState
 import com.lunara.app.ui.component.CapsuleSeekBar
 import com.lunara.app.ui.component.LocalBottomSheetPageState
@@ -251,9 +247,6 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
 import com.lunara.app.ui.component.Icon as MIcon
-import com.lunara.app.constants.SleepTimerDefaultKey
-import com.lunara.app.constants.SleepTimerFadeOutKey
-import com.lunara.app.constants.SleepTimerStopAfterCurrentSongKey
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -267,41 +260,12 @@ fun BottomSheetPlayer(
     val context = LocalContext.current
     val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val menuState = LocalMenuState.current
-    val sleepTimerDefaultSetTemplate = stringResource(R.string.sleep_timer_default_set)
     val copiedTitleStr = stringResource(R.string.copied_title)
     val copiedArtistStr = stringResource(R.string.copied_artist)
     val bottomSheetPageState = LocalBottomSheetPageState.current
     val playerConnection = LocalPlayerConnection.current ?: return
 
-    // Back from the design gallery lands on the page it was opened from; bring the player back up.
-    // Opening it, the gallery appears at once under the player (no page slide), and once it has
-    // been drawn the player fades away over it and is put down without the slide: sliding the
-    // player over the gallery redrew both on every frame and stuttered, and sliding it before the
-    // gallery was there showed the page underneath.
     val playerFade = remember { Animatable(1f) }
-    // The sheet state is rebuilt when the mini player's resting place changes (the gallery hides
-    // the navigation bar), so always act on the newest one.
-    val latestState by rememberUpdatedState(state)
-    LaunchedEffect(navController) {
-        navController.currentBackStackEntryFlow.collectLatest { entry ->
-            if (entry.savedStateHandle.remove<Boolean>(ReopenPlayerKey) == true) {
-                playerFade.snapTo(1f)
-                latestState.expandSoft()
-            }
-            if (entry.savedStateHandle.remove<Boolean>(CollapsePlayerKey) == true) {
-                try {
-                    // Two frames: the gallery is composed in the first and drawn in the second.
-                    withFrameNanos { }
-                    withFrameNanos { }
-                    playerFade.animateTo(0f, tween(durationMillis = 180, easing = LinearEasing))
-                    latestState.collapse(snap())
-                    withFrameNanos { }
-                } finally {
-                    playerFade.snapTo(1f)
-                }
-            }
-        }
-    }
 
     val (useNewPlayerDesign, onUseNewPlayerDesignChange) =
         rememberPreference(
@@ -727,76 +691,7 @@ fun BottomSheetPlayer(
         .getDownload(mediaMetadata?.id ?: "")
         .collectAsStateWithLifecycle(initialValue = null)
 
-    val sleepTimerEnabled =
-        remember(
-            playerConnection.service.sleepTimer?.triggerTime,
-            playerConnection.service.sleepTimer?.pauseWhenSongEnd,
-            playerConnection.service.sleepTimer?.songsLeft,
-        ) {
-            playerConnection.service.sleepTimer?.isActive ?: false
-        }
-
-    var sleepTimerTimeLeft by remember {
-        mutableLongStateOf(0L)
-    }
-
-    LaunchedEffect(sleepTimerEnabled) {
-        if (sleepTimerEnabled) {
-            while (isActive) {
-                sleepTimerTimeLeft =
-                    if (playerConnection.service.sleepTimer?.pauseWhenSongEnd == true) {
-                        playerConnection.player.duration - playerConnection.player.currentPosition
-                    } else {
-                        (playerConnection.service.sleepTimer?.triggerTime ?: 0L) - System.currentTimeMillis()
-                    }
-                delay(1000L)
-            }
-        }
-    }
-
     val scope = rememberCoroutineScope()
-    var showSleepTimerDialog by remember {
-        mutableStateOf(false)
-    }
-
-    val sleepTimerDefault by rememberPreference(SleepTimerDefaultKey, 30f)
-    var sleepTimerValue by remember {
-        mutableFloatStateOf(sleepTimerDefault)
-    }
-    val isAtDefault by remember {
-        derivedStateOf { sleepTimerValue.roundToInt() == sleepTimerDefault.roundToInt() }
-    }
-    val sleepTimerStopAfterCurrentSong by rememberPreference(SleepTimerStopAfterCurrentSongKey, false)
-    val sleepTimerFadeOut by rememberPreference(SleepTimerFadeOutKey, false)
-
-
-    if (showSleepTimerDialog) {
-        LunaraSleepTimerDialog(
-            sleepTimerEnabled = sleepTimerEnabled,
-            sleepTimerTimeLeft = sleepTimerTimeLeft,
-            pauseWhenSongEnd = playerConnection.service.sleepTimer?.pauseWhenSongEnd == true,
-            sleepTimerSongsLeft = playerConnection.service.sleepTimer?.songsLeft ?: 0,
-            initialMinutes = sleepTimerDefault,
-            onDismiss = { showSleepTimerDialog = false },
-            onStart = { minutes ->
-                showSleepTimerDialog = false
-                playerConnection.service.sleepTimer?.start(
-                    minute = minutes,
-                    stopAfterCurrentSong = sleepTimerStopAfterCurrentSong,
-                    fadeOut = sleepTimerFadeOut,
-                )
-            },
-            onStartEndOfSong = {
-                showSleepTimerDialog = false
-                playerConnection.service.sleepTimer?.start(minute = -1)
-            },
-            onStartAfterSongs = { count ->
-                showSleepTimerDialog = false
-                playerConnection.service.sleepTimer?.startAfterSongs(count)
-            },
-            onClear = { playerConnection.service.sleepTimer?.clear() },
-        )
-    }
 
     var showChoosePlaylistDialog by rememberSaveable {
         mutableStateOf(false)
@@ -1497,13 +1392,6 @@ fun BottomSheetPlayer(
                     }
 
                     Spacer(modifier = Modifier.size(12.dp))
-                    PlayerThemeButton(
-                        textButtonColor = textButtonColor,
-                        iconButtonColor = iconButtonColor,
-                        state = state,
-                    )
-
-                    Spacer(modifier = Modifier.size(12.dp))
 
                     AnimatedContent(targetState = showInlineLyrics, label = "LikeButton") { showLyrics ->
                         if (showLyrics) {
@@ -1839,7 +1727,7 @@ fun BottomSheetPlayer(
                                 modifier =
                                     Modifier
                                         .size(72.dp)
-                                        .clip(RoundedCornerShape(playPauseRoundness))
+                                        .clip(CircleShape)
                                         .background(playButtonColor)
                                         .clickable {
                                             if (isListenTogetherGuest) {
@@ -1947,13 +1835,10 @@ fun BottomSheetPlayer(
                     duration = duration,
                     playerSeeker = playerSeeker,
                     playerConnection = playerConnection,
-                    sleepTimerEnabled = sleepTimerEnabled,
-                    sleepTimerTimeLeft = sleepTimerTimeLeft,
                     textBackgroundColor = TextBackgroundColor,
                     onPosition = { position = it },
                     onShowLyrics = { showInlineLyrics = true },
                     onToggleLyrics = { showInlineLyrics = !showInlineLyrics },
-                    onSleepTimer = { showSleepTimerDialog = true },
                     controlsContent = controlsContent,
                 )
             }
@@ -2129,13 +2014,6 @@ fun BottomSheetPlayer(
                         onToggleLike = { playerConnection.toggleLike() },
                         onShowLyrics = { showInlineLyrics = true },
                         titleActions = {
-                            // Theme and the song menu sit beside the title, as on the other designs.
-                            Spacer(Modifier.size(12.dp))
-                            PlayerThemeButton(
-                                textButtonColor = textButtonColor,
-                                iconButtonColor = iconButtonColor,
-                                state = state,
-                            )
                             Spacer(Modifier.size(12.dp))
                             mediaMetadata?.let {
                                 PlayerMoreMenuButton(
@@ -2447,21 +2325,6 @@ fun BottomSheetPlayer(
                         activeTint = LunaraThemeColor,
                     )
                     PlayerBottomButton(
-                        icon = R.drawable.bedtime,
-                        label =
-                            if (sleepTimerEnabled) {
-                                makeTimeString(sleepTimerTimeLeft)
-                            } else {
-                                stringResource(R.string.sleep_timer)
-                            },
-                        active = sleepTimerEnabled,
-                        tint = TextBackgroundColor,
-                        activeTint = LunaraThemeColor,
-                        enabled = !isListenTogetherGuest,
-                        modifier = Modifier.weight(1f),
-                        onClick = { showSleepTimerDialog = true },
-                    )
-                    PlayerBottomButton(
                         icon = R.drawable.lyrics,
                         label = stringResource(R.string.lyrics),
                         active = false,
@@ -2484,13 +2347,9 @@ fun BottomSheetPlayer(
             mediaMetadata?.let { meta ->
                 RetroBottomRow(
                     lyricsOpen = showInlineLyrics,
-                    sleepTimerEnabled = sleepTimerEnabled,
-                    sleepTimerTimeLeft = sleepTimerTimeLeft,
-                    sleepEnabled = !isListenTogetherGuest,
                     accent = MaterialTheme.colorScheme.primary,
                     onLyrics = { showInlineLyrics = !showInlineLyrics },
                     onQueue = { queueSheetState.expandSoft() },
-                    onSleep = { showSleepTimerDialog = true },
                     modifier =
                         Modifier
                             .align(Alignment.BottomCenter)
@@ -2836,13 +2695,10 @@ private fun BoxScope.LandscapePlayer(
     duration: Long,
     playerSeeker: PlayerSeeker,
     playerConnection: PlayerConnection,
-    sleepTimerEnabled: Boolean,
-    sleepTimerTimeLeft: Long,
     textBackgroundColor: Color,
     onPosition: (Long) -> Unit,
     onShowLyrics: () -> Unit,
     onToggleLyrics: () -> Unit,
-    onSleepTimer: () -> Unit,
     controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit,
 ) {
             // Calculate vertical padding like OuterTune
@@ -3047,20 +2903,14 @@ private fun BoxScope.LandscapePlayer(
                         controlsContent(it)
                     }
 
-                    // Queue · Cast · Sleep timer · Lyrics, under this half's controls rather
-                    // than across the whole screen, where they covered the artwork.
                     if (!isFullScreen && !showInlineLyrics) {
                         Spacer(Modifier.height(10.dp))
                         if (playerDesign == PlayerDesign.CASSETTE) {
                             RetroBottomRow(
                                 lyricsOpen = showInlineLyrics,
-                                sleepTimerEnabled = sleepTimerEnabled,
-                                sleepTimerTimeLeft = sleepTimerTimeLeft,
-                                sleepEnabled = !isListenTogetherGuest,
                                 accent = MaterialTheme.colorScheme.primary,
                                 onLyrics = { onToggleLyrics() },
                                 onQueue = { queueSheetState.expandSoft() },
-                                onSleep = { onSleepTimer() },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                             )
                         } else {
@@ -3083,21 +2933,6 @@ private fun BoxScope.LandscapePlayer(
                                     tintColor = textBackgroundColor,
                                     label = stringResource(R.string.cast),
                                     activeTint = LunaraThemeColor,
-                                )
-                                PlayerBottomButton(
-                                    icon = R.drawable.bedtime,
-                                    label =
-                                        if (sleepTimerEnabled) {
-                                            makeTimeString(sleepTimerTimeLeft)
-                                        } else {
-                                            stringResource(R.string.sleep_timer)
-                                        },
-                                    active = sleepTimerEnabled,
-                                    tint = textBackgroundColor,
-                                    activeTint = LunaraThemeColor,
-                                    enabled = !isListenTogetherGuest,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onSleepTimer() },
                                 )
                                 PlayerBottomButton(
                                     icon = R.drawable.lyrics,
@@ -3420,13 +3255,13 @@ private fun RingLyricsCard(
                 when {
                     entries.isNotEmpty() && currentIndex >= 0 -> RingLyricsLines(
                         previous = entries.getOrNull(currentIndex - 1)?.text?.takeIf { it.isNotBlank() },
-                        current = entries.getOrNull(currentIndex)?.text?.takeIf { it.isNotBlank() } ?: "♪",
+                        current = entries.getOrNull(currentIndex)?.text?.takeIf { it.isNotBlank() } ?: "",
                         next = entries.getOrNull(currentIndex + 1)?.text?.takeIf { it.isNotBlank() },
                         textColor = textColor,
                     )
                     entries.isNotEmpty() -> RingLyricsLines(
                         previous = null,
-                        current = "♪",
+                        current = "",
                         next = entries.firstOrNull { it.text.isNotBlank() }?.text,
                         textColor = textColor,
                     )
@@ -3855,9 +3690,6 @@ private fun CassetteTitleKeys(
                 onClick = onToggleLike,
             )
         }
-        RetroIconKey(iconRes = R.drawable.palette) {
-            openPlayerDesignGallery(navController, state)
-        }
         RetroIconKey(iconRes = R.drawable.add) {
             menuState.show {
                 AddToPlaylistDialog(
@@ -3954,13 +3786,9 @@ private fun RetroTransportRow(
 @Composable
 private fun RetroBottomRow(
     lyricsOpen: Boolean,
-    sleepTimerEnabled: Boolean,
-    sleepTimerTimeLeft: Long,
-    sleepEnabled: Boolean,
     accent: Color,
     onLyrics: () -> Unit,
     onQueue: () -> Unit,
-    onSleep: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -3991,16 +3819,6 @@ private fun RetroBottomRow(
             activeTint = accent,
         )
         PlayerBottomButton(
-            icon = R.drawable.bedtime,
-            label = if (sleepTimerEnabled) makeTimeString(sleepTimerTimeLeft) else stringResource(R.string.sleep_timer),
-            active = sleepTimerEnabled,
-            tint = RetroCream,
-            activeTint = accent,
-            enabled = sleepEnabled,
-            modifier = key,
-            onClick = onSleep,
-        )
-        PlayerBottomButton(
             icon = R.drawable.lyrics,
             label = stringResource(R.string.lyrics),
             active = lyricsOpen,
@@ -4008,52 +3826,6 @@ private fun RetroBottomRow(
             activeTint = accent,
             modifier = key,
             onClick = onLyrics,
-        )
-    }
-}
-
-private const val ReopenPlayerKey = "reopen_player"
-private const val CollapsePlayerKey = "collapse_player"
-const val PLAYER_DESIGN_GALLERY_ROUTE = "settings/appearance/player_design"
-
-/**
- * Opens the design gallery and then moves the player out of its way, and marks the page
- * underneath so the full player comes back when the user returns from the gallery.
- */
-private fun openPlayerDesignGallery(navController: NavController, state: BottomSheetState) {
-    // The button stays tappable while the player slides down, so a quick second tap would open
-    // the gallery twice and Back would need pressing twice.
-    val current = navController.currentBackStackEntry ?: return
-    if (current.destination.route == PLAYER_DESIGN_GALLERY_ROUTE) return
-    current.savedStateHandle[ReopenPlayerKey] = true
-    navController.navigate(PLAYER_DESIGN_GALLERY_ROUTE) { launchSingleTop = true }
-    // The player slides down once the gallery has finished opening behind it (see
-    // BottomSheetPlayer); collapsing first showed the page underneath for a moment.
-    navController.currentBackStackEntry?.savedStateHandle?.set(CollapsePlayerKey, true)
-}
-
-@Composable
-private fun PlayerThemeButton(
-    textButtonColor: Color,
-    iconButtonColor: Color,
-    state: BottomSheetState,
-) {
-    val navController = LocalNavController.current
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier =
-            Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(textButtonColor)
-                .clickable {
-                    openPlayerDesignGallery(navController, state)
-                },
-    ) {
-        Image(
-            painter = painterResource(R.drawable.palette),
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(iconButtonColor),
         )
     }
 }

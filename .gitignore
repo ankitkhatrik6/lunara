@@ -113,5 +113,10 @@ app/src/main/cpp/coverart/
 # Local-only files (never commit)
 .local/
 
+# Master logo artwork (only the derived res assets are committed) and the
+# UI source package used to regenerate them.
+logov1.png
+lunara*.zip
+
 # Local technical docs (do not publish)
 docs/*.pdf
