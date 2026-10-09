@@ -1,7 +1,7 @@
 [
   {
-    "tagName": "v3.6.0",
-    "versionName": "3.6.0",
+    "tagName": "v3.9.0",
+    "versionName": "3.9.0",
     "releaseDate": "2026-10-09T00:00:00Z",
     "description": "## A redesigned interface\\n\\n- **The whole interface has been reworked.** The home header, search, library, settings and the player have a fresh, cleaner look built on flat surfaces and the signature green accent.\\n- **Light mode actually works now.** Surfaces, cards and text read from the theme instead of hard-coded dark colours, so the light theme is light and the dark theme is dark - with readable contrast in both.\\n\\n## A new logo\\n\\n- **The app icon, splash screen, notification icon and in-app branding all use the new mark.** Every density, the adaptive icon, the store icon and the TV banner were regenerated from the one master artwork, so the mark is never cropped or half-cut again.\\n\\n## Search\\n\\n- **The search bar reads 'Search song, title, artist…'** instead of naming a single source."
   },
