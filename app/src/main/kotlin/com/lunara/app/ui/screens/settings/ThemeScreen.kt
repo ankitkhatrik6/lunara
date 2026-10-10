@@ -98,7 +98,6 @@ import com.lunara.app.constants.MiniPlayerBackgroundStyleKey
 import com.lunara.app.constants.MiniPlayerDesignKey
 import com.lunara.app.constants.NavBarStyle
 import com.lunara.app.constants.NavBarStyleKey
-import com.lunara.app.constants.ShowHomeSearchBarKey
 import com.lunara.app.constants.SlimNavBarKey
 import com.lunara.app.constants.UseNewMiniPlayerDesignKey
 import com.lunara.app.ui.player.MiniPlayerDesign
@@ -673,7 +672,6 @@ internal fun ThemePhonePreview(
     val (defaultTab) = rememberEnumPreference(DefaultOpenTabKey, NavigationTab.HOME)
     val (gridSize) = rememberEnumPreference(GridItemsSizeKey, GridItemSize.SMALL)
     val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
-    val (showSearchPill) = rememberPreference(ShowHomeSearchBarKey, defaultValue = true)
     val (navStyle) = rememberEnumPreference(NavBarStyleKey, NavBarStyle.PILL)
     LunaraTheme(darkTheme = useDark, pureBlack = pureBlack, themeColor = themeColor) {
         val cs = MaterialTheme.colorScheme
@@ -700,6 +698,33 @@ internal fun ThemePhonePreview(
                     Text("Lunara", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
                 }
                 Icon(painterResource(R.drawable.settings), null, tint = cs.onSurface.copy(alpha = 0.75f), modifier = Modifier.size(13.dp))
+            }
+            Spacer(Modifier.height(6.dp))
+            // Filter pills — "All" (filled accent) and "Music" (muted), mirroring the
+            // home's top row exactly as in the Look & Feel reference image.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    true to stringResource(R.string.filter_all),
+                    false to "Music",
+                ).forEach { (active, label) ->
+                    Box(
+                        modifier = Modifier
+                            .height(18.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(if (active) cs.primary else cs.surfaceContainerHigh)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 7.sp,
+                            lineHeight = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (active) cs.onPrimary else cs.onSurface,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(6.dp))
             // Quick-access grid — the real home's top cards (Liked songs, For You,
@@ -754,9 +779,10 @@ internal fun ThemePhonePreview(
                 }
             }
             Spacer(Modifier.height(9.dp))
-            // Search pill (icon · placeholder · mic).
+            // Search pill (icon · placeholder · mic). Always shown in the preview so the
+            // Look & Feel mock matches the app's home whether or not the bar is toggled.
             val searchTint = if (useDark) Color.White.copy(alpha = 0.7f) else Color(0x8A000000)
-            if (showSearchPill) Row(
+            Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()

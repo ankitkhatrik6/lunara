@@ -146,25 +146,8 @@ fun LocalPlaylistMenu(
                 ),
             )
 
-            // Show sync button only for YouTube playlists
-            if (isYouTubePlaylist) {
-                add(
-                    Material3MenuItemData(
-                        title = { Text(stringResource(R.string.action_sync)) },
-                        description = { Text(stringResource(R.string.sync_playlist_desc)) },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.sync),
-                                contentDescription = null,
-                            )
-                        },
-                        onClick = {
-                            onSync()
-                            onDismiss()
-                        },
-                    ),
-                )
-            }
+            // The "Sync" action needs a logged-in YouTube account; there is no login in
+            // this build, so it has been removed from the playlist menu entirely.
 
             if (!isGuest) {
                 add(

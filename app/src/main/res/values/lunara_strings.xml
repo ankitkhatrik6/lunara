@@ -1226,6 +1226,8 @@
     <string name="your_playlists">Your Playlists</string>
     <string name="mood_playlists">Mood Playlists</string>
     <string name="favorite_artists">Favorite Artists</string>
+    <string name="favorite">Favorite</string>
+    <string name="favorited">Favorited</string>
     <string name="see_more">See More</string>
     <string name="favorites">Favorites</string>
     <string name="downloads">Downloads</string>

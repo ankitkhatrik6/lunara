@@ -45,7 +45,9 @@ import java.util.logging.Logger
 fun CreatePlaylistDialog(
     onDismiss: () -> Unit,
     initialTextFieldValue: String? = null,
-    allowSyncing: Boolean = true,
+    // Syncing needs a logged-in YouTube account; this build has no login, so the
+    // "Sync playlist" toggle is off by default everywhere and effectively hidden.
+    allowSyncing: Boolean = false,
     onPlaylistCreated: ((String) -> Unit)? = null,
 ) {
     val database = LocalDatabase.current

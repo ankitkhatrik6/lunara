@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.12.0",
+    "versionName": "3.12.0",
+    "releaseDate": "2026-10-10T00:00:00Z",
+    "description": "## Artist screen\n\n- **The Subscribe button is now Favorite.** It bookmarks the artist locally with a heart, so there is no more dead YouTube subscribe in a build with no login.\n- **Copying an artist link shows the Lunara mark** in the confirmation toast, matching the rest of the app.\n\n## Lyrics\n\n- **The Sources pill is hidden.** Lyrics now show the words and nothing else. You can still reach the provider picker from the lyrics menu when you want a different source.\n\n## Playlists\n\n- **The Sync playlist toggle is removed** everywhere, along with the Sync action in the playlist menu, since this build has no account to sync with.\n\n## Look & Feel\n\n- **The preview matches the app again.** It shows the All and Music filter pills at the top and always renders the search bar, so the mock reflects what opens on the home screen.\n"
+  },
+  {
     "tagName": "v3.11.0",
     "versionName": "3.11.0",
     "releaseDate": "2026-10-10T00:00:00Z",

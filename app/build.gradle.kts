@@ -145,8 +145,8 @@ android {
         applicationId = applicationIdOverride ?: baseApplicationId
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "3.11.0"
+        versionCode = 19
+        versionName = "3.12.0"
         resValue("string", "app_name", appNameOverride ?: "Lunara")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -923,20 +923,10 @@ fun ExperimentalLyrics(
             }
         )
 
-        // The source picker — top-centre of the lyrics pane, and gone in full screen,
-        // which is the one place somebody asked for nothing but the words.
-        AnimatedVisibility(
-            visible = !isFullScreen && !isSelectionModeActive && !isGuest &&
-                lyrics != null && lyrics != LYRICS_NOT_FOUND && mediaMetadata != null,
-            enter = fadeIn() + slideInVertically { -it / 2 } + expandVertically(),
-            exit = fadeOut() + slideOutVertically { -it / 2 } + shrinkVertically(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 8.dp),
-        ) {
-            LyricsLanguageButton(onClick = { showSourcePicker = true })
-        }
+        // The "Sources" pill that opened the multi-source picker has been removed:
+        // this build shows the lyrics and nothing else, so the picker is never offered.
+        // (LyricsSourceLanguageDialog is still reachable from the lyrics menu for
+        // anyone who wants to pick a specific provider.)
     }
 
     val pickerMetadata = mediaMetadata

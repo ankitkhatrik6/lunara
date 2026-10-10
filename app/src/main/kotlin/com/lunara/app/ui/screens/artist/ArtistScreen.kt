@@ -243,7 +243,7 @@ fun ArtistScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                // Subscribe Button Placeholder
+                                // Favorite Button Placeholder
                                 ButtonPlaceholder(
                                     modifier =
                                         Modifier
@@ -360,7 +360,8 @@ fun ArtistScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    // Subscribe Button
+                                    // Favorite button — bookmarks the artist locally (there is
+                                    // no login in this build), so "Subscribe" became "Favorite".
                                     OutlinedButton(
                                         onClick = {
                                             viewModel.toggleChannelSubscription()
@@ -369,7 +370,7 @@ fun ArtistScreen(
                                             ButtonDefaults.outlinedButtonColors(
                                                 containerColor =
                                                     if (isChannelSubscribed) {
-                                                        MaterialTheme.colorScheme.surface
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                                     } else {
                                                         Color.Transparent
                                                     },
@@ -377,10 +378,19 @@ fun ArtistScreen(
                                         shape = RoundedCornerShape(50),
                                         modifier = Modifier.height(40.dp),
                                     ) {
+                                        Icon(
+                                            painter = painterResource(
+                                                if (isChannelSubscribed) R.drawable.favorite else R.drawable.favorite_border,
+                                            ),
+                                            contentDescription = null,
+                                            tint = if (isChannelSubscribed) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(6.dp))
                                         Text(
-                                            text = stringResource(if (isChannelSubscribed) R.string.subscribed else R.string.subscribe),
+                                            text = stringResource(if (isChannelSubscribed) R.string.favorited else R.string.favorite),
                                             fontSize = 14.sp,
-                                            color = if (!isChannelSubscribed) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                                            color = if (isChannelSubscribed) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                                         )
                                     }
 
