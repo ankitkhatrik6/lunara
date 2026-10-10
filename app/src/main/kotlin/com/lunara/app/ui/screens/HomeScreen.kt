@@ -135,7 +135,6 @@ import com.lunara.app.playback.queues.YouTubeQueue
 import com.lunara.app.ui.component.AlbumGridItem
 import com.lunara.app.ui.component.ArtistGridItem
 import com.lunara.app.ui.component.LunaraHomeHeader
-import com.lunara.app.ui.component.ChipsRow
 import com.lunara.app.ui.component.LocalBottomSheetPageState
 import com.lunara.app.ui.component.LocalMenuState
 import com.lunara.app.ui.component.NavigationTitle
@@ -1279,39 +1278,6 @@ fun HomeScreen(
                                 null
                             },
                     )
-                }
-
-                item {
-                    ChipsRow(
-                        chips = homePage?.chips?.filter { !it.title.contains("podcast", ignoreCase = true) }?.map { it to it.title } ?: emptyList(),
-                        currentValue = selectedChip,
-                        onValueUpdate = {
-                            viewModel.toggleChip(it)
-                        },
-                    )
-                }
-
-                if (isLoading && homePage?.chips.isNullOrEmpty()) {
-                    item(key = "chips_shimmer") {
-                        ShimmerHost(showGradient = false) {
-                            LazyRow(
-                                contentPadding =
-                                    WindowInsets.systemBars
-                                        .only(WindowInsetsSides.Horizontal)
-                                        .asPaddingValues(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            ) {
-                                items(5) {
-                                    TextPlaceholder(
-                                        height = 30.dp,
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.width(72.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // Show podcast sections FIRST when podcast chip is selected (fixed at top)
