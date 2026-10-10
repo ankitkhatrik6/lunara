@@ -16,7 +16,9 @@ import com.lunara.innertube.models.PodcastItem
 import com.lunara.innertube.models.SongItem
 import com.lunara.innertube.utils.completed
 import com.lunara.innertube.utils.parseCookieString
+import com.lunara.lastfm.LastFM
 import com.lunara.app.constants.InnerTubeCookieKey
+import com.lunara.app.constants.LastFMUseSendLikes
 import com.lunara.app.constants.LastFullSyncKey
 import com.lunara.app.constants.SYNC_COOLDOWN
 import com.lunara.app.db.MusicDatabase
@@ -118,6 +120,7 @@ class SyncUtils @Inject constructor(
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
+    private var lastfmSendLikes = false
     @Volatile private var cachedLastSyncEpoch: Long = 0L
     private val playlistsBeingModified = ConcurrentHashMap<String, AtomicInteger>()
     // Tracks songs currently being added to YouTube — browseId → set of songIds
@@ -144,6 +147,9 @@ class SyncUtils @Inject constructor(
                 pendingRemovals.any { (_, set) -> set.any { it.third == playlistId } }
     init {
         context.dataStore.data
+            .map { it[LastFMUseSendLikes] ?: false }
+            .distinctUntilChanged()
+            .collectLatest(syncScope) {
                 lastfmSendLikes = it
             }
 
@@ -602,6 +608,19 @@ class SyncUtils @Inject constructor(
         }
 
         if (lastfmSendLikes) {
+            try {
+                val dbSong = database.song(s.id).firstOrNull()
+                LastFM.setLoveStatus(
+                    artist = dbSong?.artists?.joinToString { a -> a.name } ?: "",
+                    track = s.title,
+                    love = s.liked
+                )
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to update LastFM love status")
+            }
+        }
+    }
+
     private suspend fun executeSubscribeChannel(channelId: String, subscribe: Boolean) = withContext(Dispatchers.IO) {
         Timber.d("[CHANNEL_TOGGLE] executeSubscribeChannel called: channelId=$channelId, subscribe=$subscribe")
         if (!isLoggedIn()) {

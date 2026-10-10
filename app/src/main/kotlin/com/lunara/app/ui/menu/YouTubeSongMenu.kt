@@ -65,6 +65,7 @@ import com.lunara.app.LocalNavController
 import com.lunara.innertube.models.SongItem
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalDownloadUtil
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.LocalSyncUtils
 import com.lunara.app.R
@@ -112,6 +113,7 @@ fun YouTubeSongMenu(
     val download by LocalDownloadUtil.current.getDownload(song.id).collectAsStateWithLifecycle(initialValue = null)
     val coroutineScope = rememberCoroutineScope()
     val syncUtils = LocalSyncUtils.current
+    val listenTogetherManager = LocalListenTogetherManager.current
     val isPinned by database.speedDialDao.isPinned(song.id).collectAsStateWithLifecycle(initialValue = false)
     val artists = remember {
         song.artists.mapNotNull {
@@ -283,6 +285,7 @@ fun YouTubeSongMenu(
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -295,6 +298,7 @@ fun YouTubeSongMenu(
         item {
             NewActionGrid(
                 actions = listOfNotNull(
+                    if (!isGuest) {
                         NewAction(
                             icon = {
                                 Icon(
@@ -309,7 +313,8 @@ fun YouTubeSongMenu(
                                 playerConnection.playNext(song.copy(thumbnail = song.thumbnail.resize(544,544)).toMediaItem())
                                 onDismiss()
                             }
-                        ),
+                        )
+                    } else null,
                     NewAction(
                         icon = {
                             Icon(
@@ -345,7 +350,7 @@ fun YouTubeSongMenu(
                         }
                     )
                 ),
-                columns = 3,
+                columns = if (isGuest) 2 else 3,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
             )
         }
@@ -353,6 +358,31 @@ fun YouTubeSongMenu(
         item {
             Material3MenuGroup(
                 items = listOfNotNull(
+                    if (listenTogetherManager != null && listenTogetherManager.isInRoom && !listenTogetherManager.isHost) {
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.suggest_to_host)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.queue_music),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                val durationMs = if (song.duration != null && song.duration!! > 0) song.duration!! * 1000L else 180000L
+                                val trackInfo = com.lunara.app.listentogether.TrackInfo(
+                                    id = song.id,
+                                    title = song.title,
+                                    artist = artists.joinToString(", ") { it.name },
+                                    album = song.album?.name,
+                                    duration = durationMs,
+                                    thumbnail = song.thumbnail
+                                )
+                                listenTogetherManager.suggestTrack(trackInfo)
+                                onDismiss()
+                            }
+                        )
+                    } else null,
+                    if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.start_radio)) },
                             description = { Text(text = stringResource(R.string.start_radio_desc)) },
@@ -366,7 +396,9 @@ fun YouTubeSongMenu(
                                 playerConnection.playQueue(YouTubeQueue.radio(song.toMediaMetadata()))
                                 onDismiss()
                             }
-                        ),
+                        )
+                    } else null,
+                    if (!isGuest) {
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_queue)) },
                             description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
@@ -380,7 +412,8 @@ fun YouTubeSongMenu(
                                 playerConnection.addToQueue(song.toMediaItem())
                                 onDismiss()
                             }
-                        ),
+                        )
+                    } else null,
                     Material3MenuItemData(
                         title = {
                             Text(

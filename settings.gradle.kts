@@ -29,6 +29,7 @@ include(":innertube")
 include(":kugou")
 include(":lrclib")
 
+include(":lastfm")
 include(":betterlyrics")
 include(":shazamkit")
 include(":paxsenix")

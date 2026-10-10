@@ -107,6 +107,7 @@ import com.lunara.innertube.models.YTItem
 import com.lunara.innertube.utils.completed
 import com.lunara.innertube.utils.parseCookieString
 import com.lunara.app.LocalDatabase
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
@@ -134,6 +135,7 @@ import com.lunara.app.playback.queues.YouTubeQueue
 import com.lunara.app.ui.component.AlbumGridItem
 import com.lunara.app.ui.component.ArtistGridItem
 import com.lunara.app.ui.component.LunaraHomeHeader
+import com.lunara.app.ui.component.ChipsRow
 import com.lunara.app.ui.component.LocalBottomSheetPageState
 import com.lunara.app.ui.component.LocalMenuState
 import com.lunara.app.ui.component.NavigationTitle
@@ -210,6 +212,8 @@ fun CommunityPlaylistCard(
 ) {
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isListenTogetherGuest = listenTogetherManager?.let { it.isInRoom && !it.isHost } ?: false
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
 
@@ -387,9 +391,11 @@ fun CommunityPlaylistCard(
             ) {
                 IconButton(
                     onClick = {
+                        if (!isListenTogetherGuest) {
                             item.playlist.playEndpoint?.let {
                                 playerConnection?.playQueue(YouTubeQueue(it))
                             }
+                        }
                     },
                     modifier =
                         Modifier
@@ -406,9 +412,11 @@ fun CommunityPlaylistCard(
 
                 IconButton(
                     onClick = {
+                        if (!isListenTogetherGuest) {
                             item.playlist.radioEndpoint?.let {
                                 playerConnection?.playQueue(YouTubeQueue(it))
                             }
+                        }
                     },
                     modifier =
                         Modifier
@@ -631,6 +639,8 @@ fun HomeScreen(
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isListenTogetherGuest = listenTogetherManager?.let { it.isInRoom && !it.isHost } ?: false
 
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsStateWithLifecycle()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
@@ -815,6 +825,7 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
+                                    if (!isListenTogetherGuest) {
                                         if (it.id == mediaMetadata?.id) {
                                             playerConnection.togglePlayPause()
                                         } else {
@@ -833,6 +844,7 @@ fun HomeScreen(
                                                 )
                                             }
                                         }
+                                    }
                                 },
                                 onLongClick = {
                                     haptic.performHapticFeedback(
@@ -920,6 +932,7 @@ fun HomeScreen(
                         onClick = {
                             when (item) {
                                 is SongItem -> {
+                                    if (!isListenTogetherGuest) {
                                         if (LocalMusic.isLocal(item.id)) {
                                             playLocalSong(item.id, item.toMediaItem())
                                         } else {
@@ -939,6 +952,7 @@ fun HomeScreen(
                                                 }
                                             )
                                         }
+                                    }
                                 }
 
                                 is AlbumItem -> {
@@ -958,12 +972,14 @@ fun HomeScreen(
                                 }
 
                                 is EpisodeItem -> {
+                                    if (!isListenTogetherGuest) {
                                         playerConnection.playQueue(
                                             YouTubeQueue(
                                                 WatchEndpoint(videoId = item.id),
                                                 item.toMediaMetadata(),
                                             ),
                                         )
+                                    }
                                 }
                             }
                         },
@@ -1224,6 +1240,7 @@ fun HomeScreen(
                         forYouArt =
                             if (forYouFromMix) forYouSong?.thumbnail else picks.firstOrNull()?.thumbnailUrl,
                         onForYouClick =
+                            if (!isListenTogetherGuest) {
                                 {
                                     playerConnection.playQueue(
                                         if (forYouFromMix) {
@@ -1239,13 +1256,16 @@ fun HomeScreen(
                                         },
                                     )
                                     viewModel.forYouPlayed()
-                                },
+                                }
+                            } else {
+                                null
+                            },
                         // The songs in the Speed dial grid, shuffled so the button does not
                         // start on the same song every time. Albums, artists and playlists
                         // in the grid open a page when tapped and are left out here.
                         speedDialArt = speedDialOrder.firstOrNull()?.thumbnail,
                         onSpeedDialClick =
-                            if (speedDialOrder.isNotEmpty()) {
+                            if (!isListenTogetherGuest && speedDialOrder.isNotEmpty()) {
                                 {
                                     playerConnection.playQueue(
                                         ListQueue(
@@ -1259,6 +1279,39 @@ fun HomeScreen(
                                 null
                             },
                     )
+                }
+
+                item {
+                    ChipsRow(
+                        chips = homePage?.chips?.filter { !it.title.contains("podcast", ignoreCase = true) }?.map { it to it.title } ?: emptyList(),
+                        currentValue = selectedChip,
+                        onValueUpdate = {
+                            viewModel.toggleChip(it)
+                        },
+                    )
+                }
+
+                if (isLoading && homePage?.chips.isNullOrEmpty()) {
+                    item(key = "chips_shimmer") {
+                        ShimmerHost(showGradient = false) {
+                            LazyRow(
+                                contentPadding =
+                                    WindowInsets.systemBars
+                                        .only(WindowInsetsSides.Horizontal)
+                                        .asPaddingValues(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            ) {
+                                items(5) {
+                                    TextPlaceholder(
+                                        height = 30.dp,
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.width(72.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Show podcast sections FIRST when podcast chip is selected (fixed at top)
@@ -1561,7 +1614,7 @@ fun HomeScreen(
                                                                         onClick = {
                                                                             if (isRandomizing) {
                                                                                 randomizeJob?.cancel()
-                                                                            } else {
+                                                                            } else if (!isListenTogetherGuest) {
                                                                                 randomizeJob =
                                                                                     scope.launch {
                                                                                         val randomItem = viewModel.getRandomItem()
@@ -1657,6 +1710,7 @@ fun HomeScreen(
                                                                                     onClick = {
                                                                                         when (item) {
                                                                                             is SongItem -> {
+                                                                                                if (!isListenTogetherGuest) {
                                                                                                     if (LocalMusic.isLocal(item.id)) {
                                                                                                         playLocalSong(item.id, item.toMediaItem())
                                                                                                     } else {
@@ -1677,6 +1731,7 @@ fun HomeScreen(
                                                                                                             }
                                                                                                         )
                                                                                                     }
+                                                                                                }
                                                                                             }
 
                                                                                             is AlbumItem -> {
@@ -1712,12 +1767,14 @@ fun HomeScreen(
                                                                                             }
 
                                                                                             is EpisodeItem -> {
+                                                                                                if (!isListenTogetherGuest) {
                                                                                                     playerConnection.playQueue(
                                                                                                         YouTubeQueue(
                                                                                                             WatchEndpoint(videoId = item.id),
                                                                                                             item.toMediaMetadata(),
                                                                                                         ),
                                                                                                     )
+                                                                                                }
                                                                                             }
                                                                                         }
                                                                                     },
@@ -1824,6 +1881,7 @@ fun HomeScreen(
                                     NavigationTitle(
                                         title = quickPicksTitle,
                                         onPlayAllClick =
+                                            if (!isListenTogetherGuest) {
                                                 {
                                                     playerConnection.playQueue(
                                                         ListQueue(
@@ -1831,7 +1889,10 @@ fun HomeScreen(
                                                             items = quickPicks.distinctBy { it.id }.map { it.toMediaItem() },
                                                         ),
                                                     )
-                                                },
+                                                }
+                                            } else {
+                                                null
+                                            },
                                     )
                                 }
 
@@ -1886,6 +1947,7 @@ fun HomeScreen(
                                                         .width(horizontalLazyGridItemWidth)
                                                         .combinedClickable(
                                                             onClick = {
+                                                                if (!isListenTogetherGuest) {
                                                                     if (song!!.id == mediaMetadata?.id) {
                                                                         playerConnection.togglePlayPause()
                                                                     } else {
@@ -1906,6 +1968,7 @@ fun HomeScreen(
                                                                             )
                                                                         }
                                                                     }
+                                                                }
                                                             },
                                                             onLongClick = {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1944,12 +2007,14 @@ fun HomeScreen(
                                                     navController.navigate("online_playlist/${item.playlist.id.removePrefix("VL")}")
                                                 },
                                                 onSongClick = { song ->
+                                                    if (!isListenTogetherGuest) {
                                                         playerConnection.playQueue(
                                                             YouTubeQueue(
                                                                 song.endpoint ?: WatchEndpoint(videoId = song.id),
                                                                 song.toMediaMetadata(),
                                                             ),
                                                         )
+                                                    }
                                                 },
                                             )
                                         }
@@ -2005,6 +2070,7 @@ fun HomeScreen(
                                             DailyDiscoverCard(
                                                 dailyDiscover = item,
                                                 onClick = {
+                                                    if (!isListenTogetherGuest) {
                                                         val song = item.recommendation as? SongItem
                                                         val mediaMetadata = song?.toMediaMetadata()
                                                         if (mediaMetadata != null) {
@@ -2022,6 +2088,7 @@ fun HomeScreen(
                                                                 }
                                                             )
                                                         }
+                                                    }
                                                 },
                                                 modifier = Modifier.maskClip(MaterialTheme.shapes.extraLarge),
                                             )
@@ -2136,6 +2203,7 @@ fun HomeScreen(
                                     NavigationTitle(
                                         title = forgottenFavoritesTitle,
                                         onPlayAllClick =
+                                            if (!isListenTogetherGuest) {
                                                 {
                                                     playerConnection.playQueue(
                                                         ListQueue(
@@ -2143,7 +2211,10 @@ fun HomeScreen(
                                                             items = forgottenFavorites.distinctBy { it.id }.map { it.toMediaItem() },
                                                         ),
                                                     )
-                                                },
+                                                }
+                                            } else {
+                                                null
+                                            },
                                     )
                                 }
 
@@ -2203,6 +2274,7 @@ fun HomeScreen(
                                                         .width(horizontalLazyGridItemWidth)
                                                         .combinedClickable(
                                                             onClick = {
+                                                                if (!isListenTogetherGuest) {
                                                                     if (song!!.id == mediaMetadata?.id) {
                                                                         playerConnection.togglePlayPause()
                                                                     } else {
@@ -2223,6 +2295,7 @@ fun HomeScreen(
                                                                             )
                                                                         }
                                                                     }
+                                                                }
                                                             },
                                                             onLongClick = {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2372,7 +2445,7 @@ fun HomeScreen(
                                                 }
                                             },
                                         onPlayAllClick =
-                                            if (hasPlayableSongs) {
+                                            if (hasPlayableSongs && !isListenTogetherGuest) {
                                                 {
                                                     playerConnection.playQueue(
                                                         ListQueue(
@@ -2433,6 +2506,7 @@ fun HomeScreen(
                                                             .width(horizontalLazyGridItemWidth)
                                                             .combinedClickable(
                                                                 onClick = {
+                                                                    if (!isListenTogetherGuest) {
                                                                         playerConnection.playQueue(
                                                                             if (autoRadioQueue) {
                                                                                 YouTubeQueue(
@@ -2446,6 +2520,7 @@ fun HomeScreen(
                                                                                 )
                                                                             }
                                                                         )
+                                                                    }
                                                                 },
                                                                 onLongClick = {
                                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)

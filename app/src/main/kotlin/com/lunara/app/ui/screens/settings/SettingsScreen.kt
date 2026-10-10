@@ -118,18 +118,6 @@ fun SettingsScreen(
     }
 
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
-        // Display & Theme stays literal, quick Theme shortcut lives here.
-        "Display & Theme" to buildList {
-            add(
-                SettingRow(
-                    icon = R.drawable.palette,
-                    title = stringResource(R.string.theme),
-                    subtitle = stringResource(R.string.theme_desc),
-                ) {
-                    navController.navigate("settings/appearance/look_and_feel")
-                },
-            )
-        },
         // Personalize keeps Appearance + Look & Feel as-is.
         "Personalize" to listOf(
             SettingRow(
@@ -261,7 +249,7 @@ fun SettingsScreen(
         if (query.isBlank()) {
             Spacer(Modifier.height(18.dp))
             Text(
-                text = stringResource(R.string.settings_group_display),
+                text = "DISPLAY & THEME",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.8.sp,

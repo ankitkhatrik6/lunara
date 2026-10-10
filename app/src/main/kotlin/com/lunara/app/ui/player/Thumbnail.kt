@@ -69,6 +69,7 @@ import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.CropAlbumArtDefault
@@ -79,6 +80,7 @@ import com.lunara.app.constants.PlayerBackgroundStyleKey
 import com.lunara.app.constants.PlayerHorizontalPadding
 import com.lunara.app.constants.SwipeThumbnailKey
 import com.lunara.app.constants.ThumbnailCornerRadius
+import com.lunara.app.listentogether.RoomRole
 import com.lunara.app.utils.rememberEnumPreference
 import com.lunara.app.utils.rememberPreference
 import kotlinx.coroutines.delay
@@ -198,6 +200,7 @@ fun Thumbnail(
     modifier: Modifier = Modifier,
     isPlayerExpanded: () -> Boolean = { true },
     isLandscape: Boolean = false,
+    isListenTogetherGuest: Boolean = false,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val context = LocalContext.current
@@ -211,8 +214,9 @@ fun Thumbnail(
     val canSkipNext by playerConnection.canSkipNext.collectAsStateWithLifecycle()
 
     // Preferences - computed once
+    // Disable swipe for Listen Together guests
     val swipeThumbnailPref by rememberPreference(SwipeThumbnailKey, true)
-    val swipeThumbnail = swipeThumbnailPref
+    val swipeThumbnail = swipeThumbnailPref && !isListenTogetherGuest
     val hidePlayerThumbnail by rememberPreference(HidePlayerThumbnailKey, false)
     val cropAlbumArt by rememberPreference(CropAlbumArtKey, CropAlbumArtDefault)
     val playerBackground by rememberEnumPreference(
@@ -387,6 +391,7 @@ fun Thumbnail(
                                 playerConnection = playerConnection,
                                 context = context,
                                 isLandscape = isLandscape,
+                                isListenTogetherGuest = isListenTogetherGuest,
                                 currentMediaId = mediaMetadata?.id,
                                 currentMediaThumbnail = mediaMetadata?.thumbnailUrl
                             )
@@ -410,6 +415,9 @@ private fun ThumbnailHeader(
     textColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val listenTogetherRoleState = listenTogetherManager?.role?.collectAsStateWithLifecycle(initialValue = RoomRole.NONE)
+    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -421,11 +429,20 @@ private fun ThumbnailHeader(
                 .align(Alignment.Center)
                 .padding(horizontal = 48.dp)
         ) {
-            Text(
-                text = stringResource(R.string.now_playing),
-                style = MaterialTheme.typography.titleMedium,
-                color = textColor
-            )
+            // Listen Together indicator
+            if (listenTogetherRoleState?.value != RoomRole.NONE) {
+                Text(
+                    text = if (listenTogetherRoleState?.value == RoomRole.HOST) "Hosting Listen Together" else "Listening Together",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.now_playing),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor
+                )
+            }
             val playingFrom = queueTitle ?: albumTitle
             if (!playingFrom.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -456,6 +473,7 @@ private fun ThumbnailItem(
     playerConnection: com.lunara.app.playback.PlayerConnection,
     context: android.content.Context,
     isLandscape: Boolean = false,
+    isListenTogetherGuest: Boolean = false,
     currentMediaId: String? = null,
     currentMediaThumbnail: String? = null,
     modifier: Modifier = Modifier,
@@ -476,7 +494,7 @@ private fun ThumbnailItem(
                 // Render entire thumbnail item on separate hardware layer for smooth animations
                 compositingStrategy = CompositingStrategy.Offscreen
             }
-            .doubleTapToSeek(seeker, layoutDirection == LayoutDirection.Rtl),
+            .doubleTapToSeek(seeker, layoutDirection == LayoutDirection.Rtl, enabled = !isListenTogetherGuest),
         contentAlignment = Alignment.Center
     ) {
         Box(

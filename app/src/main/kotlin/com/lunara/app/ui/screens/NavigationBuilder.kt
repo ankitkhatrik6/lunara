@@ -48,11 +48,19 @@ import com.lunara.app.ui.screens.podcast.OnlinePodcastScreen
 import com.lunara.app.ui.screens.search.OnlineSearchResult
 import com.lunara.app.ui.screens.search.SearchScreen
 import com.lunara.app.ui.screens.settings.AboutScreen
+import com.lunara.app.ui.screens.settings.AiSettings
+import com.lunara.app.ui.screens.settings.LyricsSettings
 import com.lunara.app.ui.screens.settings.AndroidAutoSettings
 import com.lunara.app.ui.screens.settings.AppearanceSettings
 import com.lunara.app.ui.screens.settings.LookAndFeelScreen
+import com.lunara.app.ui.screens.settings.BackupAndRestore
+import com.lunara.app.ui.screens.settings.ContentSettings
 import com.lunara.app.ui.screens.settings.DarkMode
+import com.lunara.app.ui.screens.settings.PlayerSettings
 import com.lunara.app.ui.screens.settings.PrivacySettings
+import com.lunara.app.ui.screens.settings.BlockedArtistsSettings
+import com.lunara.app.ui.screens.settings.HiddenSongsSettings
+import com.lunara.app.ui.screens.settings.RomanizationSettings
 import com.lunara.app.ui.screens.settings.SettingsScreen
 import com.lunara.app.ui.screens.settings.StorageSettings
 import com.lunara.app.ui.component.SpotifyImportDialog
@@ -77,7 +85,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.lunara.app.ui.screens.settings.integrations.ListenBrainzSettings
+import com.lunara.app.ui.screens.settings.PlayerDesignScreen
 import com.lunara.app.ui.screens.settings.UpdaterScreen
+import com.lunara.app.ui.screens.settings.integrations.DiscordSettings
+import com.lunara.app.ui.screens.settings.integrations.IntegrationScreen
+import com.lunara.app.ui.screens.settings.integrations.LastFMSettings
 
 import com.lunara.app.ui.screens.wrapped.WrappedScreen
 import com.lunara.app.utils.rememberEnumPreference
@@ -373,12 +386,63 @@ fun NavGraphBuilder.navigationBuilder(
         LookAndFeelScreen(navController)
     }
 
+    composable("settings/appearance/player_design") {
+        PlayerDesignScreen(navController)
+    }
+
+    composable("settings/content") {
+        ContentSettings(navController)
+    }
+
+    composable("settings/content/romanization") {
+        RomanizationSettings(navController)
+    }
+
+    composable("settings/content/hidden_songs") {
+        HiddenSongsSettings(navController)
+    }
+
+    composable("settings/content/blocked_artists") {
+        BlockedArtistsSettings(navController)
+    }
+
+    composable("settings/ai") {
+        AiSettings(navController)
+    }
+
+    composable("settings/lyrics") {
+        LyricsSettings(navController)
+    }
+
+    composable("settings/player") {
+        PlayerSettings(navController)
+    }
+
     composable("settings/storage") {
         StorageSettings(navController)
     }
 
     composable("settings/privacy") {
         PrivacySettings(navController)
+    }
+
+    composable("settings/backup_restore") {
+        BackupAndRestore(navController)
+    }
+
+    composable("settings/integrations") {
+        IntegrationScreen(navController)
+    }
+
+    composable("settings/integrations/discord") {
+        DiscordSettings(navController)
+    }
+
+    composable("settings/integrations/lastfm") {
+        LastFMSettings(navController)
+    }
+    composable("settings/integrations/listenbrainz") {
+        ListenBrainzSettings(navController)
     }
 
     composable("settings/updater") {

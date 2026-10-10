@@ -88,6 +88,7 @@ import com.lunara.innertube.models.PodcastItem
 import com.lunara.innertube.models.SongItem
 import com.lunara.innertube.models.WatchEndpoint
 import com.lunara.app.LocalDatabase
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
@@ -143,6 +144,8 @@ fun ArtistScreen(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsStateWithLifecycle()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
     val artistPage = viewModel.artistPage
@@ -388,7 +391,7 @@ fun ArtistScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         // Radio Button
-                                        if (!showLocal) {
+                                        if (!showLocal && !isGuest) {
                                             artistPage?.artist?.radioEndpoint?.let { radioEndpoint ->
                                                 OutlinedButton(
                                                     onClick = {
@@ -412,7 +415,7 @@ fun ArtistScreen(
                                         }
 
                                         // Shuffle Button
-                                        if (!showLocal) {
+                                        if (!showLocal && !isGuest) {
                                             artistPage?.artist?.shuffleEndpoint?.let { shuffleEndpoint ->
                                                 IconButton(
                                                     onClick = {
@@ -576,6 +579,7 @@ fun ArtistScreen(
                                         .fillMaxWidth()
                                         .combinedClickable(
                                             onClick = {
+                                                if (!isGuest) {
                                                     if (song.id == mediaMetadata?.id) {
                                                         playerConnection.togglePlayPause()
                                                     } else {
@@ -587,6 +591,7 @@ fun ArtistScreen(
                                                             ),
                                                         )
                                                     }
+                                                }
                                             },
                                             onLongClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -702,6 +707,7 @@ fun ArtistScreen(
                                         Modifier
                                             .combinedClickable(
                                                 onClick = {
+                                                    if (!isGuest) {
                                                         if (song.id == mediaMetadata?.id) {
                                                             playerConnection.togglePlayPause()
                                                         } else {
@@ -712,6 +718,7 @@ fun ArtistScreen(
                                                                 ),
                                                             )
                                                         }
+                                                    }
                                                 },
                                                 onLongClick = {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -751,12 +758,14 @@ fun ArtistScreen(
                                                         onClick = {
                                                             when (item) {
                                                                 is SongItem -> {
+                                                                    if (!isGuest) {
                                                                         playerConnection.playQueue(
                                                                             YouTubeQueue(
                                                                                 WatchEndpoint(videoId = item.id),
                                                                                 item.toMediaMetadata(),
                                                                             ),
                                                                         )
+                                                                    }
                                                                 }
 
                                                                 is AlbumItem -> {
@@ -776,12 +785,14 @@ fun ArtistScreen(
                                                                 }
 
                                                                 is EpisodeItem -> {
+                                                                    if (!isGuest) {
                                                                         playerConnection.playQueue(
                                                                             YouTubeQueue(
                                                                                 WatchEndpoint(videoId = item.id),
                                                                                 item.toMediaMetadata(),
                                                                             ),
                                                                         )
+                                                                    }
                                                                 }
                                                             }
                                                         },
@@ -888,6 +899,7 @@ fun ArtistScreen(
                         .padding(bottom = if (showLocalFab) 64.dp else 0.dp),
             ) {
                 val onPlayAllClick: () -> Unit = {
+                    if (!isGuest) {
                         if (showLocal) {
                             if (librarySongs.isNotEmpty()) {
                                 playerConnection.playQueue(
@@ -957,6 +969,7 @@ fun ArtistScreen(
                                 }
                             }
                         }
+                    }
                 }
 
                 if (showLocalFab) {

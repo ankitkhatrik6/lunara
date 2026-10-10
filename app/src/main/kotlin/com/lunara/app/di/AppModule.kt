@@ -19,6 +19,8 @@ import androidx.media3.datasource.cache.SimpleCache
 import com.lunara.app.constants.MaxSongCacheSizeKey
 import com.lunara.app.db.InternalDatabase
 import com.lunara.app.db.MusicDatabase
+import com.lunara.app.listentogether.ListenTogetherClient
+import com.lunara.app.listentogether.ListenTogetherManager
 import com.lunara.app.utils.dataStore
 import com.lunara.app.utils.get
 import dagger.Module
@@ -195,4 +197,16 @@ object AppModule {
             )
         }
 
+    @Singleton
+    @Provides
+    fun provideListenTogetherClient(
+        @ApplicationContext context: Context,
+    ): ListenTogetherClient = ListenTogetherClient(context)
+
+    @Singleton
+    @Provides
+    fun provideListenTogetherManager(
+        @ApplicationContext context: Context,
+        client: ListenTogetherClient,
+    ): ListenTogetherManager = ListenTogetherManager(client, context)
 }

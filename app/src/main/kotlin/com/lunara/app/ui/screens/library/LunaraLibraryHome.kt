@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalPlayerAwareWindowInsets
@@ -149,6 +150,22 @@ fun LunaraLibraryHome(
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(SpotifyElevatedSurface)
+                            .clickable { navController.navigate("settings") },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.person),
+                            contentDescription = stringResource(R.string.settings),
+                            tint = SpotifyTextPrimary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         text = stringResource(R.string.filter_library),
                         fontSize = 24.sp,

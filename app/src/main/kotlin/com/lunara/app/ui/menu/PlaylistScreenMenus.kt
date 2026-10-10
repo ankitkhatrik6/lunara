@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.offline.Download
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.R
 import com.lunara.app.db.entities.Playlist
 import com.lunara.app.db.entities.PlaylistSong
@@ -63,6 +64,8 @@ fun LocalPlaylistMenu(
     onShareAsLink: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val coroutineScope = rememberCoroutineScope()
     val localContext = LocalContext.current
 
@@ -163,6 +166,7 @@ fun LocalPlaylistMenu(
                 )
             }
 
+            if (!isGuest) {
                 add(
                     Material3MenuItemData(
                         title = { Text(stringResource(R.string.add_to_queue)) },
@@ -179,6 +183,7 @@ fun LocalPlaylistMenu(
                         },
                     ),
                 )
+            }
 
             add(downloadMenuItem)
 
@@ -329,6 +334,8 @@ fun AutoPlaylistMenu(
     // Music already sitting on the phone has nowhere to be downloaded to.
     canDownload: Boolean = true,
 ) {
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val coroutineScope = rememberCoroutineScope()
     val localContext = LocalContext.current
 
@@ -391,6 +398,7 @@ fun AutoPlaylistMenu(
     Material3MenuGroup(
         items =
             listOfNotNull(
+                if (!isGuest) {
                     Material3MenuItemData(
                         title = { Text(stringResource(R.string.add_to_queue)) },
                         description = { Text(stringResource(R.string.add_to_queue_desc)) },
@@ -407,6 +415,7 @@ fun AutoPlaylistMenu(
                     )
                 } else {
                     null
+                },
                 if (songs.isNotEmpty()) {
                     Material3MenuItemData(
                         title = { Text(stringResource(R.string.export_playlist)) },
@@ -509,6 +518,8 @@ fun TopPlaylistMenu(
     onDownload: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     val downloadMenuItem =
         when (downloadState) {
@@ -567,6 +578,7 @@ fun TopPlaylistMenu(
     Material3MenuGroup(
         items =
             listOfNotNull(
+                if (!isGuest) {
                     Material3MenuItemData(
                         title = { Text(stringResource(R.string.add_to_queue)) },
                         description = { Text(stringResource(R.string.add_to_queue_desc)) },
@@ -583,6 +595,7 @@ fun TopPlaylistMenu(
                     )
                 } else {
                     null
+                },
                 downloadMenuItem,
             ),
     )
@@ -669,6 +682,8 @@ fun CachePlaylistMenu(
     onDownload: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     val downloadMenuItem =
         when (downloadState) {
@@ -727,6 +742,7 @@ fun CachePlaylistMenu(
     Material3MenuGroup(
         items =
             listOfNotNull(
+                if (!isGuest) {
                     Material3MenuItemData(
                         title = { Text(stringResource(R.string.add_to_queue)) },
                         description = { Text(stringResource(R.string.add_to_queue_desc)) },
@@ -743,6 +759,7 @@ fun CachePlaylistMenu(
                     )
                 } else {
                     null
+                },
                 downloadMenuItem,
             ),
     )

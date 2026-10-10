@@ -70,6 +70,7 @@ import com.lunara.app.constants.DynamicThemeKey
 import com.lunara.app.constants.EnableHighRefreshRateKey
 import com.lunara.app.constants.EnableLandscapeScalingKey
 import com.lunara.app.constants.HidePlayerThumbnailKey
+import com.lunara.app.constants.ListenTogetherInTopBarKey
 import com.lunara.app.constants.MiniPlayerBackgroundStyle
 import com.lunara.app.constants.MiniPlayerBackgroundStyleKey
 import com.lunara.app.constants.PlayerBackgroundStyle
@@ -182,6 +183,12 @@ fun AppearanceSettings(
         }
         showRestartDialog = true
     }
+
+    val (listenTogetherInTopBar, onListenTogetherInTopBarChange) =
+        rememberPreference(
+            ListenTogetherInTopBarKey,
+            defaultValue = true,
+        )
 
     val (swipeToSong, onSwipeToSongChange) =
         rememberPreference(
@@ -685,6 +692,28 @@ fun AppearanceSettings(
                             )
                         },
                         onClick = { onSwipeToRemoveSongChange(!swipeToRemoveSong) },
+                    ),
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.group_outlined),
+                        title = { Text(stringResource(R.string.listen_together_in_top_bar)) },
+                        description = { Text(stringResource(R.string.listen_together_in_top_bar_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = listenTogetherInTopBar,
+                                onCheckedChange = onListenTogetherInTopBarChange,
+                                thumbContent = {
+                                    Icon(
+                                        painter =
+                                            painterResource(
+                                                id = if (listenTogetherInTopBar) R.drawable.check else R.drawable.close,
+                                            ),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                    )
+                                },
+                            )
+                        },
+                        onClick = { onListenTogetherInTopBarChange(!listenTogetherInTopBar) },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.grid_view),

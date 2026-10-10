@@ -10,5 +10,53 @@
     "versionName": "3.9.0",
     "releaseDate": "2026-10-09T00:00:00Z",
     "description": "## A redesigned interface\\n\\n- **The whole interface has been reworked.** The home header, search, library, settings and the player have a fresh, cleaner look built on flat surfaces and the signature green accent.\\n- **Light mode actually works now.** Surfaces, cards and text read from the theme instead of hard-coded dark colours, so the light theme is light and the dark theme is dark - with readable contrast in both.\\n\\n## A new logo\\n\\n- **The app icon, splash screen, notification icon and in-app branding all use the new mark.** Every density, the adaptive icon, the store icon and the TV banner were regenerated from the one master artwork, so the mark is never cropped or half-cut again.\\n\\n## Search\\n\\n- **The search bar reads 'Search song, title, artist…'** instead of naming a single source."
+  },
+  {
+    "tagName": "v3.5.0",
+    "versionName": "3.5.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Two buttons where the overflow menu used to be\n\n- **The player's three-dots menu is gone.** It held an entire screen of options - equaliser, audio output, volume, add to queue, play this a few times, don't play this, copy link, block artist, add to library, pin to speed dial, listen together, details, output, advanced - none of which is something anybody reaches for while a song is playing.\n- **In its place: `+` and download.** The `+` puts the current song into a playlist; the download button keeps it offline, shows a spinner while it downloads, and turns into the offline mark once it is saved, where tapping it removes the download again.\n- **The queue header** carries the same `+` instead of the menu.\n\n## Home\n\n- **The recent-music rail is called 'Jump back in'**, the name the old Yours tab used for the same list."
+  },
+  {
+    "tagName": "v3.4.1",
+    "versionName": "3.4.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.4.0 removed the Music Recognizer widget and its resources, but the Android 12 widget definition in `res/xml-v31` still pointed at them, so resource linking failed. Nothing about the app changed beyond that."
+  },
+  {
+    "tagName": "v3.4.0",
+    "versionName": "3.4.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## The mic is gone\n\n- **Song recognition has been removed**, along with everything that came with it: the microphone permission, the Quick Settings tile, the home-screen widget, the recognition screens and their history, and the mic buttons in the search bar and on the Search page.\n\n## Yours is gone\n\n- **The Yours tab has been removed.** The bottom bar is now Home, Search and Library.\n\n## Tidier\n\n- **The About row in Settings** reads *Lunara* instead of *Version and developer*.\n- **The changelog is Lunara's own**, not the version numbering the project was forked from."
+  },
+  {
+    "tagName": "v3.3.0",
+    "versionName": "3.3.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## A quieter home\n\n- **The greeting card is gone.** Good morning, good afternoon, good evening and the hero image behind them no longer take the top of the page. Home opens on the logo, the search bar and your music.\n\n## About\n\n- **About Lunara is about Lunara.** The page no longer carries a version badge or a developer card.\n- **The About row in Settings** now reads *Lunara* instead of *Version and developer*.\n\n## Updater\n\n- **No more `universal - FOSS` label.** The current-version row shows the version and nothing else.\n- **Beta updates are gone.** There is one update channel, and it is the finished release."
+  },
+  {
+    "tagName": "v3.2.1",
+    "versionName": "3.2.1",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Fixed\n\n- **The build compiles again.** 3.2.0 removed a helper and clipped the comment above a neighbouring function, which failed the build. Nothing about the app changed beyond that."
+  },
+  {
+    "tagName": "v3.2.0",
+    "versionName": "3.2.0",
+    "releaseDate": "2026-10-04T00:00:00Z",
+    "description": "## Lunara unscrambles its own streams\n\n- **The bundled extractor is gone.** Reading the site's player script, pulling the signature and challenge functions out of it and running them are all done by code in this project. No third-party streaming library is shipped any more.\n\n## About\n\n- **The page is about the app, not its author** — the personal card, the links to private accounts, the *Buy me a coffee* button and the *Made with love by ...* footer are all removed.\n\n## Updates\n\n- **The updater points at this project's releases.** It used to ask a third-party domain first and fall back to a mirror that has never carried a Lunara build, so a check could only ever fail."
+  },
+  {
+    "tagName": "v3.1.0",
+    "versionName": "3.1.0",
+    "releaseDate": "2026-10-03T00:00:00Z",
+    "description": "## The Lunara logo, everywhere\n\n- **Every icon is the real mark.** The launcher icon, the adaptive and legacy variants, the splash, the notification icon, the TV banner and the store listing are all generated from the master artwork.\n- **The accent colour is Lunara's own** — the violet of the note head and the teal of the sphere, taken from the artwork itself.\n\n## Simpler\n\n- **The account section is gone.** No sign-in button, no profile chip, no account sheet.\n- **Listen Together is gone.** No tab, no top-bar button, no invite links, no onboarding page.\n- **Settings is a short list**: the appearance toggles, Appearance, Storage, About, Changelog and Updater.\n\n## Underneath\n\n- **Release builds are signed with the real key.** The build was falling back to the debug keystore, which is what makes Android report an unknown developer and refuse to install over an existing copy."
+  },
+  {
+    "tagName": "v3.0.0",
+    "versionName": "3.0.0",
+    "releaseDate": "2026-10-03T00:00:00Z",
+    "description": "## Lunara 3.0.0\n\nThe first Lunara release. A music player for Android that streams from YouTube Music and plays what is already on your device, with lyrics, downloads, offline playback and a look that follows you from phone to tablet to Android Auto.\n\nFree and open source under GPL-3.0. No account, no ads, no tracking."
   }
 ]

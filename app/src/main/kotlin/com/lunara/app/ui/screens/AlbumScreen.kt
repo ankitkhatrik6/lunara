@@ -74,6 +74,7 @@ import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalDownloadUtil
+import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
@@ -109,6 +110,8 @@ fun AlbumScreen(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
+    val listenTogetherManager = LocalListenTogetherManager.current
+    val isListenTogetherGuest = listenTogetherManager?.let { it.isInRoom && !it.isHost } ?: false
 
     val scope = rememberCoroutineScope()
 
@@ -333,10 +336,12 @@ fun AlbumScreen(
                         // Play Button - Larger primary circular button
                         Surface(
                             onClick = {
+                                if (!isListenTogetherGuest) {
                                     playerConnection.service.getAutomix(playlistId)
                                     playerConnection.playQueue(
                                         LocalAlbumRadio(albumWithSongs),
                                     )
+                                }
                             },
                             color = MaterialTheme.colorScheme.primary,
                             shape = CircleShape,
@@ -439,7 +444,7 @@ fun AlbumScreen(
                                     onClick = {
                                         if (inSelectMode) {
                                             onCheckedChange(song.id !in selection)
-                                        } else {
+                                        } else if (!isListenTogetherGuest) {
                                             if (song.id == mediaMetadata?.id) {
                                                 playerConnection.togglePlayPause()
                                             } else {
