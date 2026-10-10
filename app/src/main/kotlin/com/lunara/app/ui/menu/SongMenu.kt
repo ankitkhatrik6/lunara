@@ -71,7 +71,6 @@ import com.lunara.app.LocalNavController
 import com.lunara.innertube.YouTube
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalDownloadUtil
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.LocalSyncUtils
 import com.lunara.app.R
@@ -132,7 +131,6 @@ fun SongMenu(
         .collectAsStateWithLifecycle(initialValue = null)
     val coroutineScope = rememberCoroutineScope()
     val syncUtils = LocalSyncUtils.current
-    val listenTogetherManager = LocalListenTogetherManager.current
     val scope = rememberCoroutineScope()
     var refetchIconDegree by remember { mutableFloatStateOf(0f) }
 
@@ -552,7 +550,6 @@ fun SongMenu(
     val configuration = LocalConfiguration.current
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
-    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     // A file on this phone has no page on the catalogue, no address anyone else
     // could open and nothing to re-fetch. The actions that only make sense for
@@ -637,41 +634,14 @@ fun SongMenu(
                         ),
                     ),
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-                columns = if (isGuest) 2 else 3,
+                columns = 3,
             )
         }
         item {
             Material3MenuGroup(
                 items =
                     listOfNotNull(
-                        if (listenTogetherManager != null && listenTogetherManager.isInRoom && !listenTogetherManager.isHost) {
-                            Material3MenuItemData(
-                                title = { Text(text = stringResource(R.string.suggest_to_host)) },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(R.drawable.queue_music),
-                                        contentDescription = null,
-                                    )
-                                },
-                                onClick = {
-                                    val durationMs = if (song.song.duration > 0) song.song.duration.toLong() * 1000 else 180000L
-                                    val trackInfo =
-                                        com.lunara.app.listentogether.TrackInfo(
-                                            id = song.id,
-                                            title = song.song.title,
-                                            artist = orderedArtists.joinToString(", ") { it.name },
-                                            album = song.song.albumName,
-                                            duration = durationMs,
-                                            thumbnail = song.thumbnailUrl,
-                                        )
-                                    listenTogetherManager.suggestTrack(trackInfo)
-                                    onDismiss()
-                                },
-                            )
-                        } else {
-                            null
-                        },
-                        if (!isGuest && !isLocal) {
+                        if (!isLocal) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.start_radio)) },
                                 description = { Text(text = stringResource(R.string.start_radio_desc)) },
@@ -689,7 +659,6 @@ fun SongMenu(
                         } else {
                             null
                         },
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.play_next)) },
                                 description = { Text(text = stringResource(R.string.play_next_desc)) },
@@ -706,8 +675,6 @@ fun SongMenu(
                             )
                         } else {
                             null
-                        },
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
@@ -724,7 +691,6 @@ fun SongMenu(
                             )
                         } else {
                             null
-                        },
                         Material3MenuItemData(
                             title = {
                                 Text(

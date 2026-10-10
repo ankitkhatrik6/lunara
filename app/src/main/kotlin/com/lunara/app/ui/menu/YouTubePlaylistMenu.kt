@@ -64,7 +64,6 @@ import com.lunara.innertube.models.SongItem
 import com.lunara.innertube.utils.completed
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalDownloadUtil
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.ListThumbnailSize
@@ -112,8 +111,6 @@ fun YouTubePlaylistMenu(
     val database = LocalDatabase.current
     val downloadUtil = LocalDownloadUtil.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val dbPlaylist by database.playlistByBrowseId(playlist.id).collectAsStateWithLifecycle(initialValue = null)
     val isPinned by database.speedDialDao.isPinned(playlist.id).collectAsStateWithLifecycle(initialValue = false)
 
@@ -411,7 +408,6 @@ fun YouTubePlaylistMenu(
             NewActionGrid(
                 actions =
                     buildList {
-                        if (!isGuest) {
                             playlist.playEndpoint?.let { playEndpoint ->
                                 add(
                                     NewAction(
@@ -469,7 +465,6 @@ fun YouTubePlaylistMenu(
                                     ),
                                 )
                             }
-                        }
                     },
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
             )
@@ -479,7 +474,6 @@ fun YouTubePlaylistMenu(
             Material3MenuGroup(
                 items =
                     listOfNotNull(
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.play_next)) },
                                 description = { Text(text = stringResource(R.string.play_next_desc)) },
@@ -516,8 +510,6 @@ fun YouTubePlaylistMenu(
                             )
                         } else {
                             null
-                        },
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
@@ -548,7 +540,6 @@ fun YouTubePlaylistMenu(
                             )
                         } else {
                             null
-                        },
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_playlist)) },
                             description = { Text(text = stringResource(R.string.add_to_playlist_desc)) },

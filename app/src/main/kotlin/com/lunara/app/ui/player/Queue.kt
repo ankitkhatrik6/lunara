@@ -103,7 +103,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import com.lunara.app.LocalNavController
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.ListItemHeight
@@ -113,7 +112,6 @@ import com.lunara.app.constants.UseNewPlayerDesignKey
 import com.lunara.app.extensions.metadata
 import com.lunara.app.extensions.move
 import com.lunara.app.extensions.toggleRepeatMode
-import com.lunara.app.listentogether.RoomRole
 import com.lunara.app.models.MediaMetadata
 import com.lunara.app.ui.component.ActionPromptDialog
 import com.lunara.app.ui.component.LunaraSnackbarHost
@@ -177,9 +175,6 @@ fun Queue(
     val bottomSheetPageState = LocalBottomSheetPageState.current
 
     // Listen Together state (reactive)
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val listenTogetherRoleState = listenTogetherManager?.role?.collectAsStateWithLifecycle(initialValue = com.lunara.app.listentogether.RoomRole.NONE)
-    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST
 
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsStateWithLifecycle()
@@ -296,7 +291,7 @@ fun Queue(
                             playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
                         },
                         isActive = shuffleModeEnabled,
-                        enabled = !isListenTogetherGuest,
+                        enabled = true,
                         shape = middleShape,
                         modifier = Modifier.size(buttonSize),
                         textButtonColor = textButtonColor,
@@ -330,7 +325,7 @@ fun Queue(
                             playerConnection.player.toggleRepeatMode()
                         },
                         isActive = repeatMode != Player.REPEAT_MODE_OFF,
-                        enabled = !isListenTogetherGuest,
+                        enabled = true,
                         shape = repeatShape,
                         modifier = Modifier.size(buttonSize),
                         textButtonColor = textButtonColor,
@@ -622,7 +617,7 @@ fun Queue(
                         var processedDismiss by remember { mutableStateOf(false) }
                         LaunchedEffect(dismissBoxState.currentValue) {
                             val dv = dismissBoxState.currentValue
-                            if (!processedDismiss && !isListenTogetherGuest && dv == SwipeToDismissBoxValue.EndToStart) {
+                            if (!processedDismiss && dv == SwipeToDismissBoxValue.EndToStart) {
                                 processedDismiss = true
                                 playerConnection.player.removeMediaItem(currentItem.firstPeriodIndex)
                                 dismissJob?.cancel()
@@ -674,7 +669,6 @@ fun Queue(
                                                 onCheckedChange = onCheckedChange,
                                             )
                                         } else {
-                                            if (!isListenTogetherGuest) {
                                                 IconButton(
                                                     onClick = {
                                                         menuState.show {
@@ -698,8 +692,7 @@ fun Queue(
                                                         contentDescription = null,
                                                     )
                                                 }
-                                            }
-                                            if (!locked && !isListenTogetherGuest) {
+                                            if (!locked) {
                                                 IconButton(
                                                     onClick = { },
                                                     modifier = Modifier.draggableHandle(),
@@ -720,7 +713,7 @@ fun Queue(
                                                 onClick = {
                                                     if (inSelectMode) {
                                                         onCheckedChange(window.mediaItem.mediaId !in selection)
-                                                    } else if (!isListenTogetherGuest) {
+                                                    } else {
                                                         if (index == currentWindowIndex) {
                                                             if (isCasting) {
                                                                 if (castIsPlaying) {
@@ -763,8 +756,8 @@ fun Queue(
                         // a song is what the lock is for.
                         SwipeToDismissBox(
                             state = dismissBoxState,
-                            enableDismissFromStartToEnd = !isListenTogetherGuest && !isActive,
-                            enableDismissFromEndToStart = !locked && !isListenTogetherGuest,
+                            enableDismissFromStartToEnd = !isActive,
+                            enableDismissFromEndToStart = !locked,
                             backgroundContent = {
                                 QueueSwipeBackground(direction = dismissBoxState.dismissDirection)
                             },
@@ -799,7 +792,6 @@ fun Queue(
                             MediaMetadataListItem(
                                 mediaMetadata = item.metadata!!,
                                 trailingContent = {
-                                    if (!isListenTogetherGuest) {
                                         IconButton(
                                             onClick = {
                                                 playerConnection.service.playNextAutomix(
@@ -826,7 +818,6 @@ fun Queue(
                                                 contentDescription = null,
                                             )
                                         }
-                                    }
                                 },
                                 modifier =
                                     Modifier
@@ -1077,7 +1068,7 @@ fun Queue(
                     active = shuffleModeEnabled,
                     tint = MaterialTheme.colorScheme.onSurface,
                     activeTint = LunaraThemeColor,
-                    enabled = !isListenTogetherGuest,
+                    enabled = true,
                     modifier = Modifier.weight(1f),
                     onClick = {
                         coroutineScope
@@ -1120,7 +1111,7 @@ fun Queue(
                     active = repeatMode != Player.REPEAT_MODE_OFF,
                     tint = MaterialTheme.colorScheme.onSurface,
                     activeTint = LunaraThemeColor,
-                    enabled = !isListenTogetherGuest,
+                    enabled = true,
                     modifier = Modifier.weight(1f),
                     onClick = playerConnection.player::toggleRepeatMode,
                 )

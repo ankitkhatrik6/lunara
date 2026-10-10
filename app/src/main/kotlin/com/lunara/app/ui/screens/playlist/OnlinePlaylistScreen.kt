@@ -84,7 +84,6 @@ import coil3.request.ImageRequest
 import com.lunara.innertube.models.PlaylistItem
 import com.lunara.innertube.models.SongItem
 import com.lunara.app.LocalDatabase
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalNavController
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.LocalPlayerConnection
@@ -122,8 +121,6 @@ fun OnlinePlaylistScreen(
     val database = LocalDatabase.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isListenTogetherGuest = listenTogetherManager?.let { it.isInRoom && !it.isHost } ?: false
     val coroutineScope = rememberCoroutineScope()
 
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsStateWithLifecycle()
@@ -504,8 +501,6 @@ private fun OnlinePlaylistHeader(
 ) {
     val navController = LocalNavController.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isListenTogetherGuest = listenTogetherManager?.let { it.isInRoom && !it.isHost } ?: false
     val database = LocalDatabase.current
     val menuState = LocalMenuState.current
     val syncUtils = LocalSyncUtils.current
@@ -697,7 +692,7 @@ private fun OnlinePlaylistHeader(
             // Play Button - Larger primary circular button
             Surface(
                 onClick = {
-                    if (!isListenTogetherGuest && songs.isNotEmpty()) {
+                    if (songs.isNotEmpty()) {
                         playerConnection.playQueue(
                             YouTubePlaylistQueue(
                                 playlistId = playlist.id,

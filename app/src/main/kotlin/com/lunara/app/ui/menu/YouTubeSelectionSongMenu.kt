@@ -71,8 +71,6 @@ fun YouTubeSelectionSongMenu(
         mutableStateOf(false)
     }
 
-    val listenTogetherManager = com.lunara.app.LocalListenTogetherManager.current
-    val isGuest = listenTogetherManager?.isInRoom == true && listenTogetherManager.isHost == false
 
     var downloadState by remember {
         mutableIntStateOf(Download.STATE_STOPPED)
@@ -226,7 +224,6 @@ fun YouTubeSelectionSongMenu(
         item {
             Material3MenuGroup(
                 listOfNotNull(
-                    if (!isGuest) {
                         Material3MenuItemData(
                             icon = { Icon(painterResource(R.drawable.play), null) },
                             title = { Text(stringResource(R.string.play)) },
@@ -243,8 +240,6 @@ fun YouTubeSelectionSongMenu(
                         )
                     } else {
                         null
-                    },
-                    if (!isGuest) {
                         Material3MenuItemData(
                             icon = { Icon(painterResource(R.drawable.shuffle), null) },
                             title = { Text(stringResource(R.string.shuffle)) },
@@ -261,8 +256,6 @@ fun YouTubeSelectionSongMenu(
                         )
                     } else {
                         null
-                    },
-                    if (!isGuest) {
                         Material3MenuItemData(
                             icon = { Icon(painterResource(R.drawable.queue_music), null) },
                             title = { Text(stringResource(R.string.add_to_queue)) },
@@ -274,7 +267,6 @@ fun YouTubeSelectionSongMenu(
                         )
                     } else {
                         null
-                    },
                     Material3MenuItemData(
                         icon = { Icon(painterResource(R.drawable.playlist_add), null) },
                         title = { Text(stringResource(R.string.add_to_playlist)) },

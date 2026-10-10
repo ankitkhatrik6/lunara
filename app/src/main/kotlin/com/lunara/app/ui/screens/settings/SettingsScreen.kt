@@ -118,7 +118,20 @@ fun SettingsScreen(
     }
 
     val groups: List<Pair<String, List<SettingRow>>> = listOf(
-        stringResource(R.string.settings_group_personalize) to listOf(
+        // Display & Theme stays literal, quick Theme shortcut lives here.
+        "Display & Theme" to buildList {
+            add(
+                SettingRow(
+                    icon = R.drawable.palette,
+                    title = stringResource(R.string.theme),
+                    subtitle = stringResource(R.string.theme_desc),
+                ) {
+                    navController.navigate("settings/appearance/look_and_feel")
+                },
+            )
+        },
+        // Personalize keeps Appearance + Look & Feel as-is.
+        "Personalize" to listOf(
             SettingRow(
                 icon = R.drawable.palette,
                 title = stringResource(R.string.appearance),
@@ -134,7 +147,8 @@ fun SettingsScreen(
                 navController.navigate("settings/appearance/look_and_feel")
             },
         ),
-        stringResource(R.string.storage) to listOf(
+        // Storage keeps Storage + Privacy as-is.
+        "Storage and Privacy" to listOf(
             SettingRow(
                 icon = R.drawable.storage,
                 title = stringResource(R.string.storage),
@@ -145,12 +159,13 @@ fun SettingsScreen(
             SettingRow(
                 icon = R.drawable.security,
                 title = stringResource(R.string.privacy),
-                subtitle = stringResource(R.string.privacy),
+                subtitle = stringResource(R.string.hint_privacy),
             ) {
                 navController.navigate("settings/privacy")
             },
         ),
-        stringResource(R.string.settings_group_about) to buildList {
+        // About keeps About + Changelog, plus Updater.
+        "About and Changelog" to buildList {
             add(
                 SettingRow(
                     icon = R.drawable.info,
@@ -168,6 +183,15 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.hint_changelog),
                 ) {
                     showChangelog.value = true
+                },
+            )
+            add(
+                SettingRow(
+                    icon = R.drawable.update,
+                    title = stringResource(R.string.updater),
+                    subtitle = stringResource(R.string.update_settings),
+                ) {
+                    navController.navigate("settings/updater")
                 },
             )
         },
@@ -237,7 +261,7 @@ fun SettingsScreen(
         if (query.isBlank()) {
             Spacer(Modifier.height(18.dp))
             Text(
-                text = "DISPLAY & THEME",
+                text = stringResource(R.string.settings_group_display),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.8.sp,

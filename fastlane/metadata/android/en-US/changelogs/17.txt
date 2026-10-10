@@ -1,0 +1,5 @@
+A leaner Lunara. This release clears out the parts that were never finished and tidies Settings, so what is left is faster and simpler.
+
+Settings are regrouped and clearer: Display & Theme, Personalize with Appearance and Look & Feel, Storage and Privacy together, and About and Changelog with the Updater alongside them. The Updater now lives with About and Changelog instead of being buried elsewhere.
+
+Removed the half-built pieces that cluttered the app: Listen Together, the Discord and ListenBrainz and last.fm connection screens, AI and alarm and backup settings, and the extra player designs. Nothing you use day to day changes. Unused images, icons and code were removed, which makes the app smaller.

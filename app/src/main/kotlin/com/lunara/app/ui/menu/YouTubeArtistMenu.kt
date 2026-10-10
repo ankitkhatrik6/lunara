@@ -33,7 +33,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lunara.innertube.models.ArtistItem
 import com.lunara.app.LocalDatabase
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.db.entities.SpeedDialItem
@@ -59,8 +58,6 @@ fun YouTubeArtistMenu(
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val libraryArtist by database.artist(artist.id).collectAsStateWithLifecycle(initialValue = null)
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsStateWithLifecycle(initialValue = false)
     val coroutineScope = rememberCoroutineScope()
 
@@ -87,7 +84,6 @@ fun YouTubeArtistMenu(
         item {
             NewActionGrid(
                 actions = buildList {
-                    if (!isGuest) {
                         artist.radioEndpoint?.let { watchEndpoint ->
                             add(
                                 NewAction(
@@ -107,7 +103,6 @@ fun YouTubeArtistMenu(
                                 )
                             )
                         }
-                    }
 
                     add(
                         NewAction(
@@ -157,7 +152,7 @@ fun YouTubeArtistMenu(
                     )
                 },
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-                columns = if (isGuest) 1 else 3
+                columns = 3
             )
         }
 

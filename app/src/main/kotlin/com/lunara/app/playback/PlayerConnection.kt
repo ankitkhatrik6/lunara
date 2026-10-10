@@ -202,7 +202,7 @@ class PlayerConnection(
     // Callback to check if playback changes should be blocked (e.g., Listen Together guest)
     var shouldBlockPlaybackChanges: (() -> Boolean)? = null
 
-    // Flag to allow internal sync operations to bypass blocking (set by ListenTogetherManager)
+    // Flag to allow internal sync operations to bypass blocking
     @Volatile
     var allowInternalSync: Boolean = false
 

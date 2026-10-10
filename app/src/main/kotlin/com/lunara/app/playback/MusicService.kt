@@ -99,7 +99,6 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.lunara.innertube.YouTube
 import com.lunara.innertube.models.SongItem
 import com.lunara.innertube.models.WatchEndpoint
-import com.lunara.lastfm.LastFM
 import com.lunara.app.MainActivity
 import com.lunara.app.R
 import com.lunara.app.constants.AndroidAutoTargetPlaylistKey
@@ -134,7 +133,6 @@ import com.lunara.app.discord.DiscordRpcManager
 import com.lunara.app.discord.DiscordActivityBuilder
 import com.lunara.app.discord.DiscordTemplateRenderer
 import com.lunara.app.discord.PresenceStatus
-import com.lunara.app.constants.EnableLastFMScrobblingKey
 import com.lunara.app.constants.EnableSongCacheKey
 import com.lunara.app.constants.HideExplicitKey
 import com.lunara.app.constants.HideVideoSongsKey
@@ -144,7 +142,6 @@ import com.lunara.app.constants.PodcastSpeedsKey
 import com.lunara.app.constants.VarispeedKey
 import com.lunara.app.constants.SaveDataOnMobileKey
 import com.lunara.app.constants.HistoryDuration
-import com.lunara.app.constants.LastFMUseNowPlaying
 import com.lunara.app.constants.MediaSessionConstants
 import com.lunara.app.constants.MediaSessionConstants.CommandAddToTargetPlaylist
 import com.lunara.app.constants.MediaSessionConstants.CommandToggleLike
@@ -306,9 +303,6 @@ class MusicService :
 
     @Inject
     lateinit var widgetManager: LunaraWidgetManager
-
-    @Inject
-    lateinit var listenTogetherManager: com.lunara.app.listentogether.ListenTogetherManager
 
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -1299,10 +1293,7 @@ class MusicService :
                     prefs[CrossfadeGaplessKey] ?: true,
                 )
             },
-            listenTogetherManager.roomState,
-        ) { (enabled, duration, gapless), roomState ->
-            Triple(enabled && roomState == null, duration, gapless)
-        }.distinctUntilChanged()
+        ).distinctUntilChanged()
             .collect(scope) { (enabled, duration, gapless) ->
                 crossfadeEnabled = enabled
                 crossfadeDuration = duration * 1000f // Convert to ms
@@ -2747,16 +2738,12 @@ class MusicService :
      * Restore podcast episode playback position from database.
      * Seeks to saved position if available.
      */
-    private fun inListenTogetherRoom() = ::listenTogetherManager.isInitialized && listenTogetherManager.isInRoom
-
     /**
      * Podcast speed per show: an episode plays at the speed last chosen for its show,
-     * and songs go back to the speed they had once episodes stop. Nothing changes in a
-     * Listen Together room, where the room sets the pace.
+     * and songs go back to the speed they had once episodes stop.
      */
     private fun applyPodcastSpeed(metadata: com.lunara.app.models.MediaMetadata?) {
         lastPodcastSpeed = null
-        if (inListenTogetherRoom()) return
         val current = player.playbackParameters
         val showId = metadata?.let(::podcastShowId)
         val target =
@@ -2778,8 +2765,6 @@ class MusicService :
     /** Saves a speed the listener picked during an episode for that episode's show. */
     private fun rememberPodcastSpeed(speed: Float) {
         if (speed == lastPodcastSpeed) return
-        // Listen Together nudges the speed to stay in sync; that isn't somebody's choice.
-        if (inListenTogetherRoom()) return
         val showId = player.currentMetadata?.let(::podcastShowId) ?: return
         lastPodcastSpeed = speed
         if (podcastSpeeds[showId] == speed) return
@@ -2967,11 +2952,6 @@ class MusicService :
 
         setupAudioNormalization()
 
-        scrobbleManager?.onSongStop()
-        if (player.playWhenReady && player.playbackState == Player.STATE_READY) {
-            scrobbleManager?.onSongStart(player.currentMetadata, duration = player.duration)
-        }
-
         // Skip if this change was triggered by Cast sync (to prevent loops)
         if (castConnectionHandler?.isCasting?.value == true &&
             castConnectionHandler?.isSyncingFromCast != true &&
@@ -3142,9 +3122,6 @@ class MusicService :
             scheduleCrossfade()
         }
 
-        if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
-            scrobbleManager?.onSongStop()
-        }
     }
 
     override fun onPlayWhenReadyChanged(
@@ -3236,9 +3213,6 @@ class MusicService :
             syncDiscordState()
         }
 
-        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
-            scrobbleManager?.onPlayerStateChanged(player.isPlaying, player.currentMetadata, duration = player.duration)
-        }
     }
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {

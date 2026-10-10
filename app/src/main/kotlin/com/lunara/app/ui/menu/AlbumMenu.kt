@@ -70,7 +70,6 @@ import com.lunara.app.LocalNavController
 import com.lunara.innertube.YouTube
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalDownloadUtil
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.ListItemHeight
@@ -107,8 +106,6 @@ fun AlbumMenu(
     val database = LocalDatabase.current
     val downloadUtil = LocalDownloadUtil.current
     val playerConnection = LocalPlayerConnection.current ?: return
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val scope = rememberCoroutineScope()
     val libraryAlbum by database.album(originalAlbum.id).collectAsStateWithLifecycle(initialValue = originalAlbum)
     val album = libraryAlbum ?: originalAlbum
@@ -310,7 +307,6 @@ fun AlbumMenu(
             NewActionGrid(
                 actions =
                     listOfNotNull(
-                        if (!isGuest) {
                             NewAction(
                                 icon = {
                                     Icon(
@@ -361,7 +357,6 @@ fun AlbumMenu(
                             )
                         } else {
                             null
-                        },
                         NewAction(
                             icon = {
                                 Icon(
@@ -385,14 +380,13 @@ fun AlbumMenu(
                         ),
                     ),
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-                columns = if (isGuest) 1 else 3,
+                columns = 3,
             )
         }
         item {
             Material3MenuGroup(
                 items =
                     listOfNotNull(
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.play_next)) },
                                 description = { Text(text = stringResource(R.string.play_next_desc)) },
@@ -409,8 +403,6 @@ fun AlbumMenu(
                             )
                         } else {
                             null
-                        },
-                        if (!isGuest) {
                             Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
@@ -427,7 +419,6 @@ fun AlbumMenu(
                             )
                         } else {
                             null
-                        },
                         Material3MenuItemData(
                             title = { Text(text = stringResource(R.string.add_to_playlist)) },
                             description = { Text(text = stringResource(R.string.add_to_playlist_desc)) },

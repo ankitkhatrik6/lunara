@@ -1245,6 +1245,7 @@
     <string name="artists_you_liked">Artists you liked</string>
     <string name="your_top_50">Your Top 50</string>
     <!-- Settings redesign -->
+    <string name="settings_group_display">Display &amp; Theme</string>
     <string name="settings_group_personalize">Personalize</string>
     <string name="settings_group_playback">Playback</string>
     <string name="settings_group_content">Content</string>

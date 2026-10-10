@@ -88,55 +88,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-abstract class GenerateProtoTask : DefaultTask() {
-    @get:InputFiles
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val protocArtifact: ConfigurableFileCollection
-
-    @get:InputFile
-    abstract val protoSourceFile: RegularFileProperty
-
-    @get:Internal
-    abstract val generatedSourcesDir: DirectoryProperty
-
-    @get:Internal
-    abstract val protocExecutable: RegularFileProperty
-
-    @get:Inject
-    abstract val execOperations: ExecOperations
-
-    @TaskAction
-    fun generate() {
-        val protoFile = protoSourceFile.get().asFile
-        val outputDir = generatedSourcesDir.get().asFile
-        val protocFile = protocExecutable.get().asFile
-
-        outputDir.mkdirs()
-
-        // Comes from the protocTool configuration, already resolved. Gradle
-        // hands it over read-only from its cache, so it is copied out before
-        // being marked executable.
-        val resolved = protocArtifact.singleFile
-        if (!protocFile.exists() || protocFile.length() != resolved.length()) {
-            protocFile.parentFile.mkdirs()
-            resolved.copyTo(protocFile, overwrite = true)
-        }
-        protocFile.setExecutable(true)
-
-        logger.lifecycle("Generating protobuf files in $outputDir")
-        execOperations.exec {
-            executable = protocFile.absolutePath
-            args(
-                "--java_out=lite:$outputDir",
-                "--kotlin_out=$outputDir",
-                "-I=${protoFile.parentFile}",
-                protoFile.absolutePath,
-            )
-        }
-        logger.lifecycle("Protobuf files generated successfully")
-    }
-}
-
 android {
     namespace = "com.lunara.app"
     compileSdk = 37
@@ -145,8 +96,8 @@ android {
         applicationId = applicationIdOverride ?: baseApplicationId
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "3.9.1"
+        versionCode = 17
+        versionName = "3.10.0"
         resValue("string", "app_name", appNameOverride ?: "Lunara")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -329,68 +280,6 @@ android {
     }
 }
 
-val protocVersion = libs.versions.protobuf.get()
-
-// protoc was fetched by hand over HTTP from inside the generate task, with a
-// browser User-Agent set on the request. It is the same artifact from the same
-// host either way, but declared as a dependency it resolves through the normal
-// path: it caches, it builds with the network down, and anyone reading this
-// file can see what the build is about to execute.
-val protocClassifier: String = run {
-    val os = System.getProperty("os.name").lowercase()
-    val arch = System.getProperty("os.arch").lowercase()
-
-    val osName = when {
-        os.contains("linux") -> "linux"
-        os.contains("mac") || os.contains("darwin") -> "osx"
-        os.contains("windows") -> "windows"
-        else -> "linux"
-    }
-
-    val archName = when {
-        arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
-        arch.contains("aarch64") || arch.contains("arm64") -> "aarch_64"
-        arch.contains("x86") -> "x86_32"
-        else -> "x86_64"
-    }
-
-    "$osName-$archName"
-}
-
-val protocTool by configurations.creating {
-    isTransitive = false
-    isCanBeResolved = true
-    isCanBeConsumed = false
-}
-
-dependencies {
-    add("protocTool", "com.google.protobuf:protoc:$protocVersion:$protocClassifier@exe")
-}
-
-val protoDir = rootProject.file("proto")
-val protoFile = protoDir.resolve("listentogether.proto")
-
-val generateProto = if (protoFile.exists()) {
-    tasks.register<GenerateProtoTask>("generateProto") {
-        group = "build"
-        description = "Generate Kotlin protobuf files"
-
-        protoSourceFile.set(protoFile)
-        generatedSourcesDir.set(file("src/main/java"))
-        protocArtifact.setFrom(protocTool)
-        protocExecutable.set(layout.buildDirectory.file("protoc/protoc-$protocVersion-$protocClassifier.exe"))
-    }
-} else {
-    logger.warn("Proto file not found at $protoFile. Skipping protobuf generation.")
-    null
-}
-
-tasks.configureEach {
-    if (name.startsWith("compile") || name.startsWith("assemble")) {
-        generateProto?.let { dependsOn(it) }
-    }
-}
-
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -484,10 +373,6 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.encoding)
     implementation(libs.ktor.serialization.json)
-
-    // Protobuf for message serialization (lite version for Android)
-    implementation(libs.protobuf.javalite)
-    implementation(libs.protobuf.kotlin.lite)
 
     coreLibraryDesugaring(libs.desugaring)
 

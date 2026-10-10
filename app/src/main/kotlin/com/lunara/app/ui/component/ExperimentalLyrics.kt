@@ -96,7 +96,6 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.lunara.app.LocalDatabase
-import com.lunara.app.LocalListenTogetherManager
 import com.lunara.app.LocalPlayerConnection
 import com.lunara.app.R
 import com.lunara.app.constants.AiProviderKey
@@ -192,8 +191,6 @@ fun ExperimentalLyrics(
     val density = LocalDensity.current
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
-    val listenTogetherManager = LocalListenTogetherManager.current
-    val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
 
     val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
     val changeLyrics by rememberPreference(LyricsClickKey, true)
@@ -881,7 +878,7 @@ fun ExperimentalLyrics(
                                                     if (selectedIndices.isEmpty()) isSelectionModeActive = false
                                                 } else if (selectedIndices.size < maxSelectionLimit) selectedIndices.add(index)
                                                 else showMaxSelectionToast = true
-                                            } else if (changeLyrics && !isGuest) {
+                                            } else if (changeLyrics) {
                                                 if (item.time < playerConnection.player.duration + 30000L) {
                                                     playerConnection.seekTo((item.time - (currentSong?.song?.lyricsOffset ?: 0)).coerceAtLeast(0))
                                                 } else {
@@ -926,7 +923,7 @@ fun ExperimentalLyrics(
         // The source picker — top-centre of the lyrics pane, and gone in full screen,
         // which is the one place somebody asked for nothing but the words.
         AnimatedVisibility(
-            visible = !isFullScreen && !isSelectionModeActive && !isGuest &&
+            visible = !isFullScreen && !isSelectionModeActive &&
                 lyrics != null && lyrics != LYRICS_NOT_FOUND && mediaMetadata != null,
             enter = fadeIn() + slideInVertically { -it / 2 } + expandVertically(),
             exit = fadeOut() + slideOutVertically { -it / 2 } + shrinkVertically(),

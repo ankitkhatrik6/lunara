@@ -261,9 +261,6 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var syncUtils: SyncUtils
 
-    @Inject
-    lateinit var listenTogetherManager: com.lunara.app.listentogether.ListenTogetherManager
-
     private lateinit var navController: NavHostController
     private var pendingIntent: Intent? = null
 
@@ -289,13 +286,10 @@ class MainActivity : ComponentActivity() {
                 if (service is MusicBinder) {
                     playerConnection = PlayerConnection(this@MainActivity, service, database, lifecycleScope)
                     playerConnectionSnapshot = playerConnection
-                    listenTogetherManager.setPlayerConnection(playerConnection)
                 }
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
-                // Disconnect Listen Together manager
-                listenTogetherManager.setPlayerConnection(null)
                 playerConnection?.dispose()
                 // DO NOT null out playerConnection here - keep it for when service reconnects
                 // DO NOT update playerConnectionSnapshot - this is the key to preventing recomposition
@@ -310,7 +304,6 @@ class MainActivity : ComponentActivity() {
             Timber.tag("MainActivity").w(e, "Service was not bound when attempting to unbind in $source")
         } finally {
             isServiceBound = false
-            listenTogetherManager.setPlayerConnection(null)
             playerConnection?.dispose()
             // DO NOT null out playerConnection here - keep it for reconnection
             // DO NOT update playerConnectionSnapshot - this prevents UI recomposition
@@ -366,9 +359,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing) {
-            listenTogetherManager.disconnect()
-        }
         super.onDestroy()
         // Use effective playing state so Cast (local player paused, remote playing) is included.
         val stopServiceOnClear =
@@ -414,9 +404,6 @@ class MainActivity : ComponentActivity() {
         }
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
         WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        // Initialize Listen Together manager
-        listenTogetherManager.initialize()
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             val locale =
@@ -1114,7 +1101,6 @@ class MainActivity : ComponentActivity() {
                     LocalDownloadUtil provides downloadUtil,
                     LocalShimmerTheme provides ShimmerTheme,
                     LocalSyncUtils provides syncUtils,
-                    LocalListenTogetherManager provides listenTogetherManager,
                     LocalChangelogState provides showChangelog,
                 ) {
                     if (showChangelog.value) {
@@ -1773,6 +1759,5 @@ val LocalPlayerBottomSheetState = staticCompositionLocalOf<BottomSheetState?> { 
 val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
 val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
 val LocalSyncUtils = staticCompositionLocalOf<SyncUtils> { error("No SyncUtils provided") }
-val LocalListenTogetherManager = staticCompositionLocalOf<com.lunara.app.listentogether.ListenTogetherManager?> { null }
 val LocalChangelogState = staticCompositionLocalOf<MutableState<Boolean>> { error("No LocalChangelogState provided") }
 val LocalIsPlayerExpanded = compositionLocalOf { false }
