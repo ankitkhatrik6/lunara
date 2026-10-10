@@ -1,5 +1,11 @@
 [
   {
+    "tagName": "v3.13.0",
+    "versionName": "3.13.0",
+    "releaseDate": "2026-10-10T00:00:00Z",
+    "description": "## The icon is Lunara everywhere now\n\n- **Every app icon is the green Lunara mark.** The launcher icon, the copy-link confirmation toast and the cast player badge all read from the one green mark, so the old orange logo is gone from every one of them.\n- **If you still see the orange logo, the phone is showing a cached icon from the old install.** Fully uninstall the previous app first, then install this build (or restart the phone after installing). Android keeps the old launcher icon cached until the package's icon cache is cleared, so an install-on-top alone can keep showing the previous mark.\n"
+  },
+  {
     "tagName": "v3.12.0",
     "versionName": "3.12.0",
     "releaseDate": "2026-10-10T00:00:00Z",
