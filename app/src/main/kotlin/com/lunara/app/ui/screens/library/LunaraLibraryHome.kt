@@ -59,17 +59,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.lunara.app.ui.theme.SpotifyElevatedSurface
 import com.lunara.app.ui.theme.SpotifyTextPrimary
 import com.lunara.app.LocalDatabase
 import com.lunara.app.LocalPlayerAwareWindowInsets
 import com.lunara.app.R
 import com.lunara.app.constants.LocalMusicFoldersKey
-import com.lunara.app.constants.ShowCachedPlaylistKey
 import com.lunara.app.constants.ShowDownloadedPlaylistKey
 import com.lunara.app.constants.ShowLikedPlaylistKey
 import com.lunara.app.constants.ShowTopPlaylistKey
-import com.lunara.app.constants.ShowUploadedPlaylistKey
+import com.lunara.app.ui.component.CreatePlaylistDialog
 import com.lunara.app.ui.component.LunaraFilterChips
 import com.lunara.app.ui.component.LunaraMusicCard
 import com.lunara.app.ui.component.LunaraPlaylistCard
@@ -98,7 +96,6 @@ fun LunaraLibraryHome(
     val likedSongs by viewModel.likedSongs.collectAsStateWithLifecycle()
     val likedThumbs by viewModel.likedThumbnails.collectAsStateWithLifecycle()
     val downloadedThumbs by viewModel.downloadedThumbnails.collectAsStateWithLifecycle()
-    val uploadedThumbs by viewModel.uploadedThumbnails.collectAsStateWithLifecycle()
     val localThumbs by viewModel.localThumbnails.collectAsStateWithLifecycle()
     val localCount by viewModel.localSongCount.collectAsStateWithLifecycle()
 
@@ -117,15 +114,13 @@ fun LunaraLibraryHome(
             }
         }
     val topThumbs by viewModel.topThumbnails.collectAsStateWithLifecycle()
-    val cachedThumbs by viewModel.cachedThumbnails.collectAsStateWithLifecycle()
     val (showLiked) = rememberPreference(ShowLikedPlaylistKey, defaultValue = true)
     val (showTop) = rememberPreference(ShowTopPlaylistKey, defaultValue = true)
-    val (showCached) = rememberPreference(ShowCachedPlaylistKey, defaultValue = true)
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, defaultValue = true)
-    val (showUploaded) = rememberPreference(ShowUploadedPlaylistKey, defaultValue = true)
     val songsWord = stringResource(R.string.songs).lowercase()
 
     var selectedTab by rememberSaveable { mutableStateOf(LibraryTab.ALL) }
+    var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
 
     val weeklyMost = playlists.firstOrNull { it.title.contains("weekly most", ignoreCase = true) }
     val monthlyMost = playlists.firstOrNull { it.title.contains("monthly most", ignoreCase = true) }
@@ -150,22 +145,6 @@ fun LunaraLibraryHome(
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(SpotifyElevatedSurface)
-                            .clickable { navController.navigate("settings") },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.person),
-                            contentDescription = stringResource(R.string.settings),
-                            tint = SpotifyTextPrimary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
                     Text(
                         text = stringResource(R.string.filter_library),
                         fontSize = 24.sp,
@@ -279,51 +258,7 @@ fun LunaraLibraryHome(
         }
 
         if (showSystemPlaylists || showDownloadedOnly) {
-            if (showCached && showDownloaded && !showDownloadedOnly) {
-                item("cached_downloaded") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        LunaraPlaylistCard(
-                            title = stringResource(R.string.cached_playlist),
-                            subtitle = "Ready offline",
-                            thumbnails = cachedThumbs,
-                            seedColor = Color(0xFF282828),
-                            aspectRatio = BOX_RATIO,
-                            iconRes = R.drawable.cached,
-                            onClick = { navController.navigate("cache_playlist/cached") },
-                            modifier = Modifier.weight(1f),
-                        )
-                        LunaraPlaylistCard(
-                            title = stringResource(R.string.offline),
-                            subtitle = "Downloaded",
-                            thumbnails = downloadedThumbs,
-                            seedColor = Color(0xFF148A08),
-                            aspectRatio = BOX_RATIO,
-                            iconRes = R.drawable.download,
-                            onClick = { navController.navigate("auto_playlist/downloaded") },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-            } else if (showCached && !showDownloadedOnly) {
-                item("cached") {
-                    LongPad {
-                        LunaraPlaylistCard(
-                            title = stringResource(R.string.cached_playlist),
-                            subtitle = "Ready offline",
-                            thumbnails = cachedThumbs,
-                            seedColor = Color(0xFF282828),
-                            aspectRatio = LONG_RATIO,
-                            iconRes = R.drawable.cached,
-                            onClick = { navController.navigate("cache_playlist/cached") },
-                        )
-                    }
-                }
-            } else if (showDownloaded || showDownloadedOnly) {
+            if (showDownloaded || showDownloadedOnly) {
                 item("downloaded") {
                     LongPad {
                         LunaraPlaylistCard(
@@ -336,6 +271,23 @@ fun LunaraLibraryHome(
                             onClick = { navController.navigate("auto_playlist/downloaded") },
                         )
                     }
+                }
+            }
+        }
+
+        // ---- Create playlist ----
+        if (selectedTab == LibraryTab.ALL || selectedTab == LibraryTab.PLAYLISTS) {
+            item("create_playlist") {
+                LongPad {
+                    LunaraPlaylistCard(
+                        title = stringResource(R.string.create_playlist),
+                        subtitle = "Start a new playlist",
+                        thumbnails = emptyList(),
+                        seedColor = Color(0xFF1ED760),
+                        aspectRatio = LONG_RATIO,
+                        iconRes = R.drawable.add,
+                        onClick = { showCreatePlaylist = true },
+                    )
                 }
             }
         }
@@ -375,22 +327,6 @@ fun LunaraLibraryHome(
                         aspectRatio = LONG_RATIO,
                         iconRes = R.drawable.library_music,
                         onClick = { navController.navigate("auto_playlist/local") },
-                    )
-                }
-            }
-        }
-
-        if (showSystemPlaylists && showUploaded) {
-            item("uploaded") {
-                LongPad {
-                    LunaraPlaylistCard(
-                        title = stringResource(R.string.uploaded_playlist),
-                        subtitle = "Cloud uploads",
-                        thumbnails = uploadedThumbs,
-                        seedColor = Color(0xFF8D67AB),
-                        aspectRatio = LONG_RATIO,
-                        iconRes = R.drawable.upload,
-                        onClick = { navController.navigate("auto_playlist/uploaded") },
                     )
                 }
             }
@@ -449,6 +385,12 @@ fun LunaraLibraryHome(
         }
 
         item("bottom") { Spacer(Modifier.height(28.dp)) }
+    }
+
+    if (showCreatePlaylist) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreatePlaylist = false },
+        )
     }
 }
 

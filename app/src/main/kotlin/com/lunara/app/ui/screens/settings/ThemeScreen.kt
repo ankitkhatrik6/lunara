@@ -34,13 +34,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -72,7 +70,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
@@ -106,6 +103,7 @@ import com.lunara.app.constants.SlimNavBarKey
 import com.lunara.app.constants.UseNewMiniPlayerDesignKey
 import com.lunara.app.ui.player.MiniPlayerDesign
 import com.lunara.app.ui.theme.LunaraThemeColor
+import com.lunara.app.ui.theme.SpotifyLikedSongsPurple
 import com.lunara.app.ui.theme.DefaultThemeColor
 import com.lunara.app.ui.theme.LunaraTheme
 import com.lunara.app.utils.rememberEnumPreference
@@ -685,13 +683,14 @@ internal fun ThemePhonePreview(
                 .background(cs.background)
                 .padding(horizontal = 10.dp, vertical = 14.dp),
         ) {
-            // Header: account · logo + wordmark · settings (real icons).
+            // Header: logo + wordmark · settings (real icons). No account chip —
+            // the account section was removed from the app, so the preview no
+            // longer shows one either.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.person), null, tint = cs.onSurface.copy(alpha = 0.75f), modifier = Modifier.size(13.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Image(
                         painter = painterResource(if (useDark) R.drawable.lunara_logo_white else R.drawable.lunara_logo),
@@ -703,75 +702,52 @@ internal fun ThemePhonePreview(
                 Icon(painterResource(R.drawable.settings), null, tint = cs.onSurface.copy(alpha = 0.75f), modifier = Modifier.size(13.dp))
             }
             Spacer(Modifier.height(6.dp))
-            // Greeting card: a CLIPPED gradient background with the hero image as an
-            // UN-clipped sibling of an un-clipped outer box, so the hero spills out of
-            // the card and a little over the wordmark — exactly like the real home.
-            val onCard = cs.onPrimary
-            Box(modifier = Modifier.fillMaxWidth().height(68.dp)) {
-                // Card background (rounded, clipped).
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Brush.linearGradient(listOf(cs.primary, lerp(cs.primary, Color.Black, if (useDark) 0.30f else 0.20f)))),
+            // Quick-access grid — the real home's top cards (Liked songs, For You,
+            // Speed Dial, History) in a 2×2. The old greeting card and its hero were
+            // removed from the app, so the preview shows what the app actually opens on.
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                val quickCards = listOf(
+                    listOf(
+                        Triple(R.drawable.favorite, SpotifyLikedSongsPurple, R.string.liked_songs),
+                        Triple(R.drawable.music_note, cs.primary, R.string.home_for_you),
+                    ),
+                    listOf(
+                        Triple(R.drawable.radio, Color(0xFF282828), R.string.speed_dial),
+                        Triple(R.drawable.history, Color(0xFF1E3264), R.string.history),
+                    ),
                 )
-                // Hero: spills up out of the card (over the wordmark) but the offset
-                // keeps its bottom a few dp INSIDE the card, so it never overflows below.
-                // No clip so the transparent PNG blends like on the real home.
-                Image(
-                    painter = painterResource(if (useDark) R.drawable.lunara_home_dark else R.drawable.lunara_home_light),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .requiredWidth(78.dp)
-                        .requiredHeight(92.dp)
-                        // requiredHeight overflow is centred (12dp above AND below the
-                        // 68dp card) — shift up by exactly that half so the bottom edge
-                        // is flush inside the card and only the top spills out.
-                        .offset(y = (-12).dp),
-                )
-                // Greeting text — centered-left, tight (so the greeting sits a touch
-                // lower and 'Enjoy the music' a touch higher, with padding around it).
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.align(Alignment.CenterStart).fillMaxWidth(0.58f).padding(start = 11.dp),
-                ) {
-                    // Explicit lineHeights kill the inherited tall line-boxes, compressing
-                    // the block: the greeting sits lower, 'Enjoy the music' higher, with
-                    // even padding above and below.
+                quickCards.forEach { rowCards ->
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                        modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        listOf(
-                            R.drawable.star to R.string.home_for_you,
-                            R.drawable.grid_view to R.string.speed_dial,
-                        ).forEach { (icon, label) ->
+                        rowCards.forEach { (icon, badge, label) ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .height(11.dp)
-                                    .shadow(2.dp, RoundedCornerShape(3.dp))
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(
-                                        lerp(
-                                            lerp(cs.primary, lerp(cs.primary, Color.Black, if (useDark) 0.30f else 0.20f), 0.5f),
-                                            if (onCard.luminance() > 0.5f) Color.Black else Color.White,
-                                            if (onCard.luminance() > 0.5f) 0.30f else 0.40f,
-                                        ),
-                                    ),
+                                    .weight(1f)
+                                    .height(22.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(cs.surfaceContainerHigh),
                             ) {
                                 Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .background(badge),
                                     contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(11.dp).background(onCard.copy(alpha = 0.18f)),
                                 ) {
-                                    Icon(painterResource(icon), null, tint = onCard, modifier = Modifier.size(6.dp))
+                                    Icon(painterResource(icon), null, tint = Color.White, modifier = Modifier.size(11.dp))
                                 }
-                                // Speed dial is the cover alone, like on the real card.
-                                if (label == R.string.home_for_you) {
-                                    Text(stringResource(label), color = onCard, fontSize = 5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 5.5.sp, maxLines = 1, modifier = Modifier.padding(start = 3.dp, end = 4.dp))
-                                }
+                                Text(
+                                    stringResource(label),
+                                    color = cs.onSurface,
+                                    fontSize = 6.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 7.sp,
+                                    modifier = Modifier.padding(start = 4.dp, end = 3.dp),
+                                )
                             }
                         }
                     }

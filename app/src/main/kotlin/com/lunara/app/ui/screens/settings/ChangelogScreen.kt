@@ -286,12 +286,24 @@ private sealed interface Note {
  * them: a blank line ends one, a heading or a bullet stands alone.
  */
 private fun notes(text: String): List<Note> {
+    // Release notes sometimes arrive with their line breaks still escaped — a
+    // bundled asset hand-edited, or a release body pasted through a tool that
+    // kept the backslashes. Split on real newlines only would then treat the
+    // whole note as one line and print the "#" and "*" straight at the reader,
+    // which is exactly the failure this page exists to avoid. Turn any literal
+    // "\n"/"\r" escape into the character it stands for before anything else.
+    val normalized =
+        text
+            .replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+
     val html = Regex("<[^>]+>")
     val badge = Regex("""\[!\[[^\]]*]\([^)]*\)]\([^)]*\)""")
     val image = Regex("""!\[[^\]]*]\([^)]*\)""")
 
     val cleaned =
-        text.split("\n").map { line ->
+        normalized.split("\n").map { line ->
             var l = line.trim()
                 // A linked badge is a button, and a button is not a sentence.
                 .replace(badge, "")

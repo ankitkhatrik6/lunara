@@ -1599,7 +1599,14 @@ fun HomeScreen(
                                                         for (col in 0 until columns) {
                                                             val itemIndex = row * columns + col
 
-                                                            val isRandomizeSlot = (page == 0 && itemIndex == itemsPerPage - 1)
+                                                            // The dice-style "randomize"
+                                                            // tile has been removed from the
+                                                            // speed dial: it read as clutter
+                                                            // and played a random song nobody
+                                                            // asked for. The last slot now
+                                                            // shows a normal pinned item like
+                                                            // every other cell.
+                                                            val isRandomizeSlot = false
 
                                                             if (isRandomizeSlot) {
                                                                 Box(

@@ -307,7 +307,7 @@ fun LunaraPlaylistCard(
                     text = title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = SpotifyTextPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(if (hasArt) 0.54f else 1f),

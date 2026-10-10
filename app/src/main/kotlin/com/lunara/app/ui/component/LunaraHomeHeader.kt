@@ -33,10 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +60,6 @@ fun LunaraHomeHeader(
     speedDialArt: String? = null,
 ) {
     val navController = LocalNavController.current
-    var selectedFilter by remember { mutableStateOf("All") }
 
     Column(
         modifier = Modifier
@@ -122,42 +117,9 @@ fun LunaraHomeHeader(
             }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
 
-        // Row 2: Filter Pills (All, Music - podcasts removed completely)
-        val filters = listOf("All", "Music")
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-        ) {
-            filters.forEach { filter ->
-                val isSelected = selectedFilter == filter
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            if (isSelected) SpotifyGreen
-                            else MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
-                        .clickable { selectedFilter = filter }
-                        .padding(horizontal = 16.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = filter,
-                        color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        // Row 3: Quick Access 2-Column Grid (Spotify Home top cards)
+        // Row 2: Quick Access 2-Column Grid (Spotify Home top cards).
         Column(
             modifier = Modifier
                 .fillMaxWidth()

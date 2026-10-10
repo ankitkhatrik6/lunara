@@ -1,15 +1,21 @@
 [
   {
+    "tagName": "v3.11.0",
+    "versionName": "3.11.0",
+    "releaseDate": "2026-10-10T00:00:00Z",
+    "description": "## A tidier library and home\n\n- **The account chip is gone from Library.** The header is just the title and the search button now.\n- **Cached and Uploaded are removed from the library**, and in their place sits a **Create playlist** card that opens the playlist editor straight away.\n- **The library reads properly in light mode.** Liked, Your Top 50, Downloaded, Music on this device and every playlist name follow the theme instead of being painted white on a light card.\n\n## Home\n\n- **The dice-style shuffle tile is gone from the speed dial.** The grid is pinned items only.\n- **The All and Music pills above Liked and For You are removed**, so the header opens straight on your music.\n\n## Settings\n\n- **The Look & Feel preview matches the real build.** It shows the current home — the quick-access cards, not the greeting card that was removed — and no account chip.\n\n## Changelog\n\n- **Release notes render with their formatting.** Headings, bullets and bold are read as intended instead of the raw `#` and `*` showing on screen."
+  },
+  {
     "tagName": "v3.9.1",
     "versionName": "3.9.1",
     "releaseDate": "2026-10-09T00:00:00Z",
-    "description": "## Light mode is readable now\\n\\n- **The loading screen follows your theme.** It no longer flashes a light screen when the app is set to dark.\\n- **White-on-white text and icons are fixed.** Section titles, the navigation bar, chips, the library header, search and settings all read from the theme now, so nothing disappears against a light background any more.\\n\\n## Speed dial\\n\\n- **The shuffle button is gone.** The floating dice-style button that played a random song has been removed from the home screen.\\n\\n## Settings\\n\\n- **'Report a problem' has been removed completely**, along with the bug-report screen, the helper behind it and its translations."
+    "description": "## Light mode is readable now\n\n- **The loading screen follows your theme.** It no longer flashes a light screen when the app is set to dark.\n- **White-on-white text and icons are fixed.** Section titles, the navigation bar, chips, the library header, search and settings all read from the theme now, so nothing disappears against a light background any more.\n\n## Speed dial\n\n- **The shuffle button is gone.** The floating dice-style button that played a random song has been removed from the home screen.\n\n## Settings\n\n- **'Report a problem' has been removed completely**, along with the bug-report screen, the helper behind it and its translations."
   },
   {
     "tagName": "v3.9.0",
     "versionName": "3.9.0",
     "releaseDate": "2026-10-09T00:00:00Z",
-    "description": "## A redesigned interface\\n\\n- **The whole interface has been reworked.** The home header, search, library, settings and the player have a fresh, cleaner look built on flat surfaces and the signature green accent.\\n- **Light mode actually works now.** Surfaces, cards and text read from the theme instead of hard-coded dark colours, so the light theme is light and the dark theme is dark - with readable contrast in both.\\n\\n## A new logo\\n\\n- **The app icon, splash screen, notification icon and in-app branding all use the new mark.** Every density, the adaptive icon, the store icon and the TV banner were regenerated from the one master artwork, so the mark is never cropped or half-cut again.\\n\\n## Search\\n\\n- **The search bar reads 'Search song, title, artist…'** instead of naming a single source."
+    "description": "## A redesigned interface\n\n- **The whole interface has been reworked.** The home header, search, library, settings and the player have a fresh, cleaner look built on flat surfaces and the signature green accent.\n- **Light mode actually works now.** Surfaces, cards and text read from the theme instead of hard-coded dark colours, so the light theme is light and the dark theme is dark - with readable contrast in both.\n\n## A new logo\n\n- **The app icon, splash screen, notification icon and in-app branding all use the new mark.** Every density, the adaptive icon, the store icon and the TV banner were regenerated from the one master artwork, so the mark is never cropped or half-cut again.\n\n## Search\n\n- **The search bar reads 'Search song, title, artist…'** instead of naming a single source."
   },
   {
     "tagName": "v3.5.0",
