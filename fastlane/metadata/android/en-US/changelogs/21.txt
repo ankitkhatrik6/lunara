@@ -1,0 +1,5 @@
+The loading screen and onboarding now follow your theme. Opening the app in dark mode shows a dark loading screen and dark onboarding instead of a light one, and light mode shows light, exactly as chosen. The cold-start window no longer flashes the wrong mode either.
+
+Look & Feel's preview now mirrors the real Lunara home — the quick-access cards, the mood chips, the "Similar to" album row and the "Mood and Genres" grid — instead of an old mock. The Home tab has been removed from Look & Feel; its layout settings (default tab, grid cell size, navigation bar style, slim navbar and the home search bar) now live together under Appearance.
+
+Loading states are on-brand now: the loading skeletons and any song without album art show the Lunara logo instead of a generic music note.

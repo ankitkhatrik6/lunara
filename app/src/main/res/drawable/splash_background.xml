@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Window background for cold-start splash: pure solid background without any cut or half logo.
+     Compose's LunaraSplash cleanly takes over. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/lunara_background" />
+</layer-list>

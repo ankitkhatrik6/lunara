@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Lunara" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/lunara_background</item>
+        <item name="android:navigationBarColor">@color/lunara_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <!-- Light window background, so the status-bar icons must be dark. -->
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

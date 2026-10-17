@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Android 12+ splash screen (dark / night).
+        The splash background follows the night theme so the window never flashes a
+        light screen before Compose's themed LunaraSplash takes over.
+    -->
+    <style name="Theme.Lunara" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/lunara_background</item>
+        <item name="android:navigationBarColor">@color/lunara_background</item>
+        <item name="android:windowSplashScreenBackground">@color/lunara_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/lunara_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <!-- Dark splash background, so the status-bar icons must be light. -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

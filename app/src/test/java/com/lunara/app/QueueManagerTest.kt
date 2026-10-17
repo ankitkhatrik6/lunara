@@ -1,0 +1,183 @@
+package com.lunara.app
+
+import com.lunara.app.domain.model.RepeatMode
+import com.lunara.app.domain.model.Song
+import com.lunara.app.player.QueueManager
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+class QueueManagerTest {
+
+    private lateinit var queueManager: QueueManager
+
+    private val sampleSongs = listOf(
+        Song("1", "Song One", "Artist A", durationMs = 180000),
+        Song("2", "Song Two", "Artist B", durationMs = 200000),
+        Song("3", "Song Three", "Artist C", durationMs = 220000)
+    )
+
+    @Before
+    fun setUp() {
+        queueManager = QueueManager()
+    }
+
+    @Test
+    fun setQueue_setsSongsAndCurrentIndexCorrectly() {
+        queueManager.setQueue(sampleSongs, startIndex = 1)
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(1, queueManager.currentIndex.value)
+        assertEquals("Song Two", queueManager.currentSong?.title)
+    }
+
+    @Test
+    fun next_advancesToNextTrackWhenAvailable() {
+        queueManager.setQueue(sampleSongs, startIndex = 0)
+        val nextSong = queueManager.next()
+        assertEquals("Song Two", nextSong?.title)
+        assertEquals(1, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun next_withRepeatAll_loopsToFirstTrackAtEnd() {
+        queueManager.setQueue(sampleSongs, startIndex = 2)
+        queueManager.cycleRepeatMode() // Repeat ALL
+        assertEquals(RepeatMode.ALL, queueManager.repeatMode.value)
+
+        val nextSong = queueManager.next()
+        assertEquals("Song One", nextSong?.title)
+        assertEquals(0, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun addToQueueNext_insertsSongImmediatelyAfterCurrent() {
+        queueManager.setQueue(sampleSongs, startIndex = 0)
+        val newSong = Song("4", "Song Four", "Artist D")
+        queueManager.addToQueueNext(newSong)
+
+        assertEquals(4, queueManager.queue.value.size)
+        assertEquals(newSong.id, queueManager.queue.value[1].id)
+    }
+
+    @Test
+    fun removeAt_removesCorrectItem() {
+        queueManager.setQueue(sampleSongs, startIndex = 0)
+        queueManager.removeAt(1)
+
+        assertEquals(2, queueManager.queue.value.size)
+        assertEquals("Song Three", queueManager.queue.value[1].title)
+    }
+
+    @Test
+    fun restore_rebuildsQueueIndexShuffleAndRepeat() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 2,
+            shuffle = true,
+            repeatMode = RepeatMode.ALL
+        )
+
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+        assertTrue(queueManager.isShuffle.value)
+        assertEquals(RepeatMode.ALL, queueManager.repeatMode.value)
+    }
+
+    @Test
+    fun restore_letsPlaybackContinueFromTheRestoredTrack() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 1,
+            shuffle = false,
+            repeatMode = RepeatMode.OFF
+        )
+
+        assertEquals("Song Three", queueManager.next()?.title)
+    }
+
+    @Test
+    fun restore_clampsAnIndexThatIsPastTheEndOfTheQueue() {
+        queueManager.restore(
+            songs = sampleSongs,
+            currentIndex = 7,
+            shuffle = false,
+            repeatMode = RepeatMode.OFF
+        )
+
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+    }
+
+    @Test
+    fun restore_ignoresAnEmptyStoredQueue() {
+        queueManager.setQueue(sampleSongs, startIndex = 1)
+
+        queueManager.restore(
+            songs = emptyList(),
+            currentIndex = 0,
+            shuffle = false,
+            repeatMode = RepeatMode.ALL
+        )
+
+        // An empty snapshot must leave the session that is already running untouched.
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(1, queueManager.currentIndex.value)
+        assertEquals(RepeatMode.OFF, queueManager.repeatMode.value)
+    }
+
+    @Test
+    fun appendSongs_growsTheQueueAfterTheTracksTheUserAskedFor() {
+        queueManager.setQueue(sampleSongs, startIndex = 2)
+
+        queueManager.appendSongs(
+            listOf(
+                Song("yt_a", "Take On Me", "a-ha"),
+                Song("yt_b", "Africa", "TOTO")
+            )
+        )
+
+        assertEquals(5, queueManager.queue.value.size)
+        assertEquals(listOf("1", "2", "3", "yt_a", "yt_b"), queueManager.queue.value.map { it.id })
+        // Nothing in front of the append moved, including the track that is playing.
+        assertEquals(2, queueManager.currentIndex.value)
+        assertEquals("Song Three", queueManager.currentSong?.title)
+    }
+
+    @Test
+    fun appendSongs_letsNextCarryOnIntoTheRadioInsteadOfStopping() {
+        // The bug this covers: the last track of a queue had nothing after it, so the end of a
+        // queue stopped playback instead of handing over to a song like the one playing.
+        queueManager.setQueue(sampleSongs, startIndex = 2)
+        assertNull(queueManager.next())
+
+        queueManager.appendSongs(listOf(Song("yt_a", "Take On Me", "a-ha")))
+
+        assertEquals("Take On Me", queueManager.next()?.title)
+        assertEquals(3, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun appendSongs_ignoresAnEmptyBatch() {
+        queueManager.setQueue(sampleSongs, startIndex = 1)
+
+        queueManager.appendSongs(emptyList())
+
+        assertEquals(3, queueManager.queue.value.size)
+        assertEquals(1, queueManager.currentIndex.value)
+    }
+
+    @Test
+    fun appendSongs_keepsTheRecommendationsWhenShuffleIsSwitchedOff() {
+        // Under shuffle the queue is rebuilt from the un-shuffled copy on every toggle, so an
+        // append that missed that copy would vanish the moment shuffle is turned off.
+        queueManager.setQueue(sampleSongs, startIndex = 0)
+        queueManager.toggleShuffle()
+        queueManager.appendSongs(listOf(Song("yt_a", "Take On Me", "a-ha")))
+
+        queueManager.toggleShuffle()
+
+        assertEquals(4, queueManager.queue.value.size)
+        assertTrue(queueManager.queue.value.any { it.id == "yt_a" })
+    }
+}

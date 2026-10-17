@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lunara.app",
+      "sha256_cert_fingerprints": [
+        "B9:07:AE:DE:1A:1E:34:B1:CB:84:F9:CB:BF:19:AF:84:EF:E2:B7:06:DB:96:92:D4:3E:9E:76:0C:3A:8D:5A:FD"
+      ]
+    }
+  }
+]

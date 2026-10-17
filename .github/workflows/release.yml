@@ -1,0 +1,121 @@
+name: Android Release
+
+# Every push to master builds (compile feedback for each change), but only a `v*` tag publishes
+# a release. That way a broken build can never be published, and no chunk lands unverified.
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+          cache-disabled: true
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        # The release build compiles `src/main` only, so the JVM tests - the queue rule behind the
+        # song radio, the parser that reads YouTube's `next` response - are not part of it. They
+        # run here, which makes every push to master verify the behaviour and not just the syntax.
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Upload unit test reports
+        # Only when the tests failed, and only for the record: Gradle's console summary names the
+        # test and a file, never the message, so the XML report is what makes a red build readable.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: ignore
+
+      - name: Prepare release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          KEYSTORE_PATH="$RUNNER_TEMP/lunara-release.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            echo "Signing with the secret keystore (stable across every release)."
+          else
+            # The release key lives outside the repo and arrives through the
+            # RELEASE_KEYSTORE_BASE64 secret. A fresh key per run would mean the APK can never
+            # update an installed copy (INSTALL_FAILED_UPDATE_INCOMPATIBLE), so there is no
+            # fallback here — set the secret instead of shipping a build that cannot update.
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is not set. Add it (see site/README.md) and re-run."
+            exit 1
+          fi
+          echo "LUNARA_KEYSTORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          {
+            echo "LUNARA_KEYSTORE_PASSWORD=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}"
+            echo "LUNARA_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}"
+            echo "LUNARA_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build release APK and AAB
+        env:
+          LUNARA_KEYSTORE_FILE: ${{ env.LUNARA_KEYSTORE_FILE }}
+          LUNARA_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
+          LUNARA_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
+          LUNARA_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD || 'lunara' }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS || 'lunara' }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD || 'lunara' }}
+        # The app has a `variant` flavor dimension (foss/gms/izzy), so there is no
+        # un-flavored `app-release` output. Build the default FOSS flavor - it is the
+        # build people are handed directly - and publish only that.
+        run: ./gradlew assembleFossRelease bundleFossRelease --stacktrace
+
+      - name: Rename outputs
+        run: |
+          # On a tag the tag name is authoritative; on a branch build fall back to the
+          # versionName in Gradle so the artifact is still recognisable.
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          fi
+          mkdir -p dist
+          cp app/build/outputs/apk/foss/release/app-foss-release.apk "dist/Lunara-${VERSION}-release.apk"
+          cp app/build/outputs/bundle/fossRelease/app-foss-release.aab "dist/Lunara-${VERSION}-release.aab"
+          echo "LUNARA_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lunara-release-${{ env.LUNARA_VERSION }}
+          path: dist/*
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Lunara ${{ env.LUNARA_VERSION }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*

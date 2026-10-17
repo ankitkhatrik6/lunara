@@ -1,0 +1,8 @@
+[
+  {
+    "tagName": "v3.17.6",
+    "versionName": "3.17.6",
+    "releaseDate": "2026-10-15T00:00:00Z",
+    "description": "## What's new\n\n- **Public releases home.** Downloads, updates and docs now live in the public lunara-releases repo; the app checks there for new versions.\n- **Tested-only publishing.** This build comes through the new private-to-public promotion flow, so only tested versions ever reach the releases page.\n"
+  }
+]

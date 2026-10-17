@@ -1,0 +1,393 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
+
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.gradle.process.ExecOperations
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+import javax.inject.Inject
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
+/**
+ * Release signing credentials that live next to the keystore itself.
+ *
+ * `keystore/keystore.properties` is what a build from a checkout of this repo
+ * has available, so it has to be read here. Skipping it was the reason a
+ * `release` build silently fell back to the *debug* keystore: the release
+ * config pointed at a `keystore/release.keystore` that never existed and the
+ * passwords were looked for only in the environment. An APK signed with the
+ * Android debug key is what Play Protect reports as coming from an unknown
+ * developer, and it cannot be installed over a build signed with the real key.
+ */
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore/keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
+val baseApplicationId = "com.lunara.app"
+val applicationIdOverride = System.getenv("LUNARA_APPLICATION_ID")?.takeIf { it.isNotBlank() }
+val appNameOverride = System.getenv("LUNARA_APP_NAME")?.takeIf { it.isNotBlank() }
+val debugKeystorePathOverride = System.getenv("LUNARA_DEBUG_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+val debugKeystorePassword = System.getenv("LUNARA_DEBUG_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+
+/**
+ * Release signing credentials, from the environment, local.properties or the
+ * committed keystore/keystore.properties (in that order).
+ *
+ * Null when they are not set anywhere, which is the signal to sign with the
+ * debug keystore instead of failing the build.
+ */
+fun releaseSecret(name: String): String? =
+    (System.getenv(name) ?: localProperties.getProperty(name) ?: keystoreProperties.getProperty(name))
+        ?.takeIf { it.isNotBlank() }
+
+val releaseKeystorePathOverride = System.getenv("LUNARA_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+
+/**
+ * The file the release build is signed with. The env override wins, then the
+ * `storeFile` recorded in keystore.properties (relative to the repository
+ * root), then the conventional path. This is the same file the signing
+ * decision below checks for, so the two can never disagree.
+ */
+val releaseKeystoreFile: File =
+    releaseKeystorePathOverride?.let(::file)
+        ?: keystoreProperties.getProperty("storeFile")?.takeIf { it.isNotBlank() }?.let(rootProject::file)
+        ?: rootProject.file("keystore/lunara-release.jks")
+val releaseStorePassword =
+    releaseSecret("STORE_PASSWORD")
+        ?: releaseSecret("storePassword")
+        ?: System.getenv("LUNARA_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+val releaseKeyAlias =
+    releaseSecret("KEY_ALIAS")
+        ?: releaseSecret("keyAlias")
+        ?: System.getenv("LUNARA_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() }
+val releaseKeyPassword =
+    releaseSecret("KEY_PASSWORD")
+        ?: releaseSecret("keyPassword")
+        ?: System.getenv("LUNARA_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("RELEASE_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+val debugKeyAlias = System.getenv("LUNARA_DEBUG_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "androiddebugkey"
+val debugKeyPassword = System.getenv("LUNARA_DEBUG_KEY_PASSWORD")?.takeIf { it.isNotBlank() } ?: "android"
+val persistentDebugKeystoreFile = file("persistent-debug.keystore")
+val workflowDebugKeystoreFile = debugKeystorePathOverride?.let(::file)
+
+plugins {
+    id("com.android.application")
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+android {
+    namespace = "com.lunara.app"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = applicationIdOverride ?: baseApplicationId
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 47
+        versionName = "3.17.6"
+        resValue("string", "app_name", appNameOverride ?: "Lunara")
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables.useSupportLibrary = true
+
+        // Intel/AMD too: without them the APK will not install on Waydroid, most Android
+        // emulators, or x86 tablets and TV boxes that have no ARM translation. The only
+        // native code is two small AndroidX libraries, so each one adds about 20 KB.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
+
+        buildConfigField("String", "ARCHITECTURE", "\"universal\"")
+    }
+
+    flavorDimensions += listOf("variant")
+    productFlavors {
+        // FOSS - no gcast. The updater is on: it was off while it pointed at the
+        // repository this project was forked from, where a "new version" was
+        // somebody else's app. It reads this project's own releases now, and
+        // this is the build people are handed directly, so it is also the build
+        // that most needs to be able to tell them a new one exists.
+        create("foss") {
+            dimension = "variant"
+            isDefault = true
+            buildConfigField("Boolean", "CAST_AVAILABLE", "false")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "true")
+        }
+
+        // GMS - Updater and gcast
+        create("gms") {
+            dimension = "variant"
+            buildConfigField("Boolean", "CAST_AVAILABLE", "true")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "true")
+        }
+
+        // IzzyOnDroid - no gcast, no updater - the ONLY F-droid compliant build
+        create("izzy") {
+            dimension = "variant"
+            buildConfigField("Boolean", "CAST_AVAILABLE", "false")
+            buildConfigField("Boolean", "UPDATER_AVAILABLE", "false")
+        }
+    }
+
+    signingConfigs {
+        create("persistentDebug") {
+            storeFile = persistentDebugKeystoreFile
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("workflowDebug") {
+            storeFile = workflowDebugKeystoreFile ?: persistentDebugKeystoreFile
+            storePassword = debugKeystorePassword
+            keyAlias = debugKeyAlias
+            keyPassword = debugKeyPassword
+        }
+        create("release") {
+            storeFile = releaseKeystoreFile
+            // From the environment, local.properties, or keystore.properties
+            // for a machine where exporting variables before every build is a
+            // chore.
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storePassword = "android"
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+        }
+    }
+
+    buildTypes {
+        release {
+            // AGP stamps the git commit into META-INF/version-control-info.textproto,
+            // which makes the APK depend on how the source arrived rather than
+            // what is in it. A build from a worktree, a tarball or a zip writes
+            // an error stub there instead of the revision, and reproducible
+            // build verification fails on that one file while all 1004 others
+            // match. Nothing here reads it, so it is not written.
+            vcsInfo {
+                include = false
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isCrunchPngs = false
+            isDebuggable = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // Sign with the real release keystore when present; otherwise fall back
+            // to the local debug keystore so optimized builds can be sideloaded.
+            // The keystore alone is not enough — without its passwords the
+            // release config cannot sign, and the build used to fail outright
+            // rather than fall back. A keystore you have no credentials for is
+            // the same situation as not having one.
+            signingConfig =
+                if (releaseKeystoreFile.exists() && releaseStorePassword != null) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
+        }
+        debug {
+            if (applicationIdOverride == null) {
+                applicationIdSuffix = ".debug"
+            }
+            isDebuggable = true
+            if (appNameOverride == null) {
+                resValue("string", "app_name", "Lunara Debug")
+            }
+            signingConfig =
+                if (workflowDebugKeystoreFile != null) {
+                    signingConfigs.getByName("workflowDebug")
+                } else if (persistentDebugKeystoreFile.exists()) {
+                    signingConfigs.getByName("persistentDebug")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
+        }
+    }
+
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    kotlin {
+        jvmToolchain(21)
+        compilerOptions {
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+        resValues = true
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    lint {
+        lintConfig = file("lint.xml")
+        warningsAsErrors = false
+        abortOnError = false
+        checkDependencies = false
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+            keepDebugSymbols +=
+                listOf(
+                    "**/libandroidx.graphics.path.so",
+                    "**/libdatastore_shared_counter.so",
+                )
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/CONTRIBUTORS.md"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
+        }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=kotlin.RequiresOptIn",
+        )
+        suppressWarnings.set(false)
+    }
+}
+
+// Android provides org.json as a platform API (/apex/com.android.art/javalib/core-libart.jar).
+// The standalone org.json:json artefact bundles an older Apache Harmony copy of JSONArray that
+// contains an internal `myArrayList` field absent from the platform class.  Without obfuscation
+// R8 inlines against this internal field; at runtime the platform class is resolved instead,
+// producing a NoSuchFieldError.  Excluding the artefact globally ensures only the platform
+// class is ever referenced.
+configurations.configureEach {
+    exclude(group = "org.json", module = "json")
+}
+
+dependencies {
+    implementation(libs.guava)
+    implementation(libs.coroutines.guava)
+    implementation(libs.concurrent.futures)
+
+    implementation(libs.activity)
+    implementation(libs.hilt.navigation)
+    implementation(libs.datastore)
+
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.util)
+    implementation(libs.compose.ui.tooling)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.reorderable)
+
+    implementation(libs.viewmodel)
+    implementation(libs.viewmodel.compose)
+    implementation(libs.lifecycle.process)
+
+    implementation(libs.material3)
+    implementation(libs.palette)
+    implementation(libs.materialKolor)
+
+    implementation(libs.appcompat)
+
+    implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.browser)
+
+    implementation(libs.ucrop)
+
+    implementation(libs.shimmer)
+
+    implementation(libs.media3)
+    implementation(libs.media3.session)
+    // Live broadcasts are served as a playlist of segments rather than one file.
+    implementation(libs.media3.hls)
+    implementation(libs.media3.okhttp)
+
+    // Google Cast - only included in GMS flavor (not available in F-Droid/FOSS builds)
+    "gmsImplementation"(libs.media3.cast)
+    "gmsImplementation"(libs.mediarouter)
+    "gmsImplementation"(libs.cast.framework)
+
+    implementation(libs.room.runtime)
+    implementation(libs.kuromoji.ipadic)
+    implementation(libs.tinypinyin)
+    ksp(libs.room.compiler)
+    implementation(libs.room.ktx)
+
+    implementation(libs.apache.lang3)
+
+    implementation(libs.hilt)
+    implementation(libs.jsoup)
+    ksp(libs.hilt.compiler)
+
+    implementation(project(":innertube"))
+    implementation(project(":kugou"))
+    implementation(project(":lrclib"))
+    implementation(project(":betterlyrics"))
+    implementation(project(":shazamkit"))
+    implementation(project(":paxsenix"))
+
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.client.encoding)
+    implementation(libs.ktor.serialization.json)
+
+    coreLibraryDesugaring(libs.desugaring)
+
+    implementation(libs.timber)
+
+    testImplementation(libs.junit)
+    // Turns a shared playlist's link into the square people point a camera at.
+    implementation(libs.zxing.core)
+
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.ktor.client.mock)
+}

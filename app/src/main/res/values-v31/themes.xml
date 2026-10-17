@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Android 12+ splash screen (light / day).
+        Set windowSplashScreenAnimatedIcon to transparent so no cut/half logo is shown before loading.
+        Compose's LunaraSplash handles the smooth branded entrance.
+    -->
+    <style name="Theme.Lunara" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/lunara_background</item>
+        <item name="android:navigationBarColor">@color/lunara_background</item>
+        <item name="android:windowSplashScreenBackground">@color/lunara_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/lunara_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <!-- Light splash background, so the status-bar icons must be dark. -->
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

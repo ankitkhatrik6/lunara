@@ -1,0 +1,31 @@
+name: Deploy landing site
+
+# The landing page at lunara.ankitak.com.np lives in site/ and is hosted on Vercel.
+# It deploys when a release is published (so the "Get it" link and version are always live),
+# and can be triggered by hand from the Actions tab after editing the page.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        # The Vercel project is wired to this repo through these secrets; no vercel.json build
+        # step is needed because the site is static. Working directory is site/ so only the
+        # landing page and its assets are uploaded.
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: ${{ github.event_name == 'release' && '--prod' || '' }}
+          working-directory: ./site

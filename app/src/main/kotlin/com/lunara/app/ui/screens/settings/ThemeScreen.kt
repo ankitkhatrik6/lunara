@@ -1,0 +1,1070 @@
+package com.lunara.app.ui.screens.settings
+
+import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.materialkolor.PaletteStyle
+import com.materialkolor.rememberDynamicColorScheme
+import coil3.compose.AsyncImage
+import com.lunara.app.LocalPlayerConnection
+import com.lunara.app.R
+import com.lunara.app.ui.component.ColorPickerDialog
+import com.lunara.app.models.MediaMetadata
+import kotlinx.coroutines.flow.MutableStateFlow
+import com.lunara.app.constants.DefaultOpenTabKey
+import com.lunara.app.constants.MiniPlayerBackgroundStyle
+import com.lunara.app.constants.MiniPlayerBackgroundStyleKey
+import com.lunara.app.constants.MiniPlayerDesignKey
+import com.lunara.app.constants.NavBarStyle
+import com.lunara.app.constants.NavBarStyleKey
+import com.lunara.app.constants.SlimNavBarKey
+import com.lunara.app.constants.UseNewMiniPlayerDesignKey
+import com.lunara.app.ui.player.MiniPlayerDesign
+import com.lunara.app.ui.theme.LunaraThemeColor
+import com.lunara.app.ui.theme.SpotifyLikedSongsPurple
+import com.lunara.app.ui.theme.DefaultThemeColor
+import com.lunara.app.ui.theme.LunaraTheme
+import com.lunara.app.utils.rememberEnumPreference
+import com.lunara.app.utils.rememberPreference
+
+data class ThemePalette(
+    val nameRes: Int,
+    val seedColor: Color
+)
+
+val PaletteColors = listOf(
+    ThemePalette(R.string.palette_dynamic, Color.Transparent), // Sentinel for System/Dynamic colors
+    ThemePalette(R.string.palette_default, LunaraThemeColor), // Lunara brand color (default)
+    ThemePalette(R.string.palette_crimson, Color(0xFFEC5464)), // Slightly shifted from DefaultThemeColor (0xFFED5564) to avoid conflict
+    ThemePalette(R.string.palette_rose, Color(0xFFD81B60)),
+    ThemePalette(R.string.palette_purple, Color(0xFF8E24AA)),
+    ThemePalette(R.string.palette_deep_purple, Color(0xFF5E35B1)),
+    ThemePalette(R.string.palette_indigo, Color(0xFF3949AB)),
+    ThemePalette(R.string.palette_blue, Color(0xFF1E88E5)),
+    ThemePalette(R.string.palette_sky_blue, Color(0xFF039BE5)),
+    ThemePalette(R.string.palette_cyan, Color(0xFF00ACC1)),
+    ThemePalette(R.string.palette_teal, Color(0xFF00897B)),
+    ThemePalette(R.string.palette_green, Color(0xFF43A047)),
+    ThemePalette(R.string.palette_light_green, Color(0xFF7CB342)),
+    ThemePalette(R.string.palette_lime, Color(0xFFC0CA33)),
+    ThemePalette(R.string.palette_yellow, Color(0xFFFDD835)),
+    ThemePalette(R.string.palette_amber, Color(0xFFFFB300)),
+    ThemePalette(R.string.palette_orange, Color(0xFFFB8C00)),
+    ThemePalette(R.string.palette_deep_orange, Color(0xFFF4511E)),
+    ThemePalette(R.string.palette_brown, Color(0xFF6D4C41)),
+    ThemePalette(R.string.palette_grey, Color(0xFF757575)),
+    ThemePalette(R.string.palette_blue_grey, Color(0xFF546E7A)),
+)
+
+@Composable
+fun ThemeControls(
+    darkMode: DarkMode,
+    onDarkModeChange: (DarkMode) -> Unit,
+    pureBlack: Boolean,
+    onPureBlackChange: (Boolean) -> Unit,
+    selectedThemeColor: Color,
+    onSelectedThemeColorChange: (Color) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.theme_mode),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // System mode (AUTO)
+                    ModeCircle(
+                        darkMode = darkMode,
+                        pureBlack = pureBlack,
+                        targetMode = DarkMode.AUTO,
+                        targetPureBlack = pureBlack,
+                        onClick = {
+                            onDarkModeChange(DarkMode.AUTO)
+                        },
+                        showIcon = true
+                    )
+                    
+                    // Vertical divider to separate System from manual modes
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(32.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    
+                    // Manual modes (Light, Dark, Pure Black)
+                    ModeCircle(
+                        darkMode = darkMode,
+                        pureBlack = pureBlack,
+                        targetMode = DarkMode.OFF,
+                        targetPureBlack = false,
+                        onClick = {
+                            onDarkModeChange(DarkMode.OFF)
+                            onPureBlackChange(false)
+                        },
+                        showIcon = false
+                    )
+                    
+                    ModeCircle(
+                        darkMode = darkMode,
+                        pureBlack = pureBlack,
+                        targetMode = DarkMode.ON,
+                        targetPureBlack = false,
+                        onClick = {
+                            onDarkModeChange(DarkMode.ON)
+                            onPureBlackChange(false)
+                        },
+                        showIcon = false
+                    )
+                    
+                    ModeCircle(
+                        darkMode = darkMode,
+                        pureBlack = pureBlack,
+                        targetMode = DarkMode.ON,
+                        targetPureBlack = true,
+                        onClick = {
+                            onDarkModeChange(DarkMode.ON)
+                            onPureBlackChange(true)
+                        },
+                        showIcon = false
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.color_palette),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                // A colour the user mixed themselves matches no preset, so the row
+                // needs its own swatch to show it as the active choice.
+                val isCustomColor = selectedThemeColor != DefaultThemeColor &&
+                    PaletteColors.none { it.seedColor == selectedThemeColor }
+                var showColorPicker by rememberSaveable { mutableStateOf(false) }
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    items(PaletteColors) { palette ->
+                        val isDynamicPalette = palette.seedColor == Color.Transparent
+                        val isSelected = if (isDynamicPalette) {
+                            selectedThemeColor == DefaultThemeColor
+                        } else {
+                            selectedThemeColor == palette.seedColor
+                        }
+
+                        PaletteItem(
+                            palette = palette,
+                            isSelected = isSelected,
+                            onClick = {
+                                val colorToSave = if (isDynamicPalette) DefaultThemeColor else palette.seedColor
+                                onSelectedThemeColorChange(colorToSave)
+                            }
+                        )
+                    }
+                    item {
+                        CustomPaletteItem(
+                            currentColor = selectedThemeColor,
+                            isSelected = isCustomColor,
+                            onClick = { showColorPicker = true },
+                        )
+                    }
+                }
+
+                if (showColorPicker) {
+                    ColorPickerDialog(
+                        initialColor = if (isCustomColor) selectedThemeColor else LunaraThemeColor,
+                        onDismiss = { showColorPicker = false },
+                        onConfirm = { picked ->
+                            // DefaultThemeColor is the sentinel that switches theming
+                            // back to dynamic, so a custom pick must never land on it.
+                            val safe = if (picked == DefaultThemeColor) {
+                                Color(picked.toArgb() xor 0x00000001)
+                            } else {
+                                picked
+                            }
+                            onSelectedThemeColorChange(safe)
+                            showColorPicker = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModeCircle(
+    darkMode: DarkMode,
+    pureBlack: Boolean,
+    targetMode: DarkMode,
+    targetPureBlack: Boolean,
+    showIcon: Boolean,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val isSystemDark = isSystemInDarkTheme()
+    val isSelected = darkMode == targetMode && pureBlack == targetPureBlack
+    
+    val effectiveDark = when (targetMode) {
+        DarkMode.AUTO -> isSystemDark
+        DarkMode.ON -> true
+        DarkMode.OFF -> false
+    }
+    
+    // Use actual system colors for AUTO mode on Android 12+
+    val modeColorScheme = if (targetMode == DarkMode.AUTO && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (effectiveDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        rememberDynamicColorScheme(
+            seedColor = DefaultThemeColor,
+            isDark = effectiveDark,
+            style = PaletteStyle.TonalSpot
+        )
+    }
+    
+    val fillColor = when {
+        targetPureBlack -> Color.Black
+        effectiveDark -> modeColorScheme.surface
+        else -> modeColorScheme.surface
+    }
+    
+    // Animated border width
+    val borderWidth by animateDpAsState(
+        targetValue = if (isSelected) 3.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "borderWidth"
+    )
+    
+    // Animated scale for the entire circle
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.05f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "scale"
+    )
+    
+    val interactionSource = remember { MutableInteractionSource() }
+    
+    val contentDesc = when {
+        targetPureBlack -> stringResource(R.string.cd_pure_black_mode)
+        targetMode == DarkMode.OFF -> stringResource(R.string.cd_light_mode)
+        targetMode == DarkMode.ON -> stringResource(R.string.cd_dark_mode)
+        else -> stringResource(R.string.cd_system_mode)
+    }
+    
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .background(fillColor)
+            .then(
+                if (borderWidth > 0.dp) {
+                    Modifier.border(
+                        width = borderWidth,
+                        color = MaterialTheme.colorScheme.inversePrimary,
+                        shape = CircleShape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = onClick
+            )
+            .semantics {
+                contentDescription = contentDesc
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            showIcon -> {
+                Icon(
+                    painter = painterResource(R.drawable.sync),
+                    contentDescription = null,
+                    tint = modeColorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            isSelected -> {
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = fadeIn(animationSpec = tween(300)) + scaleIn(
+                        initialScale = 0.3f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        )
+                    ),
+                    exit = fadeOut(animationSpec = tween(150)) + scaleOut(
+                        targetScale = 0.3f,
+                        animationSpec = tween(150)
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.check),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.inversePrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaletteItem(
+    palette: ThemePalette,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val isSystemDark = isSystemInDarkTheme()
+    
+    val colorScheme = rememberDynamicColorScheme(
+        seedColor = palette.seedColor,
+        isDark = isSystemDark,
+        style = PaletteStyle.TonalSpot
+    )
+    
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isSelected) 48.dp * 0.25f else 24.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "cornerRadius"
+    )
+    
+    val borderWidth by animateDpAsState(
+        targetValue = if (isSelected) 3.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "borderWidth"
+    )
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.08f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "scale"
+    )
+    
+    val shape = RoundedCornerShape(cornerRadius)
+    val interactionSource = remember { MutableInteractionSource() }
+    
+    val paletteName = stringResource(palette.nameRes)
+    val contentDesc = stringResource(R.string.cd_palette_item, paletteName)
+    
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .then(
+                if (borderWidth > 0.dp) {
+                    Modifier.border(
+                        width = borderWidth,
+                        color = MaterialTheme.colorScheme.inversePrimary,
+                        shape = shape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = onClick
+            )
+            .semantics {
+                contentDescription = contentDesc
+            }
+    ) {
+        if (palette.seedColor == Color.Transparent) {
+            // Draw Dynamic/System icon using Material Design icon
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.palette),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        } else {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val width = size.width
+                val height = size.height
+                
+                drawRect(
+                    color = colorScheme.onPrimary,
+                    topLeft = Offset(0f, 0f),
+                    size = Size(width, height / 2)
+                )
+                
+                drawRect(
+                    color = colorScheme.secondary,
+                    topLeft = Offset(0f, height / 2),
+                    size = Size(width / 2, height / 2)
+                )
+                
+                drawRect(
+                    color = colorScheme.tertiary,
+                    topLeft = Offset(width / 2, height / 2),
+                    size = Size(width / 2, height / 2)
+                )
+            }
+        }
+    }
+}
+
+/** The size a phone mock-up is laid out at before being scaled down to fit. */
+internal val MockPhoneWidth = 300.dp
+
+/**
+ * The width the home, lyrics and mini-player mock-ups are drawn for. Below this they are scaled
+ * rather than squeezed, which used to clip their titles and rows.
+ */
+internal val SmallMockWidth = 200.dp
+internal val MockPhoneHeight = MockPhoneWidth * 19.3f / 9f
+
+/**
+ * A phone mock-up of the given height.
+ *
+ * [baseWidth] is the width the screen inside was drawn for. Give it for a mock-up whose parts are
+ * sized for a full phone (the player previews): it is then laid out at that size and the whole
+ * thing scaled down, keeping its proportions. Leave it out for the mock-ups that draw themselves
+ * to whatever size they are given — scaling those would only make their text smaller.
+ */
+@Composable
+internal fun ThemePhoneMock(
+    height: Dp,
+    modifier: Modifier = Modifier,
+    baseWidth: Dp? = null,
+    content: @Composable () -> Unit,
+) {
+    if (baseWidth == null) {
+        ThemePhoneFrame(modifier = modifier.height(height)) { content() }
+        return
+    }
+    val baseHeight = baseWidth * 19.3f / 9f
+    val scale = (height / baseHeight).coerceIn(0.15f, 1f)
+    Box(
+        modifier = modifier.size(baseWidth * scale, baseHeight * scale),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .requiredSize(baseWidth, baseHeight)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+        ) {
+            ThemePhoneFrame(modifier = Modifier.fillMaxSize()) { content() }
+        }
+    }
+}
+
+/** Metallic phone bezel with a soft drop shadow — same look as the player-theme screen. */
+@Composable
+internal fun ThemePhoneFrame(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    BoxWithConstraints(modifier = modifier.aspectRatio(9f / 19.3f)) {
+        // Everything about the bezel is a share of the phone's width, so a small mock-up looks
+        // like the same phone shrunk rather than a rounded pill with a fixed 38dp corner.
+        val width = maxWidth
+        val frameShape = RoundedCornerShape(width * 0.115f)
+        val bezel = width * 0.018f
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .shadow(
+                    elevation = width * 0.07f,
+                    shape = frameShape,
+                    clip = false,
+                    ambientColor = Color.White.copy(alpha = 0.30f),
+                    spotColor = Color.White.copy(alpha = 0.50f),
+                )
+                .clip(frameShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF44454A), Color(0xFF26272B), Color(0xFF1A1B1E)),
+                    ),
+                )
+                .border(
+                    width = (width * 0.0045f).coerceAtLeast(0.7.dp),
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.10f),
+                            Color.White.copy(alpha = 0.28f),
+                        ),
+                    ),
+                    shape = frameShape,
+                )
+                .padding(bezel)
+                .clip(RoundedCornerShape(width * 0.097f)),
+        ) {
+            content()
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = width * 0.018f)
+                    .size(width = width * 0.11f, height = width * 0.012f)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.14f)),
+            )
+        }
+    }
+}
+
+/** A realistic mini Lunara home rendered with the chosen theme, so changes preview live. */
+@Composable
+internal fun ThemePhonePreview(
+    darkMode: DarkMode,
+    pureBlack: Boolean,
+    themeColor: Color,
+) {
+    val isSystemDark = isSystemInDarkTheme()
+    val useDark = when (darkMode) {
+        DarkMode.AUTO -> isSystemDark
+        DarkMode.ON -> true
+        DarkMode.OFF -> false
+    }
+    // Reflect the chosen mini-player design + background in the preview.
+    val (miniDesignId) = rememberPreference(MiniPlayerDesignKey, defaultValue = "")
+    val (useNewMini) = rememberPreference(UseNewMiniPlayerDesignKey, defaultValue = true)
+    val miniDesign = remember(miniDesignId, useNewMini) {
+        if (miniDesignId.isBlank()) {
+            if (useNewMini) MiniPlayerDesign.MODERN else MiniPlayerDesign.FLAT
+        } else {
+            MiniPlayerDesign.fromId(miniDesignId)
+        }
+    }
+    val (miniBgStyle) = rememberEnumPreference(MiniPlayerBackgroundStyleKey, MiniPlayerBackgroundStyle.GRADIENT)
+    // Reflect the home-layout settings too, so the preview updates when they change.
+    val (defaultTab) = rememberEnumPreference(DefaultOpenTabKey, NavigationTab.HOME)
+    val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
+    val (navStyle) = rememberEnumPreference(NavBarStyleKey, NavBarStyle.PILL)
+    LunaraTheme(darkTheme = useDark, pureBlack = pureBlack, themeColor = themeColor) {
+        val cs = MaterialTheme.colorScheme
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(cs.background)
+                .padding(horizontal = 10.dp, vertical = 14.dp),
+        ) {
+            // Header: logo + wordmark · settings (real icons). No account chip —
+            // the account section was removed from the app, so the preview no
+            // longer shows one either.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Image(
+                        painter = painterResource(if (useDark) R.drawable.lunara_logo_white else R.drawable.lunara_logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text("Lunara", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
+                }
+                Icon(painterResource(R.drawable.settings), null, tint = cs.onSurface.copy(alpha = 0.75f), modifier = Modifier.size(13.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            // Quick-access grid — the real home's top cards (Liked songs, For You,
+            // Speed Dial, History) in a 2×2, exactly as the home opens.
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                val quickCards = listOf(
+                    listOf(
+                        Triple(R.drawable.favorite, SpotifyLikedSongsPurple, R.string.liked_songs),
+                        Triple(R.drawable.music_note, cs.primary, R.string.home_for_you),
+                    ),
+                    listOf(
+                        Triple(R.drawable.radio, Color(0xFF282828), R.string.speed_dial),
+                        Triple(R.drawable.history, Color(0xFF1E3264), R.string.history),
+                    ),
+                )
+                quickCards.forEach { rowCards ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        rowCards.forEach { (icon, badge, label) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(22.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(cs.surfaceContainerHigh),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .background(badge),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(painterResource(icon), null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                }
+                                Text(
+                                    stringResource(label),
+                                    color = cs.onSurface,
+                                    fontSize = 6.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 7.sp,
+                                    modifier = Modifier.padding(start = 4.dp, end = 3.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+            // Mood chips, like the real home — the rail runs past the screen edge and
+            // the last chip gets cut off, exactly like the real chips row.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState(), enabled = false),
+            ) {
+                listOf("Relax", "Energise", "Feel good", "Commute").forEach { label ->
+                    // Fixed thin height + explicit lineHeight — the inherited text
+                    // line-box was inflating these pills no matter the padding.
+                    Box(
+                        modifier = Modifier
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(cs.surfaceContainerHigh)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, fontSize = 5.5.sp, lineHeight = 6.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            // "Similar to <artist>" section header + arrow, mirroring the real home.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Small square artist avatar.
+                    Box(Modifier.size(11.dp).clip(RoundedCornerShape(2.dp)).background(cs.surfaceContainerHighest))
+                    Column {
+                        Text(stringResource(R.string.similar_to), fontSize = 4.5.sp, lineHeight = 5.sp, fontWeight = FontWeight.Bold, color = cs.primary)
+                        Text("Artist", fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
+                    }
+                }
+                Icon(painterResource(R.drawable.arrow_forward), null, tint = cs.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(11.dp))
+            }
+            Spacer(Modifier.height(7.dp))
+            // "Similar to" rail — album art tiles with a play button, like the real home.
+            val railArt = listOf(cs.secondaryContainer, cs.surfaceContainerHighest, cs.tertiaryContainer)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState(), enabled = false),
+            ) {
+                repeat(4) { i ->
+                    Box(modifier = Modifier.size(58.dp).clip(RoundedCornerShape(6.dp)).background(railArt[i % railArt.size]), contentAlignment = Alignment.Center) {
+                        // Lunara mark faintly on the art, so the tiles stay on-brand.
+                        Image(
+                            painter = painterResource(if (useDark) R.drawable.lunara_logo_white else R.drawable.lunara_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        // Play affordance, bottom-leading like the real home.
+                        Box(
+                            modifier = Modifier.align(Alignment.BottomStart).padding(5.dp).size(13.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(painterResource(R.drawable.play), null, tint = Color.White, modifier = Modifier.size(7.dp))
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            // "Mood and Genres" section header + arrow, mirroring the real home.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.width(3.dp).height(11.dp).clip(RoundedCornerShape(2.dp)).background(cs.primary))
+                    Text(stringResource(R.string.mood_and_genres), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
+                }
+                Icon(painterResource(R.drawable.arrow_forward), null, tint = cs.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(11.dp))
+            }
+            Spacer(Modifier.height(7.dp))
+            // Mood and Genres grid — 2×2 of flat tiles, like the real home.
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                listOf(listOf("Chill", "Focus"), listOf("Commute", "Gaming")).forEach { rowLabels ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        rowLabels.forEach { label ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(24.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(cs.surfaceContainerHigh),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text(label, color = cs.onSurface, fontSize = 7.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            // Mini-player — REAL song art + title; shape/background reflect the design.
+            val pc = LocalPlayerConnection.current
+            val meta by (pc?.mediaMetadata ?: remember { MutableStateFlow<MediaMetadata?>(null) }).collectAsState()
+            val isFloating = miniDesign == MiniPlayerDesign.FLOATING
+            val isFlat = miniDesign == MiniPlayerDesign.FLAT
+            val miniShape = when {
+                isFlat -> RoundedCornerShape(6.dp)
+                isFloating -> RoundedCornerShape(12.dp)
+                else -> RoundedCornerShape(50)
+            }
+            val miniArtShape = if (isFlat) RoundedCornerShape(5.dp) else CircleShape
+            val onMini = when (miniBgStyle) {
+                MiniPlayerBackgroundStyle.GRADIENT -> cs.onPrimary
+                MiniPlayerBackgroundStyle.PURE_BLACK -> Color.White
+                else -> cs.onSurface
+            }
+            val miniBackground: Modifier = when (miniBgStyle) {
+                MiniPlayerBackgroundStyle.GRADIENT ->
+                    Modifier.background(Brush.horizontalGradient(listOf(cs.primary, cs.primary.copy(alpha = 0.72f))))
+                MiniPlayerBackgroundStyle.PURE_BLACK -> Modifier.background(Color.Black)
+                MiniPlayerBackgroundStyle.BLUR -> Modifier.background(cs.surfaceVariant)
+                else -> Modifier.background(cs.surfaceContainerHighest)
+            }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (isFloating) 0.94f else 1f)
+                        .then(if (isFloating) Modifier.shadow(4.dp, miniShape, clip = false) else Modifier)
+                        .height(34.dp)
+                        .clip(miniShape)
+                        .then(miniBackground)
+                        .then(if (isFlat) Modifier else Modifier.border(0.6.dp, onMini.copy(alpha = 0.25f), miniShape)),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 5.dp)) {
+                        // The real mini-player wraps the round art in a progress ring;
+                        // only the flat design keeps a plain square thumbnail.
+                        val ringColor = if (miniBgStyle == MiniPlayerBackgroundStyle.GRADIENT) onMini else cs.primary
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(if (isFlat) 23.dp else 26.dp)
+                                .then(
+                                    if (isFlat) {
+                                        Modifier
+                                    } else {
+                                        Modifier.drawWithContent {
+                                            drawContent()
+                                            val stroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+                                            val inset = stroke.width / 2
+                                            val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
+                                            drawArc(onMini.copy(alpha = 0.2f), 0f, 360f, false, Offset(inset, inset), arcSize, style = stroke)
+                                            drawArc(ringColor, -90f, 360f * 0.35f, false, Offset(inset, inset), arcSize, style = stroke)
+                                        }
+                                    },
+                                ),
+                        ) {
+                            Box(Modifier.size(if (isFlat) 23.dp else 21.dp).clip(miniArtShape)) {
+                                val url = meta?.thumbnailUrl
+                                if (url != null) {
+                                    AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                } else {
+                                    Box(Modifier.fillMaxSize().background(onMini.copy(alpha = 0.85f)))
+                                }
+                            }
+                        }
+                        Spacer(Modifier.width(7.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            // Explicit lineHeights: the inherited tall line-boxes pushed the
+                            // artist line out of the 34dp bar's clip, so it never showed.
+                            Text(meta?.title ?: "Song title", color = onMini, fontSize = 7.sp, fontWeight = FontWeight.Bold, lineHeight = 7.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                meta?.artists?.joinToString { it.name }?.takeIf { it.isNotBlank() } ?: "Artist",
+                                color = onMini.copy(alpha = 0.7f), fontSize = 5.5.sp, lineHeight = 6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(Modifier.width(5.dp))
+                        when (miniDesign) {
+                            MiniPlayerDesign.ROUNDED -> {
+                                Icon(painterResource(R.drawable.skip_previous), null, tint = onMini, modifier = Modifier.size(10.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Box(Modifier.size(15.dp).clip(CircleShape).background(onMini), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painterResource(R.drawable.play), null,
+                                        tint = if (miniBgStyle == MiniPlayerBackgroundStyle.GRADIENT) cs.primary else cs.surface,
+                                        modifier = Modifier.size(9.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(2.dp))
+                                Icon(painterResource(R.drawable.skip_next), null, tint = onMini, modifier = Modifier.size(10.dp))
+                            }
+                            MiniPlayerDesign.FLAT ->
+                                Icon(painterResource(R.drawable.favorite_border), null, tint = onMini, modifier = Modifier.size(11.dp))
+                            else -> {
+                                // Follow artist · add to playlist · like, each in an outlined circle.
+                                listOf(R.drawable.person, R.drawable.add, R.drawable.favorite_border).forEachIndexed { i, icon ->
+                                    if (i > 0) Spacer(Modifier.width(3.dp))
+                                    Box(
+                                        modifier = Modifier.size(18.dp).border(0.6.dp, onMini.copy(alpha = 0.3f), CircleShape),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(painterResource(icon), null, tint = onMini.copy(alpha = 0.75f), modifier = Modifier.size(9.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(if (slimNav) 7.dp else 9.dp))
+            // Bottom nav — real tab icons; the default-open tab is highlighted; slim
+            // hides the labels and tightens the row.
+            val navItems = listOf(
+                NavigationTab.HOME to R.drawable.home_filled,
+                NavigationTab.SEARCH to R.drawable.search,
+                null to R.drawable.grid_view,
+                NavigationTab.LIBRARY to R.drawable.library_music_outlined,
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
+                navItems.forEach { (tab, iconRes) ->
+                    val active = tab != null && tab == defaultTab
+                    val tint = if (active) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.55f)
+                    // Mirror the chosen navigation bar style so the preview matches.
+                    val activeShape = RoundedCornerShape(5.dp)
+                    val highlight: Modifier = when {
+                        !active -> Modifier
+                        navStyle == NavBarStyle.PILL ->
+                            Modifier.clip(RoundedCornerShape(50)).background(cs.primary.copy(alpha = 0.22f))
+                        navStyle == NavBarStyle.GRADIENT ->
+                            Modifier.clip(activeShape).background(
+                                Brush.horizontalGradient(listOf(cs.primary, cs.tertiary)),
+                            )
+                        navStyle == NavBarStyle.OUTLINED ->
+                            Modifier.clip(activeShape).background(cs.primary.copy(alpha = 0.14f))
+                        else -> Modifier
+                    }
+                    val iconTint = if (active && navStyle == NavBarStyle.GRADIENT) cs.onPrimary else tint
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Box(
+                            modifier = highlight.padding(
+                                horizontal = if (active && navStyle != NavBarStyle.UNDERLINE) 5.dp else 0.dp,
+                                vertical = if (active && navStyle != NavBarStyle.UNDERLINE) 2.dp else 0.dp,
+                            ),
+                        ) {
+                            Icon(
+                                painter = painterResource(iconRes),
+                                contentDescription = null,
+                                tint = iconTint,
+                                modifier = Modifier.size(if (slimNav) 11.dp else 13.dp),
+                            )
+                        }
+                        if (!slimNav && navStyle != NavBarStyle.GRADIENT) {
+                            Box(Modifier.width(12.dp).height(2.5.dp).clip(RoundedCornerShape(2.dp)).background(tint.copy(alpha = if (active) 1f else 0.5f)))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Trailing swatch that opens the free colour picker. Shows the user's own colour
+ * once they have one, and a hue wheel as an invitation before that.
+ */
+@Composable
+fun CustomPaletteItem(
+    currentColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isSelected) 48.dp * 0.25f else 24.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "customCorner",
+    )
+    val borderWidth by animateDpAsState(
+        targetValue = if (isSelected) 3.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "customBorder",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.08f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "customScale",
+    )
+    val shape = RoundedCornerShape(cornerRadius)
+    val hueWheel = remember {
+        Brush.sweepGradient((0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf(it * 60f, 1f, 1f))) })
+    }
+
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(shape)
+            .then(
+                if (borderWidth > 0.dp) {
+                    Modifier.border(borderWidth, MaterialTheme.colorScheme.inversePrimary, shape)
+                } else {
+                    Modifier
+                }
+            )
+            .background(if (isSelected) SolidColor(currentColor) else hueWheel)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.palette),
+            contentDescription = stringResource(R.string.custom_color),
+            tint = if (isSelected) {
+                if (currentColor.luminance() > 0.5f) Color.Black else Color.White
+            } else {
+                Color.White
+            },
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
