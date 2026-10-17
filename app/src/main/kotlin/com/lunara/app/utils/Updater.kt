@@ -53,7 +53,7 @@ object Updater {
      * that has never carried a Lunara build, so on a fresh install the check
      * could only ever fail.
      */
-    private const val RELEASES_API = "https://api.github.com/repos/ankitkhatrik6/lunara-releases"
+    private const val RELEASES_API = "https://api.github.com/repos/ankitkhatrik6/Lunara"
 
     private fun releasesApi(): String = RELEASES_API
 
